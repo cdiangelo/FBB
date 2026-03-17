@@ -727,10 +727,13 @@ function showDecisionTask(scenario, badge) {
   // Options in scrollable area
   const optionsHtml = `${badgeHtml}<div class="option-group">${scenario.options.map((opt, i) => {
     const satHtml = opt.effect.satisfaction ? `<span class="option-sat">${opt.effect.satisfaction > 0 ? '+' : ''}${opt.effect.satisfaction} satisfaction</span>` : '';
-    return `<button class="option-btn" onclick="selectOption(${i})">
+    const cost = engine.getOptionCost(opt);
+    const affordable = engine.canAfford(opt);
+    const costHtml = cost > 0 ? `<span class="option-cost ${affordable ? '' : 'option-cost-blocked'}">${affordable ? '' : '⚠ '}$${cost.toLocaleString()}${affordable ? '' : ' — not enough $'}</span>` : '';
+    return `<button class="option-btn${affordable ? '' : ' option-unaffordable'}" onclick="selectOption(${i})">
       <span class="option-key">${String.fromCharCode(65 + i)}</span>
       <span class="option-text">
-        <span class="option-label">${opt.label}</span>
+        <span class="option-label">${opt.label}${costHtml ? ' ' + costHtml : ''}</span>
         <span class="option-detail">${opt.detail}</span>
         ${satHtml}
       </span>
@@ -1061,6 +1064,14 @@ function reanimateScroll() {
 function selectOption(index) {
   const scenario = currentScenario.scenario;
   const option = scenario.options[index];
+
+  // Affordability gate: block if insufficient funds
+  if (!engine.canAfford(option)) {
+    const cost = engine.getOptionCost(option);
+    const available = engine.getAvailableFunds();
+    showNotification(`Not enough $ — need $${cost.toLocaleString()} but only $${available.toLocaleString()} available (cash + credit).`);
+    return;
+  }
 
   engine.applyEffect(option.effect);
 

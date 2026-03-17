@@ -517,6 +517,28 @@ class GameEngine {
     this.creditCapacity = Math.round(100 * Math.max(0.2, 1 - this.financialRisk / 150));
   }
 
+  // ---- AFFORDABILITY CHECK ----
+  getAvailableFunds() {
+    // Available = current cash + remaining borrowing capacity
+    const maxBorrow = this._getMaxBorrowingCapacity();
+    const remainingCredit = Math.max(0, maxBorrow - this.debtStructure.totalDebt);
+    return this.state.money + remainingCredit;
+  }
+
+  getOptionCost(option) {
+    // Total outflow for an option: negative money effect + asset purchase value
+    let cost = 0;
+    if (option.effect && option.effect.money < 0) cost += Math.abs(option.effect.money);
+    if (option.assetPurchase) cost += option.assetPurchase.value;
+    return cost;
+  }
+
+  canAfford(option) {
+    const cost = this.getOptionCost(option);
+    if (cost <= 0) return true; // no cost = always affordable
+    return this.getAvailableFunds() >= cost;
+  }
+
   // ---- INVESTMENT & ASSET PORTFOLIO ----
   addAsset(asset) {
     // asset: { name, type, value, risk (0-100), returnRate (% annual) }

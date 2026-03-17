@@ -893,6 +893,11 @@ body {
 .option-btn .option-label { font-weight: 600; display: block; }
 .option-btn .option-detail { font-size: .78rem; color: var(--text-secondary); margin-top: 2px; display: block; }
 .option-btn .option-sat { font-size: .7rem; color: #e91e63; margin-top: 3px; display: block; }
+.option-btn .option-cost { font-size: .7rem; color: #FF8F00; font-weight: 700; }
+.option-btn .option-cost-blocked { color: #f44336; }
+.option-btn.option-unaffordable { opacity: .55; border-color: rgba(244,67,54,.3); }
+.option-btn.option-unaffordable:hover { border-color: rgba(244,67,54,.5); transform: none; }
+.option-btn.option-unaffordable .option-key { background: #666; }
 
 /* Life event badge */
 .life-event-badge {
