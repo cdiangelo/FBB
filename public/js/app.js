@@ -335,14 +335,15 @@ function updateStatusBar() {
 }
 
 function updateJourneyPanel() {
-  const levels = GAME_DATA.levels[engine.persona];
+  const levels = engine._getAllLevels();
   const currentLevel = engine.getLevel();
 
-  els.journeyMilestones.innerHTML = levels.map(level => {
+  els.journeyMilestones.innerHTML = levels.map((level, i) => {
     let cls = '';
+    const isEmpireTier = i >= GAME_DATA.levels[engine.persona].length;
     if (engine.totalScore >= level.minScore) cls = 'reached';
     if (level.name === currentLevel.name) cls = 'current';
-    return `<div class="milestone ${cls}"><div class="milestone-dot"></div><span>${level.name}</span></div>`;
+    return `<div class="milestone ${cls} ${isEmpireTier ? 'empire-tier' : ''}"><div class="milestone-dot"></div><span>${level.name}</span></div>`;
   }).join('');
 
   const currentIdx = levels.indexOf(currentLevel);
@@ -358,6 +359,7 @@ function updateJourneyPanel() {
     <div class="stat-row"><span>Knowledge</span><span class="stat-value">${engine.scores.knowledge}</span></div>
     ${debtService > 0 ? `<div class="stat-row"><span>Debt Service</span><span class="stat-value" style="color:#f44336">-$${debtService.toLocaleString()}/mo</span></div>` : ''}
     ${engine.debtStructure.equityGiven > 0 ? `<div class="stat-row"><span>Ownership</span><span class="stat-value">${100 - engine.debtStructure.equityGiven}%</span></div>` : ''}
+    ${engine.difficulty === 'hard' ? `<div class="stat-row"><span>Mode</span><span class="stat-value" style="color:#ff9800">Hard</span></div>` : ''}
     ${nextLevel ? `<div class="stat-row"><span>Next Level</span><span class="stat-value">${nextLevel.minScore - engine.totalScore} pts</span></div>` : ''}
   `;
 }
@@ -384,6 +386,33 @@ function updateCulturePanel() {
   const empSat = engine.employeeSatisfaction;
   const label = empSat > 80 ? 'Highly engaged' : empSat > 60 ? 'Satisfied' : empSat > 40 ? 'Disengaged' : 'At risk';
   els.empSat.innerHTML = `Team morale: <strong>${empSat}</strong>/100 — ${label}`;
+
+  // Legal exposure display (hard mode only)
+  const legalContainer = document.getElementById('legal-display');
+  if (legalContainer && engine.difficulty === 'hard') {
+    legalContainer.style.display = '';
+    const le = engine.legalExposure || 0;
+    const rs = engine.regulatoryStanding ?? 100;
+    const leColor = le > 60 ? '#d32f2f' : le > 30 ? '#ff9800' : '#4caf50';
+    const rsColor = rs < 40 ? '#d32f2f' : rs < 70 ? '#ff9800' : '#4caf50';
+    const leLabel = le > 70 ? 'Critical' : le > 40 ? 'Elevated' : le > 15 ? 'Moderate' : 'Low';
+    const rsLabel = rs > 80 ? 'Strong' : rs > 60 ? 'Adequate' : rs > 40 ? 'Strained' : 'Failing';
+    legalContainer.innerHTML = `
+      <h3>Risk & Compliance</h3>
+      <div class="legal-metric">
+        <span>Legal Exposure</span>
+        <div class="legal-bar"><div class="legal-bar-fill" style="width:${le}%;background:${leColor}"></div></div>
+        <span class="legal-value" style="color:${leColor}">${le} — ${leLabel}</span>
+      </div>
+      <div class="legal-metric">
+        <span>Regulatory Standing</span>
+        <div class="legal-bar"><div class="legal-bar-fill" style="width:${rs}%;background:${rsColor}"></div></div>
+        <span class="legal-value" style="color:${rsColor}">${rs} — ${rsLabel}</span>
+      </div>
+    `;
+  } else if (legalContainer) {
+    legalContainer.style.display = 'none';
+  }
 }
 
 function updateLogPanel() {
@@ -948,9 +977,9 @@ function showCelebration(type) {
   const is100 = type === 'complete';
 
   const icons = {
-    farmer: { '75': '🌾', '100': '🏆🌽' },
-    banker: { '75': '📊', '100': '🏆🏦' },
-    businessman: { '75': '🤝', '100': '🏆💼' }
+    farmer: { '75': '🌾', '100': '🏆🌽', 'empire': '🏗️🌾', 'monopoly': '👑🌽' },
+    banker: { '75': '📊', '100': '🏆🏦', 'empire': '🏗️🏦', 'monopoly': '👑💰' },
+    businessman: { '75': '🤝', '100': '🏆💼', 'empire': '🏗️💼', 'monopoly': '👑🏢' }
   };
 
   const titles75 = {
@@ -965,6 +994,18 @@ function showCelebration(type) {
     businessman: 'Founding Principal!'
   };
 
+  const titlesEmpire = {
+    farmer: 'National Commodity Baron!',
+    banker: 'Financial Holding CEO!',
+    businessman: 'Multi-Sector Magnate!'
+  };
+
+  const titlesMonopoly = {
+    farmer: 'Agricultural Monopolist!',
+    banker: 'Banking Empire Architect!',
+    businessman: 'Market Monopolist!'
+  };
+
   const details75 = {
     farmer: 'From a small family farm to directing agricultural operations. Your understanding of crops, markets, and land management has built something real.',
     banker: 'From junior analyst to VP. Your credit judgment, portfolio management, and regulatory navigation have built a trusted institution.',
@@ -977,10 +1018,35 @@ function showCelebration(type) {
     businessman: 'From your first networking event to a diversified portfolio of ventures, partnerships, and advisory relationships. The consultant became the founding principal.'
   };
 
-  const icon = is100 ? icons[persona]['100'] : icons[persona]['75'];
-  const title = is100 ? titles100[persona] : titles75[persona];
-  const detail = is100 ? details100[persona] : details75[persona];
-  const subtitle = is100 ? 'You\'ve reached the pinnacle!' : 'Major milestone achieved!';
+  const detailsEmpire = {
+    farmer: 'Your agricultural conglomerate now spans multiple regions. You control supply chains, set commodity prices, and shape industry policy. The question is no longer "can you grow?" but "should you?"',
+    banker: 'You\'ve built a financial holding company that moves markets. Regulators know your name. Competitors fear your reach. The responsibility matches the power.',
+    businessman: 'Your multi-sector portfolio generates wealth across industries. You don\'t just advise — you shape markets. Every decision ripples through the economy.'
+  };
+
+  const detailsMonopoly = {
+    farmer: 'You\'ve achieved market dominance. From a family farm hand to controlling agricultural markets at scale. The ethics of your empire, the regulations you\'ve navigated, and the competitors you\'ve outlasted tell the story of absolute ambition. What will your legacy be?',
+    banker: 'You\'ve architected a banking empire that defines the financial landscape. Every loan, every acquisition, every regulatory battle has led here. Absolute financial power — and the scrutiny that comes with it.',
+    businessman: 'Market monopolist. You\'ve consolidated an industry, outlasted every competitor, and built an empire from nothing. The line between visionary and villain depends on who\'s telling the story.'
+  };
+
+  let icon, title, detail, subtitle;
+  if (type === 'monopoly') {
+    icon = icons[persona]['monopoly'];
+    title = titlesMonopoly[persona];
+    detail = detailsMonopoly[persona];
+    subtitle = 'Total market dominance achieved.';
+  } else if (type === 'empire') {
+    icon = icons[persona]['empire'];
+    title = titlesEmpire[persona];
+    detail = detailsEmpire[persona];
+    subtitle = 'Empire tier unlocked.';
+  } else {
+    icon = is100 ? icons[persona]['100'] : icons[persona]['75'];
+    title = is100 ? titles100[persona] : titles75[persona];
+    detail = is100 ? details100[persona] : details75[persona];
+    subtitle = is100 ? 'You\'ve reached the pinnacle!' : 'Major milestone achieved!';
+  }
 
   els.celebrationContent.className = `celebration-content celebration-${persona} ${is100 ? 'celebration-100' : 'celebration-75'}`;
   els.celebrationContent.innerHTML = `

@@ -62,6 +62,10 @@ class ScenarioGenerator {
   }
 
   _generate(persona, day, category, state) {
+    // Empire-tier categories (hard mode only) — shared across personas
+    if (['empire', 'ethics', 'legal', 'consolidation'].includes(category)) {
+      return this.genEmpireTier(persona, category, day, state);
+    }
     switch (persona) {
       case 'farmer': return this.genFarmer(category, day, state);
       case 'banker': return this.genBanker(category, day, state);
@@ -127,6 +131,238 @@ class ScenarioGenerator {
     }
 
     return scenario;
+  }
+
+  // ============================================================
+  //  EMPIRE-TIER SCENARIOS (Hard Mode)
+  //  Regulations, consolidation, ethics, collusion, posturing
+  // ============================================================
+  genEmpireTier(persona, category, day, state) {
+    const gen = {
+      empire: () => this._empireManagement(persona, day, state),
+      ethics: () => this._ethicsScenario(persona, day, state),
+      legal: () => this._regulatoryPosturing(persona, day, state),
+      consolidation: () => this._consolidationScenario(persona, day, state)
+    };
+    return (gen[category] || gen.empire)();
+  }
+
+  _empireManagement(persona, day, state) {
+    const scenarios = {
+      farmer: [
+        () => {
+          const target = this.pick(['regional grain elevator chain', 'competing seed company', 'organic certification lab', 'cold storage logistics network']);
+          const cost = this.randMoney(50000, 200000, 10000);
+          return {
+            title: 'Acquisition Target: Vertical Integration',
+            description: `Your M&A team identified a ${target} available for ${this.dollar(cost)}. Acquiring it would give you control over a critical piece of the supply chain. Your competitors are circling.`,
+            options: [
+              { label: 'Acquire at asking price', detail: `Move fast. ${this.dollar(cost)} for supply chain control. Eliminates a competitor bottleneck. Integration risk is real.`, effect: { score: 16, money: -cost, knowledge: 5, legalExposure: 5 } },
+              { label: 'Hostile takeover — lowball offer with pressure', detail: `Offer ${this.dollar(Math.round(cost * 0.7))} and leverage your market position. Cheaper but burns relationships and draws regulatory attention.`, effect: { score: 10, money: -Math.round(cost * 0.7), legalExposure: 15, regulatoryStanding: -10, satisfaction: -5 } },
+              { label: 'Joint venture instead of acquisition', detail: `Partner rather than own. Less control but less risk and capital commitment. Share the upside and the burden.`, effect: { score: 12, money: -Math.round(cost * 0.3), knowledge: 8 } },
+              { label: 'Pass — organic growth only', detail: `Build it yourself over time. Slower and more expensive long-term but no integration headaches or antitrust risk.`, effect: { score: 4, knowledge: 5, regulatoryStanding: 5 } }
+            ]
+          };
+        },
+        () => {
+          const peer = this.pick(NAMES.farmerNames);
+          return {
+            title: 'Industry Peer Relationship',
+            description: `${peer}, who runs the second-largest operation in the region, wants to meet privately. Industry insiders say they want to discuss "market coordination" — code for price-setting on commodity contracts to local buyers. Your market share gives you leverage.`,
+            options: [
+              { label: 'Take the meeting — hear them out', detail: `Listen to what they propose. Information is power. You can always say no, but knowing their position is valuable.`, effect: { score: 8, knowledge: 10, legalExposure: 8 } },
+              { label: 'Decline — keep your distance', detail: `Even the appearance of coordination could attract antitrust scrutiny. Protect your reputation and regulatory standing.`, effect: { score: 6, regulatoryStanding: 5, satisfaction: -3 } },
+              { label: 'Report the approach to counsel', detail: `Have your legal team document the contact. Covers you if regulators come asking later. May burn the relationship.`, effect: { score: 10, knowledge: 5, regulatoryStanding: 10, legalExposure: -5 } },
+              { label: 'Counter-propose a legitimate trade association', detail: `Redirect the energy into a proper industry group. Achieves some coordination benefits legally. Takes time to set up.`, effect: { score: 14, knowledge: 8, money: -5000, regulatoryStanding: 5 } }
+            ]
+          };
+        }
+      ],
+      banker: [
+        () => {
+          const target = this.pick(['community bank with 12 branches', 'fintech lending platform', 'insurance agency with bank referral pipeline', 'wealth management firm']);
+          const cost = this.randMoney(80000, 300000, 25000);
+          return {
+            title: 'Acquisition Target: Market Expansion',
+            description: `A ${target} is available for ${this.dollar(cost)}. Acquisition would expand your footprint and diversify revenue. Regulatory approval will take 90-180 days. Your board is split.`,
+            options: [
+              { label: 'Pursue the acquisition aggressively', detail: `${this.dollar(cost)} plus integration costs. First-mover advantage. Regulatory complexity is manageable if your compliance house is in order.`, effect: { score: 16, money: -cost, knowledge: 5, legalExposure: 8 } },
+              { label: 'Propose a merger of equals', detail: `Politically easier but you give up control. Combined entity is stronger but governance becomes complicated.`, effect: { score: 12, money: -Math.round(cost * 0.5), knowledge: 8, legalExposure: 3 } },
+              { label: 'Strategic partnership without ownership', detail: `Revenue-sharing agreement. No capital outlay, no regulatory hurdles, but no control. They could walk away.`, effect: { score: 10, knowledge: 10 } },
+              { label: 'Focus on organic growth instead', detail: `Build your own capabilities. Slower but cleaner. No integration risk, no regulatory complications.`, effect: { score: 4, knowledge: 5, regulatoryStanding: 3 } }
+            ]
+          };
+        }
+      ],
+      businessman: [
+        () => {
+          const target = this.pick(['boutique advisory firm in a new market', 'competitor with complementary client base', 'technology platform for deal flow', 'international partnership network']);
+          const cost = this.randMoney(40000, 150000, 10000);
+          return {
+            title: 'Strategic Acquisition Opportunity',
+            description: `A ${target} has come to market at ${this.dollar(cost)}. Your brand and their capabilities together could dominate the sector. Due diligence reveals some client overlap and a few employment agreement complications.`,
+            options: [
+              { label: 'Acquire and integrate', detail: `${this.dollar(cost)} for immediate market presence. Client overlap means some churn. Key talent retention is critical.`, effect: { score: 16, money: -cost, knowledge: 5, legalExposure: 5, satisfaction: -3 } },
+              { label: 'Acqui-hire — buy for the talent only', detail: `Pay ${this.dollar(Math.round(cost * 0.4))} for the team, not the platform. Cheaper but you lose their existing client relationships.`, effect: { score: 12, money: -Math.round(cost * 0.4), knowledge: 10 } },
+              { label: 'Propose a joint venture', detail: `Share economics without merger complexity. Test the relationship before committing capital.`, effect: { score: 10, money: -Math.round(cost * 0.15), knowledge: 8 } },
+              { label: 'Let a competitor buy them — focus internally', detail: `A competitor acquiring them could strengthen their position. But you avoid the risk and capital drain.`, effect: { score: 2, knowledge: 3, satisfaction: 5 } }
+            ]
+          };
+        }
+      ]
+    };
+    const pool = scenarios[persona] || scenarios.farmer;
+    return this.pick(pool)();
+  }
+
+  _ethicsScenario(persona, day, state) {
+    const scenarios = [
+      () => {
+        const labels = { farmer: 'a major buyer', banker: 'a key borrower', businessman: 'a high-value client' };
+        const entity = labels[persona] || 'a stakeholder';
+        return {
+          title: 'Ethical Crossroads',
+          description: `${this.pick(['Your CFO', 'A trusted advisor', 'Your longest-tenured manager'])} brought you a proposal: ${entity} is willing to pay a ${this.pct(15, 30)} premium on the next deal — but wants you to ${this.pick(['backdate documentation', 'misrepresent quantities', 'exclude key information from the disclosure', 'provide preferential terms not available to others'])}. The financial upside is significant.`,
+          options: [
+            { label: 'Refuse outright — integrity first', detail: `Walk away from the premium. Report the request to compliance. Your reputation and regulatory standing are worth more than any single deal.`, effect: { score: 18, regulatoryStanding: 15, legalExposure: -10, money: -2000, satisfaction: 5 } },
+            { label: 'Decline but keep the relationship', detail: `Say no to this specific ask but don't burn the bridge. "We can't do it that way, but let's find something that works." Diplomatic.`, effect: { score: 12, knowledge: 5, regulatoryStanding: 5 } },
+            { label: 'Look the other way — don\'t ask questions', detail: `You didn't technically approve anything. Plausible deniability. But if it surfaces, you own it as the person at the top.`, effect: { score: -5, money: this.randMoney(5000, 15000, 1000), legalExposure: 20, regulatoryStanding: -15, satisfaction: -8 } },
+            { label: 'Participate actively — maximize the gain', detail: `Go all in. The money is real and immediate. The risk is abstract and future. But if it unravels, everything you built is at stake.`, effect: { score: -15, money: this.randMoney(10000, 25000, 1000), legalExposure: 35, regulatoryStanding: -30, satisfaction: -12 } }
+          ]
+        };
+      },
+      () => {
+        const competitor = this.pick(NAMES.companyNames) + ' ' + this.pick(NAMES.companySuffixes);
+        return {
+          title: 'Competitor Intelligence',
+          description: `A former employee of ${competitor} just joined your team and brought detailed knowledge of their strategy, pricing, and client list. This is clearly proprietary information. Using it would give you a massive competitive advantage.`,
+          options: [
+            { label: 'Instruct them to disclose nothing proprietary', detail: `Establish a formal ethical wall. Document it with legal. Hire them for their skills, not their secrets.`, effect: { score: 14, knowledge: 5, regulatoryStanding: 10, legalExposure: -5 } },
+            { label: 'Let them share "general industry knowledge"', detail: `Draw a fuzzy line. They can talk about "industry trends" and "approaches they've seen." Everyone does this. Legally gray.`, effect: { score: 8, knowledge: 12, legalExposure: 10, regulatoryStanding: -5 } },
+            { label: 'Actively debrief them on competitor specifics', detail: `Extract maximum value. Client lists, pricing models, pipeline. Legally risky — trade secret litigation is expensive and public.`, effect: { score: -5, knowledge: 20, money: 5000, legalExposure: 25, regulatoryStanding: -20, satisfaction: -5 } },
+            { label: 'Notify the competitor and establish guardrails', detail: `Proactive transparency. Unusual but builds industry credibility. The competitor may reciprocate fair dealing in the future.`, effect: { score: 16, regulatoryStanding: 15, legalExposure: -10, satisfaction: 3 } }
+          ]
+        };
+      },
+      () => {
+        const official = this.pick(['county commissioner', 'state legislator', 'regulatory board member', 'zoning authority chair']);
+        return {
+          title: 'Political Influence & Lobbying',
+          description: `A ${official} has hinted that favorable regulatory treatment could be arranged — for a "contribution" to their campaign fund. The amount discussed (${this.dollar(this.randMoney(5000, 25000, 1000))}) is technically within legal limits for a political donation, but the quid pro quo is clear.`,
+          options: [
+            { label: 'Make the donation — play the game', detail: `Legal as a campaign contribution. The unspoken agreement is common at this level. Everyone does it.`, effect: { score: 5, money: -this.randMoney(5000, 25000, 1000), regulatoryStanding: 10, legalExposure: 15, satisfaction: -5 } },
+            { label: 'Decline — maintain independence', detail: `Don't play their game. You may face a harder regulatory path but your conscience is clear. Some doors close.`, effect: { score: 12, regulatoryStanding: 5, legalExposure: -5, satisfaction: 5 } },
+            { label: 'Hire a registered lobbyist instead', detail: `Channel it through proper channels. More expensive but documented and defensible. The lobbyist knows the rules.`, effect: { score: 10, money: -this.randMoney(8000, 30000, 2000), knowledge: 5, regulatoryStanding: 5 } },
+            { label: 'Report the solicitation', detail: `Nuclear option. Documents the corruption but makes you a target for retaliation. Principled but politically costly.`, effect: { score: 20, regulatoryStanding: 20, legalExposure: -15, satisfaction: -8, money: -3000 } }
+          ]
+        };
+      }
+    ];
+    return this.pick(scenarios)();
+  }
+
+  _regulatoryPosturing(persona, day, state) {
+    const scenarios = {
+      farmer: [
+        () => {
+          const regulation = this.pick(['water usage rights reallocation', 'pesticide application buffer zone expansion', 'carbon credit reporting mandate', 'migrant labor documentation requirements']);
+          return {
+            title: 'Regulatory Posturing',
+            description: `New ${regulation} regulations are in public comment period. As the region's largest operator, your position will influence the outcome. Smaller operators are looking to you for leadership. The industry association wants you on the response committee.`,
+            options: [
+              { label: 'Lead the industry opposition', detail: `Organize resistance. Hire lobbyists, fund studies, rally smaller operators. Expensive but could shape the final rule in your favor.`, effect: { score: 14, money: -this.randMoney(5000, 20000, 1000), knowledge: 8, legalExposure: 8, regulatoryStanding: -8 } },
+              { label: 'Negotiate privately with regulators', detail: `Use your scale and relationships to get exemptions or phase-in periods. Works if you have goodwill to spend.`, effect: { score: 12, money: -5000, knowledge: 10, regulatoryStanding: 5 } },
+              { label: 'Comply early — turn it into competitive advantage', detail: `Be first in compliance. Marketing advantage with sustainability-conscious buyers. Costly upfront but differentiating.`, effect: { score: 18, money: -this.randMoney(10000, 30000, 5000), regulatoryStanding: 15, satisfaction: 5 } },
+              { label: 'Ignore it — see if enforcement happens', detail: `Many regulations never get enforced against large operators. Save the money. Risk: if they do enforce, penalties are severe.`, effect: { score: -5, legalExposure: 20, regulatoryStanding: -15 } }
+            ]
+          };
+        }
+      ],
+      banker: [
+        () => {
+          const regulation = this.pick(['CRA requirements expansion', 'stress testing methodology changes', 'BSA/AML enhanced due diligence standards', 'fair lending data collection mandates']);
+          return {
+            title: 'Regulatory Posturing',
+            description: `Proposed ${regulation} will significantly impact your operations. Your institution's size makes you a target for enforcement. The banking industry group is organizing a response and wants your institution to take a visible role.`,
+            options: [
+              { label: 'Lead industry comment letter', detail: `Visible opposition. Builds industry goodwill but puts you on the regulator's radar. Your legal team will draft a substantive response.`, effect: { score: 14, money: -8000, knowledge: 10, legalExposure: 5, regulatoryStanding: -5 } },
+              { label: 'Quiet compliance with private lobbying', detail: `Comply publicly, lobby privately. The pragmatic approach. More expensive but maintains relationships on both sides.`, effect: { score: 12, money: -15000, regulatoryStanding: 5, knowledge: 5 } },
+              { label: 'Over-comply — set the new standard', detail: `Exceed requirements. Expensive but positions you as a model institution. Regulators reward good actors during exams.`, effect: { score: 18, money: -25000, regulatoryStanding: 20, satisfaction: 3 } },
+              { label: 'Challenge in court', detail: `Legal challenge to the rulemaking. Extremely expensive and public. Could set precedent but also invites scrutiny.`, effect: { score: -3, money: -this.randMoney(20000, 50000, 5000), legalExposure: 15, regulatoryStanding: -15 } }
+            ]
+          };
+        }
+      ],
+      businessman: [
+        () => {
+          const regulation = this.pick(['fiduciary standard for advisory services', 'fee transparency and disclosure requirements', 'conflict of interest reporting mandates', 'client data privacy and portability rules']);
+          return {
+            title: 'Regulatory Posturing',
+            description: `New ${regulation} proposals would reshape your industry. Your firm's size and visibility make neutrality impossible — clients, competitors, and regulators are all watching your response.`,
+            options: [
+              { label: 'Advocate publicly against the rules', detail: `Op-eds, industry panels, lobbying. Positions you as a free-market champion. Some clients will love it, others won't.`, effect: { score: 12, money: -10000, knowledge: 8, legalExposure: 8, regulatoryStanding: -8, satisfaction: -3 } },
+              { label: 'Shape the rules from inside', detail: `Join the advisory committee. Influence the drafting process. Time-intensive but maximizes your ability to protect your business model.`, effect: { score: 16, money: -5000, knowledge: 12, regulatoryStanding: 5 } },
+              { label: 'Embrace transparency — differentiate on trust', detail: `Exceed the proposed requirements voluntarily. Marketing advantage with sophisticated clients who value integrity.`, effect: { score: 18, money: -15000, regulatoryStanding: 15, satisfaction: 5, legalExposure: -5 } },
+              { label: 'Restructure to avoid the rules', detail: `Reorganize entities to fall outside the regulatory scope. Legal but aggressive. If regulators expand scope later, you've spent the money for nothing.`, effect: { score: 5, money: -20000, legalExposure: 12, regulatoryStanding: -10, knowledge: 5 } }
+            ]
+          };
+        }
+      ]
+    };
+    const pool = scenarios[persona] || scenarios.farmer;
+    return this.pick(pool)();
+  }
+
+  _consolidationScenario(persona, day, state) {
+    const scenarios = {
+      farmer: [
+        () => {
+          const smallFarms = this.randInt(3, 8);
+          return {
+            title: 'Industry Consolidation Play',
+            description: `${smallFarms} smaller farms in the region are struggling financially. Your scale gives you the leverage to acquire them at distressed prices — or let them fail and pick up the pieces. The community is watching how you handle this. Local media has started asking questions about "agricultural monopoly."`,
+            options: [
+              { label: `Acquire ${smallFarms} farms at fair market value`, detail: `Pay a reasonable price. Farmers keep their dignity, you get the land. Community sees you as a fair player. Expensive but sustainable.`, effect: { score: 18, money: -this.randMoney(30000, 80000, 5000), knowledge: 5, regulatoryStanding: 5, satisfaction: 5 } },
+              { label: 'Predatory acquisition — lowball distressed sellers', detail: `Offer ${this.pct(40, 60)} of market value. They have no leverage. Maximizes your ROI but the community remembers.`, effect: { score: 8, money: -this.randMoney(15000, 40000, 5000), legalExposure: 10, regulatoryStanding: -10, satisfaction: -8 } },
+              { label: 'Let them fail — buy at auction', detail: `Wait for foreclosure. Cheapest path to the land. But families lose everything and you become the villain of the county.`, effect: { score: -5, money: -this.randMoney(8000, 20000, 2000), legalExposure: 5, satisfaction: -15, regulatoryStanding: -5 } },
+              { label: 'Help them survive — cooperative model', detail: `Offer management services and shared resources. You don't own the land but you control the economics. Community goodwill is enormous.`, effect: { score: 20, money: -this.randMoney(5000, 15000, 1000), knowledge: 10, regulatoryStanding: 10, satisfaction: 8 } }
+            ]
+          };
+        }
+      ],
+      banker: [
+        () => {
+          const banks = this.randInt(2, 5);
+          return {
+            title: 'Industry Consolidation — Banking Roll-Up',
+            description: `${banks} smaller community banks in your region are facing capital pressure. Your institution has the capital and regulatory standing to acquire them. The FDIC has quietly indicated they'd welcome "orderly consolidation." Antitrust review is possible if you get too large.`,
+            options: [
+              { label: `Acquire all ${banks} in a roll-up strategy`, detail: `Aggressive but transformative. Regulatory approval is likely but not guaranteed. Integration costs will be significant.`, effect: { score: 18, money: -this.randMoney(50000, 150000, 10000), knowledge: 5, legalExposure: 12, regulatoryStanding: -5 } },
+              { label: 'Cherry-pick the strongest 1-2 targets', detail: `Selective acquisition. Lower integration risk, better quality assets. Let the weakest ones find other buyers or fail.`, effect: { score: 14, money: -this.randMoney(30000, 80000, 10000), knowledge: 8, legalExposure: 5 } },
+              { label: 'Propose a consortium approach', detail: `Work with peer institutions to distribute the acquisitions. Prevents antitrust concerns and shares integration burden.`, effect: { score: 12, money: -this.randMoney(15000, 40000, 5000), knowledge: 10, regulatoryStanding: 5 } },
+              { label: 'Stay out — let the market sort itself', detail: `Not every opportunity needs to be seized. Focus on your existing franchise and let consolidation happen organically.`, effect: { score: 4, knowledge: 3, regulatoryStanding: 5, satisfaction: 5 } }
+            ]
+          };
+        }
+      ],
+      businessman: [
+        () => {
+          const firms = this.randInt(2, 6);
+          return {
+            title: 'Industry Consolidation — Platform Play',
+            description: `${firms} smaller advisory firms in your space are ripe for consolidation. Private equity is circling with a "roll-up and flip" strategy. You could build a platform company, consolidate the industry, and either run it or sell it at a multiple. But talent retention post-acquisition is notoriously difficult in professional services.`,
+            options: [
+              { label: 'Build the platform — acquire and integrate', detail: `Buy them all. Unified brand, shared infrastructure, cross-selling opportunities. Very capital-intensive and integration risk is high.`, effect: { score: 18, money: -this.randMoney(40000, 120000, 10000), knowledge: 5, legalExposure: 8, satisfaction: -5 } },
+              { label: 'Partner with PE to fund the roll-up', detail: `Less of your capital at risk but you give up control. PE will want their return in 3-5 years — pressure to optimize, cut costs, and flip.`, effect: { score: 14, money: -this.randMoney(10000, 30000, 5000), knowledge: 8, legalExposure: 5 } },
+              { label: 'Affiliate network — brand without ownership', detail: `License your brand and systems to smaller firms. Revenue without integration. They run themselves under your umbrella.`, effect: { score: 12, money: -5000, knowledge: 10, regulatoryStanding: 5, satisfaction: 3 } },
+              { label: 'Stay boutique — compete on quality', detail: `Let the consolidators build bureaucracies. Your differentiation is personalized service that big platforms can't replicate.`, effect: { score: 8, knowledge: 5, satisfaction: 8, regulatoryStanding: 3 } }
+            ]
+          };
+        }
+      ]
+    };
+    const pool = scenarios[persona] || scenarios.farmer;
+    return this.pick(pool)();
   }
 
   // ---- LIFE BALANCE EVENTS ----

@@ -33,6 +33,25 @@ const GAME_DATA = {
     ]
   },
 
+  // Hard mode extends beyond Business Owner with empire/monopoly tiers
+  hardModeLevels: {
+    farmer: [
+      { name: 'Regional Ag Conglomerate', minScore: 1800, day: 60 },
+      { name: 'National Commodity Baron', minScore: 2800, day: 80 },
+      { name: 'Agricultural Monopolist', minScore: 4200, day: 100 }
+    ],
+    banker: [
+      { name: 'Regional Bank Chairman', minScore: 1800, day: 60 },
+      { name: 'Financial Holding CEO', minScore: 2800, day: 80 },
+      { name: 'Banking Empire Architect', minScore: 4200, day: 100 }
+    ],
+    businessman: [
+      { name: 'Industry Conglomerate CEO', minScore: 1800, day: 60 },
+      { name: 'Multi-Sector Magnate', minScore: 2800, day: 80 },
+      { name: 'Market Monopolist', minScore: 4200, day: 100 }
+    ]
+  },
+
   startingState: {
     farmer: { money: 10000, inventory: { seeds: 0, fertilizer: 0 }, crops: [], land: 10, equipment: 'basic', revenue: 0, costs: 0, assets: 10000, debt: 0, equity: 10000, employees: 2 },
     banker: { money: 100000, capital: 100000, portfolio: [], investors: 1, reserves: 10000, revenue: 0, costs: 0, assets: 100000, debt: 0, equity: 100000, employees: 3 },
@@ -63,7 +82,9 @@ const GAME_DATA = {
     if (day <= 12) return 0.8;
     if (day <= 20) return 1.0;
     if (day <= 35) return 1.15;
-    return 1.3;
+    if (day <= 60) return 1.3;
+    if (day <= 80) return 1.45;  // Empire tier
+    return 1.6;                   // Monopoly tier
   },
 
   // Workforce culture dimensions

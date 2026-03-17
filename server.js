@@ -18,7 +18,7 @@ function loadAdminSettings() {
   try {
     if (fs.existsSync(SETTINGS_PATH)) return JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8'));
   } catch (e) {}
-  return { advisorEnabled: true, reasoningLevel: 50, disabledUsers: [], adminPassword: process.env.ADMIN_PASSWORD || 'fbb2024' };
+  return { advisorEnabled: true, reasoningLevel: 50, disabledUsers: [], adminPassword: process.env.ADMIN_PASSWORD || 'animalcrackers' };
 }
 
 function saveAdminSettings(settings) {

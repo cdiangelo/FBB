@@ -75,6 +75,11 @@ class GameEngine {
     this.debtStructure = { totalDebt: 0, debtRate: this.difficulty === 'hard' ? 8.5 : 6.0, equityInvestors: 0, equityGiven: 0 };
     this._hardModeHistory = [];
 
+    // Legal liability (hard mode)
+    this.legalExposure = 0;       // 0-100, triggers events at thresholds
+    this.legalEvents = [];         // history of legal issues
+    this.regulatoryStanding = 100; // 0-100, degrades with risky behavior
+
     // Market tracker
     this.marketTracker = new MarketTracker(persona);
     this.marketDataMode = options.marketDataMode || 'simulated';
@@ -109,6 +114,10 @@ class GameEngine {
         this.categories = ['meetings', 'market', 'venture', 'partnership', 'client', 'pricing', 'hiring', 'negotiation'];
         break;
     }
+    // Hard mode empire-tier: add high-level categories
+    if (this.difficulty === 'hard') {
+      this.categories.push('empire', 'ethics', 'legal', 'consolidation');
+    }
     this.catPointer = 0;
   }
 
@@ -128,6 +137,8 @@ class GameEngine {
       scenarioIndex: saveData.scenarioIndex || {},
       celebrationShown75: saveData.celebrationShown75 || false,
       celebrationShown100: saveData.celebrationShown100 || false,
+      _celebrationEmpire: saveData._celebrationEmpire || false,
+      _celebrationMonopoly: saveData._celebrationMonopoly || false,
       soldOff: saveData.soldOff || false,
       previousPeriod: saveData.previousPeriod || null,
       culturePriorities: saveData.culturePriorities || ['integrity', 'accountability', 'efficiency'],
@@ -138,6 +149,9 @@ class GameEngine {
       interpersonal: saveData.interpersonal || { activeRequests: [], relationships: [], completedRequests: 0, overdueCount: 0 },
       difficulty: saveData.difficulty || 'easy',
       _hardModeHistory: saveData._hardModeHistory || [],
+      legalExposure: saveData.legalExposure || 0,
+      legalEvents: saveData.legalEvents || [],
+      regulatoryStanding: saveData.regulatoryStanding ?? 100,
       marketDataMode: saveData.marketDataMode || 'simulated',
       actionsToday: saveData.actionsToday || 0,
       maxActionsPerDay: 5,
@@ -169,6 +183,8 @@ class GameEngine {
       catPointer: this.catPointer,
       celebrationShown75: this.celebrationShown75,
       celebrationShown100: this.celebrationShown100,
+      _celebrationEmpire: this._celebrationEmpire || false,
+      _celebrationMonopoly: this._celebrationMonopoly || false,
       soldOff: this.soldOff,
       previousPeriod: this.previousPeriod,
       culturePriorities: this.culturePriorities,
@@ -180,6 +196,9 @@ class GameEngine {
       interpersonal: JSON.parse(JSON.stringify(this.interpersonal)),
       difficulty: this.difficulty,
       _hardModeHistory: this._hardModeHistory || [],
+      legalExposure: this.legalExposure || 0,
+      legalEvents: this.legalEvents || [],
+      regulatoryStanding: this.regulatoryStanding ?? 100,
       marketDataMode: this.marketDataMode,
       actionsToday: this.actionsToday,
       categoriesUsedToday: [...(this.categoriesUsedToday || [])],
@@ -188,8 +207,16 @@ class GameEngine {
   }
 
   // ---- LEVELS ----
+  _getAllLevels() {
+    const base = GAME_DATA.levels[this.persona];
+    if (this.difficulty === 'hard' && GAME_DATA.hardModeLevels && GAME_DATA.hardModeLevels[this.persona]) {
+      return [...base, ...GAME_DATA.hardModeLevels[this.persona]];
+    }
+    return base;
+  }
+
   getLevel() {
-    const levels = GAME_DATA.levels[this.persona];
+    const levels = this._getAllLevels();
     let current = levels[0];
     for (let i = levels.length - 1; i >= 0; i--) {
       if (this.totalScore >= levels[i].minScore) { current = levels[i]; break; }
@@ -198,7 +225,7 @@ class GameEngine {
   }
 
   getNextLevel() {
-    const levels = GAME_DATA.levels[this.persona];
+    const levels = this._getAllLevels();
     for (const level of levels) {
       if (this.totalScore < level.minScore) return level;
     }
@@ -206,7 +233,7 @@ class GameEngine {
   }
 
   getLevelIndex() {
-    const levels = GAME_DATA.levels[this.persona];
+    const levels = this._getAllLevels();
     const current = this.getLevel();
     return levels.indexOf(current);
   }
@@ -219,9 +246,14 @@ class GameEngine {
   }
 
   getCareerProgress() {
-    const levels = GAME_DATA.levels[this.persona];
+    const levels = this._getAllLevels();
     const maxScore = levels[levels.length - 1].minScore;
     return Math.min(100, Math.round(this.totalScore / maxScore * 100));
+  }
+
+  // Is the player at empire tier (past original Business Owner level)?
+  isEmpireTier() {
+    return this.difficulty === 'hard' && this.totalScore >= 1200;
   }
 
   // ---- SCALING ----
@@ -255,6 +287,14 @@ class GameEngine {
         const satBonus = Math.round(effect.satisfaction * 0.3);
         this.totalScore += satBonus;
       }
+    }
+
+    // Legal/regulatory effects (hard mode)
+    if (effect.legalExposure) {
+      this.legalExposure = Math.max(0, Math.min(100, this.legalExposure + effect.legalExposure));
+    }
+    if (effect.regulatoryStanding) {
+      this.regulatoryStanding = Math.max(0, Math.min(100, this.regulatoryStanding + effect.regulatoryStanding));
     }
 
     // Hard mode: track action patterns for compounding penalties
@@ -357,6 +397,10 @@ class GameEngine {
       this.state.money -= debtPayment;
       this.state.costs += debtPayment;
     }
+    // Hard mode: legal/regulatory tick
+    if (this.difficulty === 'hard') {
+      this._tickLegalExposure();
+    }
     // Random event — higher chance in hard mode
     const eventChance = this.difficulty === 'hard' ? 0.45 : 0.3;
     if (Math.random() < eventChance) {
@@ -443,6 +487,16 @@ class GameEngine {
       this.actionsToday++;
       this.categoriesUsedToday.add('culture');
       return { type: 'culture', scenario: this._buildCultureEvent() };
+    }
+
+    // Hard mode: legal events
+    if (this.difficulty === 'hard' && !this.categoriesUsedToday.has('legalEvent')) {
+      const pendingLegal = (this.legalEvents || []).find(e => !e.resolved);
+      if (pendingLegal) {
+        this.actionsToday++;
+        this.categoriesUsedToday.add('legalEvent');
+        return { type: 'decision', scenario: this._buildLegalEventScenario(pendingLegal) };
+      }
     }
 
     // Interpersonal dependency events — show pending requests that need resolution
@@ -647,6 +701,11 @@ class GameEngine {
     const overdue = elapsed > req.deadline;
     const urgencyLabel = req.urgency === 'high' ? 'URGENT' : req.urgency === 'medium' ? 'Important' : 'Routine';
 
+    // Empire tier: flipped dependencies — you rely on them, they need your direction
+    if (req.flipped) {
+      return this._buildEmpireDependencyScenario(req, elapsed, overdue, urgencyLabel);
+    }
+
     return {
       title: `${urgencyLabel}: ${req.from} Needs You`,
       description: `${req.task}. ${overdue ? 'This is overdue — they\'ve been waiting ' + elapsed + ' days.' : 'You have ' + (req.deadline - elapsed) + ' day(s) to respond.'}`,
@@ -672,6 +731,41 @@ class GameEngine {
           label: 'Push back — not a priority right now',
           detail: `${overdue ? 'They\'ve already waited too long for this.' : 'Tell them you\'ll get to it later.'} Risk: frustration and trust damage.`,
           effect: { score: 1, satisfaction: 5 }
+        }
+      ]
+    };
+  }
+
+  _buildEmpireDependencyScenario(req, elapsed, overdue, urgencyLabel) {
+    const firstName = req.from.split(' ')[0];
+    return {
+      title: `${urgencyLabel}: Executive Decision — ${req.from}`,
+      description: `${req.task}. ${overdue
+        ? 'This has been sitting for ' + elapsed + ' days — your management team is losing confidence in your responsiveness. Operational friction is building.'
+        : 'Your team needs direction within ' + (req.deadline - elapsed) + ' day(s). Delayed decisions cascade through the organization.'}`,
+      isDependencyEvent: true,
+      isEmpireDependency: true,
+      requestIndex: this.interpersonal.activeRequests.indexOf(req),
+      options: [
+        {
+          label: 'Full executive engagement',
+          detail: `Clear your calendar and give this the depth it deserves. ${firstName} and the team see you as hands-on and decisive. Sets the tone for the organization.`,
+          effect: { score: overdue ? 6 : 14, satisfaction: -5, money: overdue ? -2000 : 0 }
+        },
+        {
+          label: 'Set strategic direction, delegate execution',
+          detail: `Provide the framework and let ${firstName} run with it. Tests their capability. You stay at the strategic level where you belong.`,
+          effect: { score: overdue ? 4 : 10, knowledge: 5 }
+        },
+        {
+          label: 'Request more analysis before deciding',
+          detail: `Ask the team for deeper data. Buys time but signals indecision. ${overdue ? 'They\'ve already done the analysis — this will frustrate them.' : 'Reasonable if the stakes justify it.'}`,
+          effect: { score: overdue ? -4 : 3, knowledge: 8, satisfaction: -3 }
+        },
+        {
+          label: 'Defer to the team\'s recommendation',
+          detail: `Trust their judgment and approve whatever they propose. Empowering but risky — if they\'re wrong, you own it. ${overdue ? 'At this point, any decision is better than none.' : ''}`,
+          effect: { score: overdue ? 2 : 6, satisfaction: 3, legalExposure: 3 }
         }
       ]
     };
@@ -707,6 +801,17 @@ class GameEngine {
   // ---- CELEBRATION CHECK ----
   shouldCelebrate() {
     const progress = this.getCareerProgress();
+    // Hard mode empire milestones
+    if (this.difficulty === 'hard') {
+      if (this.totalScore >= 4200 && !this._celebrationMonopoly) {
+        this._celebrationMonopoly = true;
+        return 'monopoly';
+      }
+      if (this.totalScore >= 2800 && !this._celebrationEmpire) {
+        this._celebrationEmpire = true;
+        return 'empire';
+      }
+    }
     if (progress >= 100 && !this.celebrationShown100) {
       this.celebrationShown100 = true;
       return 'complete';
@@ -795,11 +900,25 @@ class GameEngine {
   _tickInterpersonal() {
     if (!this.interpersonal) return;
 
-    // Chance to generate new request (higher at lower levels)
-    const levelIdx = this.getLevelIndex();
-    const requestChance = levelIdx <= 1 ? 0.4 : levelIdx <= 3 ? 0.25 : 0.15;
-    if (this.interpersonal.activeRequests.length < 3 && Math.random() < requestChance) {
-      this.interpersonal.activeRequests.push(this._generateDependencyRequest());
+    // At empire tier in hard mode, flip to executive dependencies
+    if (this.isEmpireTier()) {
+      // Upgrade relationships if not already done
+      if (!this.interpersonal._empireUpgraded) {
+        this.interpersonal.relationships = this._initEmpireRelationships(this.persona);
+        this.interpersonal._empireUpgraded = true;
+      }
+      // Empire tier: more frequent, higher-stakes requests from your management team
+      const requestChance = 0.5;
+      if (this.interpersonal.activeRequests.length < 4 && Math.random() < requestChance) {
+        this.interpersonal.activeRequests.push(this._generateEmpireDependency());
+      }
+    } else {
+      // Standard: Chance to generate new request (higher at lower levels)
+      const levelIdx = this.getLevelIndex();
+      const requestChance = levelIdx <= 1 ? 0.4 : levelIdx <= 3 ? 0.25 : 0.15;
+      if (this.interpersonal.activeRequests.length < 3 && Math.random() < requestChance) {
+        this.interpersonal.activeRequests.push(this._generateDependencyRequest());
+      }
     }
 
     // Check for overdue requests and apply penalties
@@ -826,6 +945,148 @@ class GameEngine {
     this.interpersonal.activeRequests = this.interpersonal.activeRequests.filter(
       r => !r.resolved || (this.day - r.dayIssued) < 10
     );
+  }
+
+  // ---- LEGAL LIABILITY (HARD MODE) ----
+  _tickLegalExposure() {
+    // Legal exposure naturally decays slowly if you're behaving well
+    if (this.regulatoryStanding > 80) {
+      this.legalExposure = Math.max(0, this.legalExposure - 0.5);
+    }
+    // High exposure triggers legal events
+    if (this.legalExposure >= 70 && Math.random() < 0.2) {
+      this._triggerLegalEvent('investigation');
+    } else if (this.legalExposure >= 40 && Math.random() < 0.1) {
+      this._triggerLegalEvent('warning');
+    }
+    // Regulatory standing affects business performance
+    if (this.regulatoryStanding < 50 && this.day % 3 === 0) {
+      const drag = Math.round((50 - this.regulatoryStanding) / 10);
+      this.totalScore = Math.max(0, this.totalScore - drag);
+      this.scores.decisions = Math.max(0, this.scores.decisions - drag);
+      this.addLog(`Regulatory concerns dragging on business performance. (-${drag} pts)`);
+    }
+  }
+
+  _triggerLegalEvent(type) {
+    const alreadyActive = this.legalEvents.find(e => e.type === type && !e.resolved && (this.day - e.day) < 10);
+    if (alreadyActive) return; // Don't stack same type
+    this.legalEvents.push({ type, day: this.day, resolved: false });
+  }
+
+  _buildLegalEventScenario(event) {
+    event.resolved = true;
+    const fine = Math.round(this.state.money * (event.type === 'investigation' ? 0.15 : 0.05));
+
+    if (event.type === 'investigation') {
+      const investigations = {
+        farmer: 'EPA and state agriculture department are investigating your operations for potential environmental violations. Your rapid expansion has attracted scrutiny.',
+        banker: 'Federal banking regulators have opened a formal investigation into lending practices. Concentration levels and documentation standards are under review.',
+        businessman: 'The SEC has opened a preliminary inquiry into your advisory fee structures and potential conflicts of interest across portfolio companies.'
+      };
+      return {
+        title: 'REGULATORY INVESTIGATION',
+        description: `${investigations[this.persona]} Legal exposure: ${this.legalExposure}/100. Your regulatory standing has deteriorated to ${this.regulatoryStanding}/100.`,
+        isLegalEvent: true,
+        options: [
+          { label: 'Full cooperation — open the books', detail: `Cooperate completely. Costly (estimated ${this._dollar(fine)}) but fastest path to resolution. Demonstrates good faith.`, effect: { score: -5, money: -fine, legalExposure: -20, regulatoryStanding: 15 } },
+          { label: 'Engage top-tier legal counsel', detail: `Hire specialists to manage the response. Expensive (${this._dollar(Math.round(fine * 1.5))}) but protects your position and limits exposure.`, effect: { score: -2, money: -Math.round(fine * 1.5), legalExposure: -15, regulatoryStanding: 5, knowledge: 5 } },
+          { label: 'Partial disclosure — protect key information', detail: `Share what's required, shield what you can. Risky — if they find more, penalties escalate dramatically.`, effect: { score: 2, money: -Math.round(fine * 0.3), legalExposure: 10, regulatoryStanding: -10 } },
+          { label: 'Stonewall — fight the investigation', detail: `Challenge the investigation's scope and authority. Bold but dangerous. Could backfire catastrophically.`, effect: { score: -8, money: -Math.round(fine * 0.5), legalExposure: 25, regulatoryStanding: -25, satisfaction: -8 } }
+        ]
+      };
+    }
+
+    // Warning type
+    const warnings = {
+      farmer: 'State agriculture board issued a formal warning about compliance gaps in your expanded operations. Industry peers are taking notice.',
+      banker: 'Banking examiners flagged deficiencies in your risk management framework. A Matter Requiring Attention (MRA) has been issued.',
+      businessman: 'Industry regulatory body issued a warning about potential conflicts of interest in your multi-entity structure.'
+    };
+    return {
+      title: 'Regulatory Warning',
+      description: `${warnings[this.persona]} Legal exposure: ${this.legalExposure}/100. Address this before it escalates.`,
+      isLegalEvent: true,
+      options: [
+        { label: 'Immediate remediation', detail: `Fix every flagged issue now. Cost: ${this._dollar(fine)}. Shows commitment to compliance.`, effect: { score: 4, money: -fine, legalExposure: -10, regulatoryStanding: 10 } },
+        { label: 'Hire a compliance consultant', detail: `Bring in outside expertise. More thorough but takes time and costs ${this._dollar(Math.round(fine * 0.8))}.`, effect: { score: 6, money: -Math.round(fine * 0.8), legalExposure: -8, regulatoryStanding: 8, knowledge: 5 } },
+        { label: 'Acknowledge and plan — don\'t rush', detail: `Accept the warning, propose a timeline for fixes. Cheaper but leaves exposure open longer.`, effect: { score: 2, money: -Math.round(fine * 0.2), legalExposure: 5, regulatoryStanding: -3 } },
+        { label: 'Push back — dispute the findings', detail: `Challenge the regulators\' characterization. If you\'re right, clears your name. If wrong, makes things much worse.`, effect: { score: -3, legalExposure: 15, regulatoryStanding: -15, satisfaction: -5 } }
+      ]
+    };
+  }
+
+  _dollar(n) { return '$' + Math.abs(n).toLocaleString(); }
+
+  applyLegalConsequence(effect) {
+    if (effect.legalExposure) {
+      this.legalExposure = Math.max(0, Math.min(100, this.legalExposure + effect.legalExposure));
+    }
+    if (effect.regulatoryStanding) {
+      this.regulatoryStanding = Math.max(0, Math.min(100, this.regulatoryStanding + effect.regulatoryStanding));
+    }
+  }
+
+  // ---- FLIPPED DEPENDENCY (EMPIRE TIER) ----
+  // At empire tier, YOU depend on your management team
+  _initEmpireRelationships(persona) {
+    const pools = {
+      farmer: [
+        { name: 'Regional Manager — West', role: 'manager', trust: 60, competence: 75 },
+        { name: 'Regional Manager — East', role: 'manager', trust: 55, competence: 70 },
+        { name: 'Chief Financial Officer', role: 'director', trust: 65, competence: 80 },
+        { name: 'VP Operations', role: 'director', trust: 50, competence: 72 },
+        { name: 'Head of Commodities Trading', role: 'analyst', trust: 45, competence: 85 }
+      ],
+      banker: [
+        { name: 'Chief Risk Officer', role: 'director', trust: 60, competence: 80 },
+        { name: 'Head of Commercial Lending', role: 'manager', trust: 55, competence: 75 },
+        { name: 'Chief Compliance Officer', role: 'director', trust: 65, competence: 82 },
+        { name: 'Regional President — North', role: 'manager', trust: 50, competence: 70 },
+        { name: 'Head of Treasury', role: 'analyst', trust: 45, competence: 78 }
+      ],
+      businessman: [
+        { name: 'Managing Partner — Advisory', role: 'manager', trust: 60, competence: 78 },
+        { name: 'Head of Ventures', role: 'director', trust: 55, competence: 75 },
+        { name: 'Chief Strategy Officer', role: 'director', trust: 65, competence: 82 },
+        { name: 'Client Relations VP', role: 'manager', trust: 50, competence: 70 },
+        { name: 'Lead Market Analyst', role: 'analyst', trust: 45, competence: 85 }
+      ]
+    };
+    return pools[persona] || [];
+  }
+
+  _generateEmpireDependency() {
+    // At empire level, you depend on reports for information and execution
+    const requestPools = {
+      farmer: [
+        { from: 'VP Operations', task: 'Needs your strategic direction on the new acquisition integration', urgency: 'high', deadline: 2, flipped: true },
+        { from: 'Chief Financial Officer', task: 'Quarterly earnings call prep — waiting for your narrative guidance', urgency: 'high', deadline: 1, flipped: true },
+        { from: 'Regional Manager — West', task: 'Requesting approval to restructure the western division', urgency: 'medium', deadline: 3, flipped: true },
+        { from: 'Head of Commodities Trading', task: 'Market position exceeds risk limits — needs your override or exit decision', urgency: 'high', deadline: 1, flipped: true },
+        { from: 'General Counsel', task: 'Settlement offer on the land dispute — needs your authorization', urgency: 'high', deadline: 2, flipped: true },
+        { from: 'Board Secretary', task: 'Director nomination committee needs your slate preferences', urgency: 'medium', deadline: 4, flipped: true }
+      ],
+      banker: [
+        { from: 'Chief Risk Officer', task: 'Concentration limits breached in CRE — needs your strategic decision', urgency: 'high', deadline: 1, flipped: true },
+        { from: 'Head of Commercial Lending', task: 'Major client threatening to move their portfolio — needs executive intervention', urgency: 'high', deadline: 2, flipped: true },
+        { from: 'Chief Compliance Officer', task: 'Regulatory exam findings — consent order response needs your sign-off', urgency: 'high', deadline: 1, flipped: true },
+        { from: 'Regional President — North', task: 'Branch closure recommendations — political sensitivity requires your involvement', urgency: 'medium', deadline: 3, flipped: true },
+        { from: 'Head of Treasury', task: 'Interest rate hedge strategy proposal needs executive approval', urgency: 'medium', deadline: 3, flipped: true },
+        { from: 'Board Chair', task: 'Merger discussions with a regional competitor — your position needed', urgency: 'high', deadline: 2, flipped: true }
+      ],
+      businessman: [
+        { from: 'Managing Partner — Advisory', task: 'Key client threatening to leave — needs your personal attention', urgency: 'high', deadline: 2, flipped: true },
+        { from: 'Head of Ventures', task: 'Portfolio company needs emergency board-level decision on pivot or shutdown', urgency: 'high', deadline: 1, flipped: true },
+        { from: 'Chief Strategy Officer', task: 'Competitor acquisition changes market dynamics — strategy pivot needed', urgency: 'high', deadline: 2, flipped: true },
+        { from: 'Client Relations VP', task: 'Major RFP response needs your personal involvement to close', urgency: 'medium', deadline: 3, flipped: true },
+        { from: 'Lead Market Analyst', task: 'Industry report shows disruption risk to core business — brief needed', urgency: 'medium', deadline: 3, flipped: true },
+        { from: 'Legal Counsel', task: 'Non-compete dispute with former partner escalating — litigation decision needed', urgency: 'high', deadline: 2, flipped: true }
+      ]
+    };
+    const pool = requestPools[this.persona] || [];
+    const template = pool[Math.floor(Math.random() * pool.length)];
+    return { ...template, dayIssued: this.day, resolved: false };
   }
 
   resolveRequest(index, quality) {
