@@ -76,6 +76,71 @@ class ScenarioGenerator {
     }
   }
 
+  // ---- DEPRECIATION OPTION INJECTION ----
+  // For large purchases (>= threshold), add capitalize+depreciate alternatives
+  _injectDepreciationOptions(scenario, threshold = 10000) {
+    if (!scenario.options) return scenario;
+    const newOptions = [];
+    for (const opt of scenario.options) {
+      newOptions.push(opt);
+      // Find the total cost of this option
+      let cost = 0;
+      if (opt.effect && opt.effect.money < 0) cost = Math.abs(opt.effect.money);
+      if (opt.assetPurchase) cost = opt.assetPurchase.value;
+      if (cost < threshold) continue;
+      // Determine asset type for useful life lookup
+      const assetType = (opt.assetPurchase && opt.assetPurchase.type) ||
+        (scenario.isTechDecision ? 'tech_platform' : 'equipment');
+      const standardLife = (GameEngine.USEFUL_LIFE_DAYS()[assetType]) || 90;
+      if (!standardLife) continue; // equity etc — not depreciable
+
+      // 1) GAAP-aligned depreciation (standard life)
+      const gaapDaily = Math.round(cost / standardLife);
+      const gaapDeposit = Math.round(cost * 0.10);
+      const gaapPolicy = GameEngine.getDepreciationPolicy(assetType, standardLife);
+      newOptions.push({
+        label: `${opt.label} — Capitalize (${standardLife}-day life)`,
+        detail: `Depreciate over ${standardLife} days instead of paying upfront. ${this.dollar(gaapDeposit)} deposit now, then ${this.dollar(gaapDaily)}/day. ${gaapPolicy.label}. Spreads impact over the asset's useful life per standard accounting.`,
+        effect: { ...opt.effect, money: 0 }, // no upfront cash hit from effect
+        assetPurchase: opt.assetPurchase ? { ...opt.assetPurchase } : undefined,
+        techDecision: opt.techDecision,
+        capitalizeAsset: {
+          name: opt.assetPurchase ? opt.assetPurchase.name : scenario.title,
+          type: assetType,
+          totalCost: cost,
+          usefulLifeDays: standardLife,
+          policyAlignment: gaapPolicy.alignment
+        },
+        _depreciationMeta: gaapPolicy
+      });
+
+      // 2) Aggressive depreciation (50% of standard life) — grey area
+      const aggressiveLife = Math.round(standardLife * 0.5);
+      if (aggressiveLife >= 10) {
+        const aggDaily = Math.round(cost / aggressiveLife);
+        const aggDeposit = Math.round(cost * 0.10);
+        const aggPolicy = GameEngine.getDepreciationPolicy(assetType, aggressiveLife);
+        newOptions.push({
+          label: `${opt.label} — Accelerated (${aggressiveLife}-day write-off)`,
+          detail: `Aggressive depreciation: ${this.dollar(aggDeposit)} deposit, ${this.dollar(aggDaily)}/day for ${aggressiveLife} days. ${aggPolicy.label}. Higher daily cost but asset expenses clear faster. Auditors may question the schedule.`,
+          effect: { ...opt.effect, money: 0, financialRisk: (opt.effect.financialRisk || 0) + 3 },
+          assetPurchase: opt.assetPurchase ? { ...opt.assetPurchase } : undefined,
+          techDecision: opt.techDecision,
+          capitalizeAsset: {
+            name: opt.assetPurchase ? opt.assetPurchase.name : scenario.title,
+            type: assetType,
+            totalCost: cost,
+            usefulLifeDays: aggressiveLife,
+            policyAlignment: aggPolicy.alignment
+          },
+          _depreciationMeta: aggPolicy
+        });
+      }
+    }
+    scenario.options = newOptions;
+    return scenario;
+  }
+
   // ---- HARD MODE MODIFICATIONS ----
   _applyHardMode(scenario, day) {
     if (!scenario || !scenario.options) return scenario;

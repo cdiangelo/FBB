@@ -102,6 +102,10 @@ class GameEngine {
       investmentReturns: 0 // accumulated returns
     };
 
+    // Capitalized assets — depreciation schedules
+    this.capitalizedAssets = [];
+    // Each: { name, type, totalCost, bookValue, dailyExpense, usefulLifeDays, daysRemaining, dayAcquired, policyAlignment }
+
     // Operating model & tech enablement
     this.operatingModel = {
       techLevel: 0,        // 0-100: 0=manual, 100=fully automated/AI-driven
@@ -193,6 +197,7 @@ class GameEngine {
       creditCapacity: saveData.creditCapacity ?? 100,
       creditRating: saveData.creditRating || 'A',
       portfolio: saveData.portfolio || { assets: [], totalAssetValue: 0, investmentReturns: 0 },
+      capitalizedAssets: saveData.capitalizedAssets || [],
       operatingModel: saveData.operatingModel || {
         techLevel: 0, techApproach: null, serviceQuality: 70, costEfficiency: 50,
         scalability: 30, techDebt: 0, techInvestments: []
@@ -250,6 +255,7 @@ class GameEngine {
       creditCapacity: this.creditCapacity ?? 100,
       creditRating: this.creditRating || 'A',
       portfolio: JSON.parse(JSON.stringify(this.portfolio || { assets: [], totalAssetValue: 0, investmentReturns: 0 })),
+      capitalizedAssets: JSON.parse(JSON.stringify(this.capitalizedAssets || [])),
       operatingModel: JSON.parse(JSON.stringify(this.operatingModel || {})),
       marketDataMode: this.marketDataMode,
       actionsToday: this.actionsToday,
@@ -530,6 +536,10 @@ class GameEngine {
     let cost = 0;
     if (option.effect && option.effect.money < 0) cost += Math.abs(option.effect.money);
     if (option.assetPurchase) cost += option.assetPurchase.value;
+    // Capitalized purchases only require 10% deposit upfront
+    if (option.capitalizeAsset) {
+      cost = Math.round(option.capitalizeAsset.totalCost * 0.10);
+    }
     return cost;
   }
 
@@ -537,6 +547,88 @@ class GameEngine {
     const cost = this.getOptionCost(option);
     if (cost <= 0) return true; // no cost = always affordable
     return this.getAvailableFunds() >= cost;
+  }
+
+  // ---- DEPRECIATION & CAPITALIZATION ----
+
+  // Standard useful life (in game days) by asset type — GAAP-aligned
+  static USEFUL_LIFE_DAYS() {
+    return {
+      equipment: 90,         // ~3 years scaled (equipment: 3-7yr IRL)
+      infrastructure: 150,   // ~5 years (buildings/improvements: 15-39yr IRL)
+      real_estate: 240,      // ~8 years (commercial RE: 27-39yr)
+      intangible: 60,        // ~2 years (software/IP: 3-5yr)
+      financial: 30,         // ~1 year (securities: mark-to-market)
+      equity: 0,             // not depreciable
+      contractual: 60,       // contract term
+      tech_platform: 120,    // ~4 years (IT systems)
+      tech_tools: 60         // ~2 years (SaaS/tools)
+    };
+  }
+
+  // Returns { policyAlignment, label, cls } for a depreciation schedule
+  static getDepreciationPolicy(assetType, chosenLifeDays) {
+    const standard = GameEngine.USEFUL_LIFE_DAYS()[assetType] || 90;
+    const ratio = chosenLifeDays / standard;
+    if (ratio >= 0.85 && ratio <= 1.15) {
+      return { alignment: 'compliant', label: 'GAAP Aligned', cls: 'policy-compliant' };
+    } else if (ratio >= 0.5 && ratio < 0.85) {
+      return { alignment: 'aggressive', label: 'Aggressive — Arguable', cls: 'policy-grey' };
+    } else if (ratio > 1.15 && ratio <= 2.0) {
+      return { alignment: 'conservative', label: 'Conservative — Defensible', cls: 'policy-compliant' };
+    } else if (ratio < 0.5) {
+      return { alignment: 'non_compliant', label: 'Non-Compliant — Audit Risk', cls: 'policy-danger' };
+    } else {
+      return { alignment: 'conservative', label: 'Very Conservative', cls: 'policy-compliant' };
+    }
+  }
+
+  capitalizeAsset(item) {
+    // item: { name, type, totalCost, usefulLifeDays, policyAlignment }
+    const dailyExpense = Math.round(item.totalCost / item.usefulLifeDays);
+    this.capitalizedAssets.push({
+      name: item.name,
+      type: item.type,
+      totalCost: item.totalCost,
+      bookValue: item.totalCost,
+      dailyExpense,
+      usefulLifeDays: item.usefulLifeDays,
+      daysRemaining: item.usefulLifeDays,
+      dayAcquired: this.day,
+      policyAlignment: item.policyAlignment || 'compliant'
+    });
+    // Upfront: only pay a small deposit/closing cost (10% of total)
+    const depositPct = 0.10;
+    const deposit = Math.round(item.totalCost * depositPct);
+    this.state.money -= deposit;
+    this.state.costs += deposit;
+    this.addLog(`Capitalized: ${item.name} ($${item.totalCost.toLocaleString()}, ${item.usefulLifeDays}-day life, $${dailyExpense}/day depreciation)`);
+    this._tickFinancialRisk();
+  }
+
+  _tickDepreciation() {
+    let totalExpense = 0;
+    this.capitalizedAssets = this.capitalizedAssets.filter(asset => {
+      if (asset.daysRemaining <= 0) return false;
+      asset.daysRemaining--;
+      asset.bookValue = Math.max(0, asset.bookValue - asset.dailyExpense);
+      totalExpense += asset.dailyExpense;
+      return asset.daysRemaining > 0;
+    });
+    if (totalExpense > 0) {
+      this.state.money -= totalExpense;
+      this.state.costs += totalExpense;
+    }
+    return totalExpense;
+  }
+
+  // Get total outstanding depreciation obligations
+  getDepreciationObligations() {
+    return this.capitalizedAssets.reduce((sum, a) => sum + a.bookValue, 0);
+  }
+
+  getDailyDepreciationExpense() {
+    return this.capitalizedAssets.reduce((sum, a) => a.daysRemaining > 0 ? sum + a.dailyExpense : sum, 0);
   }
 
   // ---- INVESTMENT & ASSET PORTFOLIO ----
@@ -629,6 +721,7 @@ class GameEngine {
     // Financial risk & portfolio tick
     this._tickFinancialRisk();
     this._tickInvestmentReturns();
+    this._tickDepreciation();
     this._tickTechDebt();
     // Hard mode: legal/regulatory tick
     if (this.difficulty === 'hard') {
