@@ -705,6 +705,10 @@ body {
 .milestone.empire-tier .milestone-dot { border-color: #ff9800; }
 .milestone.empire-tier.reached .milestone-dot { background: #ff9800; border-color: #ff9800; box-shadow: 0 0 8px #ff9800; }
 .milestone.empire-tier.current .milestone-dot { border-color: #ff9800; }
+.milestone.clickable { cursor: pointer; }
+.milestone.clickable:hover { color: var(--accent); }
+.milestone.clickable:hover .milestone-dot { border-color: var(--accent); box-shadow: 0 0 8px var(--accent); }
+.mj-node.clickable:hover .mj-dot { border-color: var(--accent); box-shadow: 0 0 8px var(--accent); }
 
 .journey-stats {
   margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border);

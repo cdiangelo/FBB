@@ -14,6 +14,7 @@ let difficultyMode = 'easy'; // 'easy' or 'hard'
 let advisorEnabled = false;
 let advisorReasoningLevel = 50; // 0-100 slider
 let adminSettings = null; // loaded from server
+let _adminSessionAuth = false; // true once admin authenticates this session
 let playerGender = 'male';     // male, female, other
 let playerSkinTone = 0;        // 0-5 index into skin color palette
 const SKIN_COLORS = [
@@ -278,7 +279,10 @@ function setupEventListeners() {
   els.btnSell.addEventListener('click', showSellOffOptions);
 
   // Celebration dismiss
-  els.celebrationOverlay.addEventListener('click', dismissCelebration);
+  els.celebrationOverlay.addEventListener('click', (e) => {
+    // Only dismiss if clicking the overlay backdrop itself, not child content (admin panel, sliders, etc.)
+    if (e.target === els.celebrationOverlay) dismissCelebration();
+  });
 }
 
 // ---- SCREENS ----
@@ -486,7 +490,13 @@ function updateJourneyPanel() {
     const isEmpireTier = i >= GAME_DATA.levels[engine.persona].length;
     if (engine.totalScore >= level.minScore) cls = 'reached';
     if (level.name === currentLevel.name) cls = 'current';
-    return `<div class="milestone ${cls} ${isEmpireTier ? 'empire-tier' : ''}"><div class="milestone-dot"></div><span>${level.name}</span></div>`;
+    // Admin-authenticated users can click milestones to jump levels
+    const clickable = _adminSessionAuth;
+    const startState = GAME_DATA.startingState[persona];
+    const cash = Math.round(startState.money * (1 + i * 0.8));
+    const diff = isEmpireTier ? 'hard' : engine.difficulty || 'easy';
+    const clickAttr = clickable ? `onclick="adminJumpToLevel('${persona}','${diff}',${level.minScore},${level.day},${cash})" style="cursor:pointer" title="Jump to ${level.name}"` : '';
+    return `<div class="milestone ${cls} ${isEmpireTier ? 'empire-tier' : ''} ${clickable ? 'clickable' : ''}" ${clickAttr}><div class="milestone-dot"></div><span>${level.name}</span></div>`;
   }).join('');
 
   const currentIdx = levels.indexOf(currentLevel);
@@ -1549,8 +1559,12 @@ function updateInterpersonalPanel() {
 //  ADMIN PANEL
 // ===============================
 function showAdminPanel() {
-  const overlay = document.getElementById('celebration-overlay');
-  const content = document.getElementById('celebration-content');
+  // If already authenticated this session, skip the password prompt
+  if (_adminSessionAuth && _adminSettings) {
+    renderAdminPanel(_adminSettings, _adminUsers);
+    return;
+  }
+
   const pwd = prompt('Admin password:');
   if (!pwd) return;
 
@@ -1560,6 +1574,7 @@ function showAdminPanel() {
     body: JSON.stringify({ password: pwd })
   }).then(r => r.json()).then(data => {
     if (!data.success) { showNotification('Invalid admin password.'); return; }
+    _adminSessionAuth = true;
     renderAdminPanel(data.settings, data.users);
   }).catch(() => showNotification('Admin login failed.'));
 }
@@ -1973,7 +1988,12 @@ function buildMobileJourneyContent() {
     const isEmpireTier = i >= GAME_DATA.levels[persona].length;
     if (engine.totalScore >= level.minScore) cls = 'reached';
     if (level.name === currentLevel.name) cls = 'current';
-    return `<div class="mj-node ${cls} ${isEmpireTier ? 'empire-tier' : ''}" title="${level.name}"><div class="mj-dot"></div><span class="mj-label">${level.name}</span></div>`;
+    const clickable = _adminSessionAuth;
+    const startState = GAME_DATA.startingState[persona];
+    const cash = Math.round(startState.money * (1 + i * 0.8));
+    const diff = isEmpireTier ? 'hard' : engine.difficulty || 'easy';
+    const clickAttr = clickable ? `onclick="adminJumpToLevel('${persona}','${diff}',${level.minScore},${level.day},${cash})" style="cursor:pointer"` : '';
+    return `<div class="mj-node ${cls} ${isEmpireTier ? 'empire-tier' : ''} ${clickable ? 'clickable' : ''}" title="${level.name}" ${clickAttr}><div class="mj-dot"></div><span class="mj-label">${level.name}</span></div>`;
   }).join('');
   html += '</div></div>';
 
