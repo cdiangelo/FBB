@@ -571,17 +571,23 @@ function renderMarketTicker() {
 }
 
 function buildMarketMatrix(snapshot) {
-  // Group by category
+  // Preserve open state when re-rendering (e.g. sort changes)
+  const existingDetails = document.querySelector('#market-matrix-container > details');
+  const isOpen = existingDetails ? existingDetails.open : false;
+  let html = `<details class="collapsible-section" id="market-matrix-details"${isOpen ? ' open' : ''}><summary>Market Data (${snapshot.length} instruments)</summary><div class="collapsible-body">`;
+  html += buildMarketMatrixBody(snapshot);
+  html += '</div></details>';
+  return html;
+}
+
+function buildMarketMatrixBody(snapshot) {
   const categories = {};
   snapshot.forEach(item => {
     if (!categories[item.category]) categories[item.category] = [];
     categories[item.category].push(item);
   });
 
-  let html = '<details class="collapsible-section"><summary>Market Data (' + snapshot.length + ' instruments)</summary><div class="collapsible-body">';
-
-  // Sort controls
-  html += `<div class="market-sort-controls">
+  let html = `<div class="market-sort-controls">
     <span class="sort-label">Sort by:</span>
     <button class="sort-btn ${currentMarketSort === 'pctChange' ? 'active' : ''}" onclick="sortMarket('pctChange')">Day Change</button>
     <button class="sort-btn ${currentMarketSort === 'periodChange' ? 'active' : ''}" onclick="sortMarket('periodChange')">Period</button>
@@ -612,7 +618,6 @@ function buildMarketMatrix(snapshot) {
     html += '</div></div>';
   });
 
-  html += '</div></details>';
   return html;
 }
 
@@ -648,12 +653,22 @@ function sortMarket(field) {
     currentMarketSort = field;
     currentMarketAsc = false;
   }
-  renderMarketTicker();
+  updateMarketMatrixOnly();
 }
 
 function toggleMarketDir() {
   currentMarketAsc = !currentMarketAsc;
-  renderMarketTicker();
+  updateMarketMatrixOnly();
+}
+
+function updateMarketMatrixOnly() {
+  const tracker = engine.marketTracker;
+  if (!tracker) return;
+  const snapshot = tracker.getSnapshot(currentMarketSort, currentMarketAsc);
+  const body = document.querySelector('#market-matrix-details > .collapsible-body');
+  if (body) {
+    body.innerHTML = buildMarketMatrixBody(snapshot);
+  }
 }
 
 function showTrendPopup(name) {
