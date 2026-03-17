@@ -337,6 +337,18 @@ function updateStatusBar() {
 function updateJourneyPanel() {
   const levels = engine._getAllLevels();
   const currentLevel = engine.getLevel();
+  const persona = engine.persona;
+
+  // Update journey avatar to use persona visual from title cards
+  const avatarVisuals = {
+    farmer: `<div class="mini-hat"></div><div class="mini-head"><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-overalls"></div>`,
+    banker: `<div class="mini-head"><div class="mini-hair"></div><div class="mini-glasses"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-suit"><div class="mini-tie" style="background:#1565C0"></div></div>`,
+    businessman: `<div class="mini-head"><div class="mini-hair-styled"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-blazer"><div class="mini-tie" style="background:#FF8F00"></div><div class="mini-pocket-square"></div></div>`
+  };
+  if (persona && avatarVisuals[persona]) {
+    els.journeyAvatar.innerHTML = avatarVisuals[persona];
+    els.journeyAvatar.className = `journey-avatar ${persona}-preview`;
+  }
 
   els.journeyMilestones.innerHTML = levels.map((level, i) => {
     let cls = '';
@@ -1324,4 +1336,193 @@ function adminToggleUser(userId, enabled) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId, enabled })
   }).then(() => loadAdminSettings());
+}
+
+// ===============================
+//  MOBILE NAVIGATION
+// ===============================
+let activeMobileTab = 'game';
+let activeMobileDrawer = null;
+
+function mobileNavTo(tab) {
+  // Update active button
+  document.querySelectorAll('.mobile-nav-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.querySelector(`.mobile-nav-btn[data-tab="${tab}"]`);
+  if (btn) btn.classList.add('active');
+
+  // Close any open drawer first
+  closeMobileDrawer();
+
+  if (tab === 'game') {
+    activeMobileTab = 'game';
+    return;
+  }
+
+  if (tab === 'advisor') {
+    activeMobileTab = 'advisor';
+    // Hard mode check
+    if (engine.difficulty === 'hard') {
+      const isCommentary = currentScenario && currentScenario.type === 'commentary';
+      if (!isCommentary) {
+        showNotification('Hard mode: Advisor only available during quarterly reviews.');
+        mobileNavTo('game');
+        return;
+      }
+    }
+    if (!advisorEnabled) {
+      showNotification('AI advisor not available.');
+      mobileNavTo('game');
+      return;
+    }
+    toggleAdvisor();
+    return;
+  }
+
+  if (tab === 'journey') {
+    activeMobileTab = 'journey';
+    const drawer = document.getElementById('mobile-drawer-journey');
+    const content = document.getElementById('mobile-journey-content');
+    content.innerHTML = buildMobileJourneyContent();
+    drawer.classList.add('open');
+    activeMobileDrawer = drawer;
+    return;
+  }
+
+  if (tab === 'stats') {
+    activeMobileTab = 'stats';
+    const drawer = document.getElementById('mobile-drawer-stats');
+    const content = document.getElementById('mobile-stats-content');
+    content.innerHTML = buildMobileStatsContent();
+    drawer.classList.add('open');
+    activeMobileDrawer = drawer;
+    return;
+  }
+}
+
+function closeMobileDrawer() {
+  document.querySelectorAll('.mobile-drawer').forEach(d => d.classList.remove('open'));
+  activeMobileDrawer = null;
+}
+
+function buildMobileJourneyContent() {
+  if (!engine.persona) return '<p>Start a game to see your journey.</p>';
+  const levels = engine._getAllLevels();
+  const currentLevel = engine.getLevel();
+  const persona = engine.persona;
+
+  // Build persona visual (from title screen cards)
+  const personaVisuals = {
+    farmer: `<div class="robot-mini-preview farmer-preview" style="transform:scale(.6)"><div class="mini-hat"></div><div class="mini-head"><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-overalls"></div></div>`,
+    banker: `<div class="robot-mini-preview banker-preview" style="transform:scale(.6)"><div class="mini-head"><div class="mini-hair"></div><div class="mini-glasses"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-suit"><div class="mini-tie" style="background:#1565C0"></div></div></div>`,
+    businessman: `<div class="robot-mini-preview businessman-preview" style="transform:scale(.6)"><div class="mini-head"><div class="mini-hair-styled"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-blazer"><div class="mini-tie" style="background:#FF8F00"></div><div class="mini-pocket-square"></div></div></div>`
+  };
+
+  // Horizontal compact timeline for mobile
+  let html = '<div class="mobile-journey-strip">';
+
+  // Persona avatar at current position
+  const currentIdx = levels.indexOf(currentLevel);
+  html += '<div class="mj-track-wrap">';
+  html += `<div class="mj-avatar" style="left:${((currentIdx + .5) / levels.length) * 100}%">${personaVisuals[persona] || ''}</div>`;
+  html += '<div class="mj-track">';
+  html += levels.map((level, i) => {
+    let cls = '';
+    const isEmpireTier = i >= GAME_DATA.levels[persona].length;
+    if (engine.totalScore >= level.minScore) cls = 'reached';
+    if (level.name === currentLevel.name) cls = 'current';
+    return `<div class="mj-node ${cls} ${isEmpireTier ? 'empire-tier' : ''}" title="${level.name}"><div class="mj-dot"></div><span class="mj-label">${level.name}</span></div>`;
+  }).join('');
+  html += '</div></div>';
+
+  // Compact stats row
+  const nextLevel = engine.getNextLevel();
+  const debtService = engine.getDebtService();
+  html += '<div class="mj-stats">';
+  html += `<span>Day ${engine.day}</span><span>Score ${engine.totalScore}</span>`;
+  if (debtService > 0) html += `<span style="color:#f44336">Debt -$${debtService.toLocaleString()}/mo</span>`;
+  if (nextLevel) html += `<span>Next: ${nextLevel.minScore - engine.totalScore} pts</span>`;
+  if (engine.difficulty === 'hard') html += `<span style="color:#ff9800">Hard</span>`;
+  html += '</div>';
+  html += '</div>';
+
+  return html;
+}
+
+function buildMobileStatsContent() {
+  if (!engine.persona) return '<p>Start a game to see stats.</p>';
+
+  let html = '<h3 style="font-size:.85rem;color:var(--text-dim);text-transform:uppercase;margin-bottom:.75rem">Performance</h3>';
+
+  // Score
+  html += `<div style="text-align:center;margin-bottom:.75rem">
+    <div class="score-circle" style="margin:0 auto"><span class="score-value">${engine.totalScore}</span><span class="score-label">Score</span></div>
+  </div>`;
+
+  // Score breakdown
+  const maxes = { decisions: 300, knowledge: 150, financial: 150, commentary: 150 };
+  html += '<div style="font-size:.78rem;margin-bottom:.75rem">';
+  for (const [key, max] of Object.entries(maxes)) {
+    const val = engine.scores[key] || 0;
+    const pct = Math.min(100, Math.round(val / max * 100));
+    html += `<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem">
+      <span style="width:75px;color:var(--text-dim);text-transform:capitalize">${key}</span>
+      <div style="flex:1;height:4px;background:var(--panel-inset);border-radius:2px"><div style="width:${pct}%;height:100%;background:var(--accent);border-radius:2px"></div></div>
+      <span style="min-width:30px;text-align:right">${val}</span>
+    </div>`;
+  }
+  html += '</div>';
+
+  // Satisfaction
+  const sat = engine.satisfaction;
+  const satLabel = sat > 80 ? 'Thriving' : sat > 60 ? 'Content' : sat > 40 ? 'Strained' : sat > 20 ? 'Struggling' : 'Crisis';
+  html += `<div style="margin-bottom:.75rem">
+    <h3 style="font-size:.8rem;color:var(--text-dim);text-transform:uppercase;margin-bottom:.4rem">Life Balance</h3>
+    <div style="display:flex;align-items:center;gap:.5rem">
+      <div style="flex:1;height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden">
+        <div style="width:${sat}%;height:100%;background:linear-gradient(90deg,#f44336,#FFC107,#4CAF50);border-radius:3px"></div>
+      </div>
+      <span style="font-size:.75rem">${sat} — ${satLabel}</span>
+    </div>
+  </div>`;
+
+  // Culture
+  html += `<div style="margin-bottom:.75rem">
+    <h3 style="font-size:.8rem;color:var(--text-dim);text-transform:uppercase;margin-bottom:.4rem">Workforce</h3>
+    <div style="font-size:.75rem;color:var(--text-secondary)">
+      <div>Management: ${engine.micromanagerLevel > 65 ? 'Hands-on' : engine.micromanagerLevel < 35 ? 'Hands-off' : 'Balanced'} (${engine.micromanagerLevel})</div>
+      <div>Team Morale: ${engine.employeeSatisfaction}/100</div>
+    </div>
+  </div>`;
+
+  // Legal (hard mode)
+  if (engine.difficulty === 'hard') {
+    html += `<div style="margin-bottom:.75rem">
+      <h3 style="font-size:.8rem;color:#ff9800;text-transform:uppercase;margin-bottom:.4rem">Risk & Compliance</h3>
+      <div style="font-size:.75rem;color:var(--text-secondary)">
+        <div>Legal Exposure: ${engine.legalExposure || 0}/100</div>
+        <div>Regulatory Standing: ${engine.regulatoryStanding ?? 100}/100</div>
+      </div>
+    </div>`;
+  }
+
+  // Interpersonal
+  const ip = engine.interpersonal;
+  if (ip && ip.activeRequests && ip.activeRequests.length > 0) {
+    html += `<h3 style="font-size:.8rem;color:var(--text-dim);text-transform:uppercase;margin-bottom:.4rem">Dependencies</h3>`;
+    ip.activeRequests.filter(r => !r.resolved).forEach(req => {
+      const elapsed = engine.day - req.dayIssued;
+      const overdue = elapsed > req.deadline;
+      html += `<div style="font-size:.72rem;color:${overdue ? '#ef5350' : 'var(--text-secondary)'};margin-bottom:.3rem;padding:.3rem;background:var(--bg-card);border-radius:4px">
+        <strong>${req.from}</strong>: ${req.task} ${overdue ? '(OVERDUE)' : `(${req.deadline - elapsed}d left)`}
+      </div>`;
+    });
+  }
+
+  // Recent log
+  html += `<h3 style="font-size:.8rem;color:var(--text-dim);text-transform:uppercase;margin-bottom:.4rem;margin-top:.75rem">Recent Activity</h3>`;
+  html += engine.log.slice(0, 8).map(entry =>
+    `<div style="font-size:.7rem;color:var(--text-dim);padding:.2rem 0;border-bottom:1px solid var(--border)"><strong>Day ${entry.day}</strong> — ${entry.message}</div>`
+  ).join('');
+
+  return html;
 }

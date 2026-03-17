@@ -958,10 +958,279 @@ body {
 .status-actions { font-size: .72rem; color: var(--text-dim); }
 
 /* ---- RESPONSIVE ---- */
+
+/* Tablet: 768-900px — compress sidebars */
 @media (max-width: 900px) {
   .persona-select { grid-template-columns: 1fr; }
   .game-content { grid-template-columns: 1fr; }
   .journey-panel, .info-panel { display: none; }
   .game-title { font-size: 3rem; }
-  .advisor-panel { width: 100%; right: -100%; }
+
+  /* Mobile nav tabs to access hidden panels */
+  .mobile-nav { display: flex !important; }
+
+  /* Top bar: wrap into two rows */
+  .top-bar {
+    flex-wrap: wrap; gap: .4rem; padding: .4rem .6rem;
+  }
+  .status-bar { gap: .6rem; flex-wrap: wrap; justify-content: center; order: 2; width: 100%; }
+  .status-bar span { font-size: .75rem; }
+  .btn-back { order: 1; }
+  .top-bar-actions { order: 1; margin-left: auto; }
+
+  /* Task header tighter */
+  .task-header-fixed { padding: .75rem 1rem .5rem; }
+  .task-header h2 { font-size: 1.1rem; }
+  .task-header p { font-size: .82rem; }
+  .task-scroll-area { padding: .75rem 1rem 1rem; }
+
+  /* Scene display smaller */
+  .scene-display { height: 100px; }
+
+  /* Option buttons more compact */
+  .option-btn { padding: .75rem; font-size: .82rem; gap: .5rem; }
+  .option-btn .option-key { width: 24px; height: 24px; font-size: .7rem; }
+  .option-btn .option-detail { font-size: .72rem; }
+
+  /* Advisor panel — half screen */
+  .advisor-panel { width: 50vw; right: -50vw; min-width: 320px; }
+  .advisor-panel.open { right: 0; }
+
+  /* Market table — allow wrapping */
+  .mkt-row td { white-space: normal; }
+  .mkt-name { max-width: 80px; }
+  .mkt-table { font-size: .68rem; }
+}
+
+/* Phone: 480-768px */
+@media (max-width: 768px) {
+  .game-title { font-size: 2.5rem; }
+  .game-subtitle { font-size: .9rem; }
+  .game-tagline { font-size: .75rem; }
+
+  .title-container { padding: 1rem; }
+  .persona-card { padding: .75rem; }
+  .persona-card h2 { font-size: 1.1rem; }
+  .persona-card p { font-size: .75rem; }
+  .persona-tags span { font-size: .6rem; padding: .15rem .4rem; }
+
+  /* Top bar tighter */
+  .top-bar { padding: .3rem .5rem; gap: .3rem; }
+  .btn-back, .btn-save, .btn-sell { padding: .3rem .5rem; font-size: .7rem; }
+  .status-bar span { font-size: .68rem; }
+  .status-bar { gap: .4rem; }
+  .status-level { display: none; } /* hide level text — visible in journey tab */
+
+  /* Advisor: takes more width on smaller tablets */
+  .advisor-panel { width: 70vw; right: -70vw; min-width: 280px; }
+
+  /* Scene even smaller */
+  .scene-display { height: 80px; }
+
+  /* Admin panel */
+  .admin-panel { padding: 1rem; }
+  .celebration-content { padding: 1.5rem; }
+
+  /* Game option toggles */
+  .game-options { padding: 0 .5rem; }
+  .toggle-text { font-size: .8rem; }
+  .toggle-hint { font-size: .65rem; }
+}
+
+/* Small phone: <480px */
+@media (max-width: 480px) {
+  .game-title { font-size: 2rem; }
+  .game-subtitle { font-size: .8rem; }
+
+  .profile-container { padding: .75rem; }
+  .profile-input { font-size: .9rem; padding: .6rem .8rem; }
+
+  /* Top bar: single compact row */
+  .top-bar { padding: .25rem .4rem; }
+  .btn-back { font-size: .65rem; padding: .25rem .4rem; }
+  .btn-save, .btn-sell { font-size: .65rem; padding: .25rem .4rem; }
+  .btn-advisor-toggle { font-size: .6rem; padding: .25rem .4rem; }
+  .status-bar { gap: .3rem; }
+  .status-bar span { font-size: .62rem; }
+  .status-persona { letter-spacing: .05em; }
+  .status-satisfaction { font-size: .62rem !important; }
+  .status-day { min-width: unset; }
+
+  /* Scene minimal */
+  .scene-display { height: 60px; }
+
+  /* Task area */
+  .task-header-fixed { padding: .5rem .7rem .4rem; }
+  .task-header h2 { font-size: .95rem; margin-bottom: .2rem; }
+  .task-header p { font-size: .75rem; line-height: 1.4; }
+  .task-scroll-area { padding: .5rem .7rem .75rem; }
+
+  /* Options more compact */
+  .option-btn { padding: .6rem; font-size: .78rem; gap: .4rem; }
+  .option-btn .option-key { width: 22px; height: 22px; font-size: .65rem; }
+  .option-btn .option-label { font-size: .78rem; }
+  .option-btn .option-detail { font-size: .68rem; }
+  .option-btn .option-sat { font-size: .62rem; }
+
+  /* Advisor: full width on small phone */
+  .advisor-panel { width: 100%; right: -100%; min-width: unset; }
+
+  /* Market table */
+  .mkt-table { font-size: .62rem; }
+  .mkt-table thead th { font-size: .55rem; padding: .2rem .3rem; }
+  .mkt-row td { padding: .2rem .3rem; }
+  .mkt-name { max-width: 65px; font-size: .62rem; }
+  .mkt-spark { display: none; } /* hide sparklines on tiny screens */
+
+  /* Trend popup */
+  .trend-popup { padding: 1rem; }
+  .trend-header h3 { font-size: .9rem; }
+
+  /* Collapsible sections */
+  .collapsible-section summary { font-size: .72rem; padding: .4rem .5rem; }
+  .collapsible-section .collapsible-body { padding: 0 .5rem .5rem; }
+
+  /* Data tables */
+  .data-table { font-size: .72rem; }
+  .data-table th, .data-table td { padding: .3rem .4rem; }
+
+  /* Persona cards compact */
+  .persona-card { padding: .6rem; }
+  .robot-mini-preview { transform: scale(.8); }
+}
+
+/* ---- MOBILE NAV TABS (access journey/info on mobile) ---- */
+.mobile-nav {
+  display: none; /* shown at 900px breakpoint */
+  gap: 0; background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  position: fixed; bottom: 0; left: 0; right: 0;
+  z-index: 100;
+}
+.mobile-nav-btn {
+  flex: 1; padding: .5rem .25rem; text-align: center;
+  background: transparent; border: none; border-top: 2px solid transparent;
+  color: var(--text-dim); font-size: .65rem; cursor: pointer;
+  transition: all .2s; display: flex; flex-direction: column;
+  align-items: center; gap: .15rem;
+}
+.mobile-nav-btn.active { color: var(--accent); border-top-color: var(--accent); background: rgba(255,255,255,.03); }
+.mobile-nav-btn:hover { color: var(--text-secondary); }
+.mobile-nav-icon { font-size: 1rem; }
+
+/* Mobile drawer panels */
+.mobile-drawer {
+  position: fixed; bottom: 38px; left: 0; right: 0;
+  max-height: 55vh; background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  overflow-y: auto; z-index: 99;
+  transform: translateY(100%); transition: transform .3s ease;
+  padding: .75rem;
+}
+#mobile-drawer-journey {
+  max-height: auto;
+  overflow: hidden;
+}
+.mobile-drawer.open { transform: translateY(0); }
+.mobile-drawer-close {
+  position: absolute; top: .5rem; right: .75rem;
+  background: none; border: none; color: var(--text-secondary);
+  font-size: 1.1rem; cursor: pointer;
+}
+
+/* When mobile nav visible, add bottom padding so content isn't hidden */
+@media (max-width: 900px) {
+  .game-layout { padding-bottom: 38px; }
+}
+
+/* ---- MOBILE HORIZONTAL JOURNEY TIMELINE ---- */
+.mobile-journey-strip {
+  padding: .25rem 0;
+}
+.mj-track-wrap {
+  position: relative;
+  padding-top: 28px; /* space for avatar above track */
+  margin-bottom: .4rem;
+}
+.mj-avatar {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  z-index: 3;
+  pointer-events: none;
+}
+.mj-track {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  position: relative;
+  padding: .3rem 0 .2rem;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.mj-track::-webkit-scrollbar { display: none; }
+.mj-track::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), rgba(255,255,255,.1));
+  z-index: 0;
+}
+.mj-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1 0 auto;
+  min-width: 50px;
+  max-width: 70px;
+  position: relative;
+  z-index: 1;
+}
+.mj-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.1);
+  border: 1.5px solid transparent;
+  margin-bottom: 3px;
+  flex-shrink: 0;
+  transition: all .3s;
+}
+.mj-node.reached .mj-dot {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 4px var(--accent);
+}
+.mj-node.current .mj-dot {
+  background: transparent;
+  border-color: var(--accent);
+  animation: milestonePulse 2s ease-in-out infinite;
+}
+.mj-node.empire-tier .mj-dot { border-color: #ff9800; }
+.mj-node.empire-tier.reached .mj-dot { background: #ff9800; border-color: #ff9800; box-shadow: 0 0 6px #ff9800; }
+.mj-node.empire-tier.current .mj-dot { border-color: #ff9800; }
+.mj-label {
+  font-size: .5rem;
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.15;
+  word-break: break-word;
+  max-width: 60px;
+}
+.mj-node.reached .mj-label { color: var(--accent); }
+.mj-node.current .mj-label { color: var(--text-primary); font-weight: 700; }
+.mj-node.empire-tier .mj-label { font-style: italic; }
+.mj-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem .75rem;
+  font-size: .65rem;
+  color: var(--text-dim);
+  padding-top: .3rem;
+  border-top: 1px solid var(--border);
 }

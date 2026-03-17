@@ -249,6 +249,32 @@
       </div>
     </div>
 
+    <!-- MOBILE NAVIGATION (bottom tabs, shown <900px) -->
+    <div class="mobile-nav" id="mobile-nav">
+      <button class="mobile-nav-btn active" data-tab="game" onclick="mobileNavTo('game')">
+        <span class="mobile-nav-icon">&#9881;</span>Tasks
+      </button>
+      <button class="mobile-nav-btn" data-tab="journey" onclick="mobileNavTo('journey')">
+        <span class="mobile-nav-icon">&#9734;</span>Journey
+      </button>
+      <button class="mobile-nav-btn" data-tab="stats" onclick="mobileNavTo('stats')">
+        <span class="mobile-nav-icon">&#9776;</span>Stats
+      </button>
+      <button class="mobile-nav-btn" data-tab="advisor" onclick="mobileNavTo('advisor')">
+        <span class="mobile-nav-icon">&#128172;</span>Helper
+      </button>
+    </div>
+
+    <!-- MOBILE DRAWER (journey / stats panels) -->
+    <div class="mobile-drawer" id="mobile-drawer-journey">
+      <button class="mobile-drawer-close" onclick="closeMobileDrawer()">&times;</button>
+      <div id="mobile-journey-content"></div>
+    </div>
+    <div class="mobile-drawer" id="mobile-drawer-stats">
+      <button class="mobile-drawer-close" onclick="closeMobileDrawer()">&times;</button>
+      <div id="mobile-stats-content"></div>
+    </div>
+
     <!-- CELEBRATION OVERLAY -->
     <div class="celebration-overlay" id="celebration-overlay" style="display:none">
       <div class="celebration-content" id="celebration-content"></div>

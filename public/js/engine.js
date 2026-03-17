@@ -1105,6 +1105,13 @@ class GameEngine {
     const rel = this.interpersonal.relationships.find(r => req.from.includes(r.name.split(' ')[0]));
     if (rel) rel.trust = Math.min(100, rel.trust + (onTime ? 5 : 2));
 
+    // Satisfaction impact based on quality and timeliness
+    const satChange = onTime ? (quality === 'good' ? 3 : 1) : -2;
+    this.satisfaction = Math.max(0, Math.min(100, this.satisfaction + satChange));
+
+    // Remove resolved requests from active list (clear the flag)
+    this.interpersonal.activeRequests = this.interpersonal.activeRequests.filter((r, i) => i !== index);
+
     this.addLog(`Responded to ${req.from}${onTime ? ' on time' : ' (late)'}: +${bonus} pts`);
   }
 }
