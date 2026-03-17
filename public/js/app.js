@@ -14,6 +14,39 @@ let difficultyMode = 'easy'; // 'easy' or 'hard'
 let advisorEnabled = false;
 let advisorReasoningLevel = 50; // 0-100 slider
 let adminSettings = null; // loaded from server
+let playerGender = 'male';     // male, female, other
+let playerSkinTone = 0;        // 0-5 index into skin color palette
+const SKIN_COLORS = ['#FDDBB4', '#D2A679', '#C4946B', '#A57551', '#7B5138', '#4A2E1A'];
+const SKIN_GRADIENTS = [
+  ['#FDDBB4', '#ECC9A0', '#DEB78C'], // light
+  ['#D2A679', '#C4946B', '#B8845E'], // light-medium
+  ['#C4946B', '#B0815A', '#9C6E4A'], // medium
+  ['#A57551', '#916343', '#7D5236'], // medium-dark
+  ['#7B5138', '#6A422C', '#593420'], // dark
+  ['#4A2E1A', '#3D2415', '#301B10']  // deep
+];
+
+// ---- PERSONA VISUAL BUILDER ----
+function buildPersonaVisual(persona, scale = 1) {
+  const grad = SKIN_GRADIENTS[playerSkinTone] || SKIN_GRADIENTS[1];
+  const skinBg = `linear-gradient(180deg, ${grad[0]}, ${grad[1]}, ${grad[2]})`;
+  const isFeminine = playerGender === 'female';
+  const scaleStyle = scale !== 1 ? ` style="transform:scale(${scale})"` : '';
+
+  const outfits = {
+    farmer: isFeminine
+      ? `<div class="mini-hat" style="background:linear-gradient(#8B6914,#6B4F0A)"></div><div class="mini-head" style="background:${skinBg}"><div class="mini-hair-long"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-overalls" style="background:linear-gradient(180deg,#4a90d9,#3a78c0)"><div class="mini-collar"></div></div>`
+      : `<div class="mini-hat"></div><div class="mini-head" style="background:${skinBg}"><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-overalls"></div>`,
+    banker: isFeminine
+      ? `<div class="mini-head" style="background:${skinBg}"><div class="mini-hair-bob"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-blazer" style="background:linear-gradient(180deg,#1a237e,#0d1642)"><div class="mini-collar-v"></div></div>`
+      : `<div class="mini-head" style="background:${skinBg}"><div class="mini-hair"></div><div class="mini-glasses"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-suit"><div class="mini-tie" style="background:#1565C0"></div></div>`,
+    businessman: isFeminine
+      ? `<div class="mini-head" style="background:${skinBg}"><div class="mini-hair-styled-f"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-blazer" style="background:linear-gradient(180deg,#37474F,#263238)"><div class="mini-scarf" style="background:#FF8F00"></div></div>`
+      : `<div class="mini-head" style="background:${skinBg}"><div class="mini-hair-styled"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-blazer"><div class="mini-tie" style="background:#FF8F00"></div><div class="mini-pocket-square"></div></div>`
+  };
+
+  return `<div class="robot-mini-preview ${persona}-preview"${scaleStyle}>${outfits[persona] || outfits.businessman}</div>`;
+}
 
 // ---- DOM REFERENCES ----
 const screens = {
@@ -112,7 +145,9 @@ async function identifyProfile() {
     playerProfile = data.profile;
 
     if (data.isReturning && playerProfile.name && playerProfile.name !== 'Player') {
-      // Returning player
+      // Returning player — restore appearance
+      if (playerProfile.gender) playerGender = playerProfile.gender;
+      if (playerProfile.skinTone !== undefined) playerSkinTone = playerProfile.skinTone;
       els.profileForm.style.display = 'none';
       els.profileReturning.style.display = 'block';
       els.returningMsg.textContent = `Welcome back, ${playerProfile.name}!`;
@@ -149,10 +184,12 @@ function setupEventListeners() {
       await fetch(`/api/profile/${fingerprint}/name`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name })
+        body: JSON.stringify({ name, gender: playerGender, skinTone: playerSkinTone })
       });
       playerProfile = playerProfile || {};
       playerProfile.name = name;
+      playerProfile.gender = playerGender;
+      playerProfile.skinTone = playerSkinTone;
     } catch (e) {
       // Proceed without server
     }
@@ -162,6 +199,24 @@ function setupEventListeners() {
   // Enter key on profile input
   els.profileName.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') els.profileSubmit.click();
+  });
+
+  // Gender selection
+  document.querySelectorAll('.gender-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.gender-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      playerGender = btn.dataset.gender;
+    });
+  });
+
+  // Skin tone selection
+  document.querySelectorAll('.skin-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.skin-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      playerSkinTone = parseInt(btn.dataset.skin);
+    });
   });
 
   // Persona selection
@@ -238,6 +293,8 @@ async function loadSavedGamesMenu() {
 function loadSavedGame(persona, saveData) {
   engine.loadGame(saveData);
   difficultyMode = engine.difficulty || 'easy';
+  playerGender = engine.playerGender || 'male';
+  playerSkinTone = engine.playerSkinTone ?? 0;
   enterGameScreen();
 }
 
@@ -250,7 +307,7 @@ function startNewGame(persona) {
   const diffToggle = document.getElementById('toggle-difficulty');
   marketDataMode = (mdToggle && mdToggle.checked) ? 'live' : 'simulated';
   difficultyMode = (diffToggle && diffToggle.checked) ? 'hard' : 'easy';
-  engine.newGame(persona, { scoreSatisfaction: scoreSat, marketDataMode, difficulty: difficultyMode });
+  engine.newGame(persona, { scoreSatisfaction: scoreSat, marketDataMode, difficulty: difficultyMode, gender: playerGender, skinTone: playerSkinTone });
   engine.addLog(`Started new career as a ${capitalize(persona)} on ${difficultyMode} mode.`);
   enterGameScreen();
 }
@@ -341,14 +398,23 @@ function updateJourneyPanel() {
   const currentLevel = engine.getLevel();
   const persona = engine.persona;
 
-  // Update journey avatar to use persona visual from title cards
-  const avatarVisuals = {
-    farmer: `<div class="mini-hat"></div><div class="mini-head"><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-overalls"></div>`,
-    banker: `<div class="mini-head"><div class="mini-hair"></div><div class="mini-glasses"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-suit"><div class="mini-tie" style="background:#1565C0"></div></div>`,
-    businessman: `<div class="mini-head"><div class="mini-hair-styled"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-blazer"><div class="mini-tie" style="background:#FF8F00"></div><div class="mini-pocket-square"></div></div>`
-  };
-  if (persona && avatarVisuals[persona]) {
-    els.journeyAvatar.innerHTML = avatarVisuals[persona];
+  // Update journey avatar to use persona visual with player's appearance
+  if (persona) {
+    const grad = SKIN_GRADIENTS[playerSkinTone] || SKIN_GRADIENTS[1];
+    const skinBg = `linear-gradient(180deg, ${grad[0]}, ${grad[1]}, ${grad[2]})`;
+    const isFeminine = playerGender === 'female';
+    const avatarParts = {
+      farmer: isFeminine
+        ? `<div class="mini-hat" style="background:linear-gradient(#8B6914,#6B4F0A)"></div><div class="mini-head" style="background:${skinBg}"><div class="mini-hair-long"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-overalls" style="background:linear-gradient(180deg,#4a90d9,#3a78c0)"></div>`
+        : `<div class="mini-hat"></div><div class="mini-head" style="background:${skinBg}"><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-overalls"></div>`,
+      banker: isFeminine
+        ? `<div class="mini-head" style="background:${skinBg}"><div class="mini-hair-bob"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-blazer" style="background:linear-gradient(180deg,#1a237e,#0d1642)"></div>`
+        : `<div class="mini-head" style="background:${skinBg}"><div class="mini-hair"></div><div class="mini-glasses"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-suit"><div class="mini-tie" style="background:#1565C0"></div></div>`,
+      businessman: isFeminine
+        ? `<div class="mini-head" style="background:${skinBg}"><div class="mini-hair-styled-f"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-blazer" style="background:linear-gradient(180deg,#37474F,#263238)"><div class="mini-scarf" style="background:#FF8F00"></div></div>`
+        : `<div class="mini-head" style="background:${skinBg}"><div class="mini-hair-styled"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-blazer"><div class="mini-tie" style="background:#FF8F00"></div><div class="mini-pocket-square"></div></div>`
+    };
+    els.journeyAvatar.innerHTML = avatarParts[persona] || '';
     els.journeyAvatar.className = `journey-avatar ${persona}-preview`;
   }
 
@@ -1521,20 +1587,13 @@ function buildMobileJourneyContent() {
   const currentLevel = engine.getLevel();
   const persona = engine.persona;
 
-  // Build persona visual (from title screen cards)
-  const personaVisuals = {
-    farmer: `<div class="robot-mini-preview farmer-preview" style="transform:scale(.6)"><div class="mini-hat"></div><div class="mini-head"><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-overalls"></div></div>`,
-    banker: `<div class="robot-mini-preview banker-preview" style="transform:scale(.6)"><div class="mini-head"><div class="mini-hair"></div><div class="mini-glasses"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-suit"><div class="mini-tie" style="background:#1565C0"></div></div></div>`,
-    businessman: `<div class="robot-mini-preview businessman-preview" style="transform:scale(.6)"><div class="mini-head"><div class="mini-hair-styled"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-blazer"><div class="mini-tie" style="background:#FF8F00"></div><div class="mini-pocket-square"></div></div></div>`
-  };
-
   // Horizontal compact timeline for mobile
   let html = '<div class="mobile-journey-strip">';
 
   // Persona avatar at current position
   const currentIdx = levels.indexOf(currentLevel);
   html += '<div class="mj-track-wrap">';
-  html += `<div class="mj-avatar" style="left:${((currentIdx + .5) / levels.length) * 100}%">${personaVisuals[persona] || ''}</div>`;
+  html += `<div class="mj-avatar" style="left:${((currentIdx + .5) / levels.length) * 100}%">${buildPersonaVisual(persona, 0.6)}</div>`;
   html += '<div class="mj-track">';
   html += levels.map((level, i) => {
     let cls = '';

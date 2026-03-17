@@ -64,6 +64,8 @@ class GameEngine {
     this.satisfactionHistory = [50];
     this.scoreSatisfaction = options.scoreSatisfaction || false;
     this.difficulty = options.difficulty || 'easy';
+    this.playerGender = options.gender || 'male';
+    this.playerSkinTone = options.skinTone ?? 0;
     this.log = [];
     this.periodActions = [];
     this.scenarioIndex = {};
@@ -181,6 +183,8 @@ class GameEngine {
       debtStructure: saveData.debtStructure || { totalDebt: 0, debtRate: 6.0, equityInvestors: 0, equityGiven: 0 },
       interpersonal: saveData.interpersonal || { activeRequests: [], relationships: [], completedRequests: 0, overdueCount: 0 },
       difficulty: saveData.difficulty || 'easy',
+      playerGender: saveData.playerGender || 'male',
+      playerSkinTone: saveData.playerSkinTone ?? 0,
       _hardModeHistory: saveData._hardModeHistory || [],
       legalExposure: saveData.legalExposure || 0,
       legalEvents: saveData.legalEvents || [],
@@ -236,6 +240,8 @@ class GameEngine {
       marketData: this.marketTracker ? this.marketTracker.export() : null,
       interpersonal: JSON.parse(JSON.stringify(this.interpersonal)),
       difficulty: this.difficulty,
+      playerGender: this.playerGender || 'male',
+      playerSkinTone: this.playerSkinTone ?? 0,
       _hardModeHistory: this._hardModeHistory || [],
       legalExposure: this.legalExposure || 0,
       legalEvents: this.legalEvents || [],
@@ -683,7 +689,7 @@ class GameEngine {
     if (this.generator.shouldTriggerLifeEvent(this.day) && !this.categoriesUsedToday.has('life')) {
       this.actionsToday++;
       this.categoriesUsedToday.add('life');
-      const lifeScenario = this.generator.generateLifeEvent(this.persona, this.day, this.state);
+      const lifeScenario = this.generator.generateLifeEvent(this.persona, this.day, this.state, this.playerGender);
       return { type: 'decision', scenario: lifeScenario };
     }
 

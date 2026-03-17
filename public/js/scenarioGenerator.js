@@ -599,12 +599,12 @@ class ScenarioGenerator {
   }
 
   // ---- LIFE BALANCE EVENTS ----
-  generateLifeEvent(persona, day, state) {
+  generateLifeEvent(persona, day, state, gender) {
     this.daysSinceLife = 0;
     const stage = day < 15 ? 'early' : day < 35 ? 'mid' : 'late';
     const pool = LIFE_EVENTS[stage];
     const template = this.pick(pool);
-    return this._fillLifeTemplate(template, persona, state);
+    return this._fillLifeTemplate(template, persona, state, gender);
   }
 
   shouldTriggerLifeEvent(day) {
@@ -615,13 +615,13 @@ class ScenarioGenerator {
     return this.daysSinceLife >= 3 && Math.random() < chance;
   }
 
-  _fillLifeTemplate(t, persona, state) {
+  _fillLifeTemplate(t, persona, state, gender) {
     const familyMember = this.pick(NAMES.familyMembers);
     const childName = this.pick(NAMES.childNames);
     const city = this.pick(NAMES.cities);
     const cost = this.randMoney(t.costRange[0], t.costRange[1], 500);
-    const title = t.title.replace('{family}', familyMember).replace('{child}', childName).replace('{city}', city);
-    const description = t.description.replace('{family}', familyMember).replace('{child}', childName)
+    let title = t.title.replace('{family}', familyMember).replace('{child}', childName).replace('{city}', city);
+    let description = t.description.replace('{family}', familyMember).replace('{child}', childName)
       .replace('{city}', city).replace('{cost}', this.dollar(cost));
 
     const options = t.options.map(o => ({
@@ -630,7 +630,75 @@ class ScenarioGenerator {
       effect: { ...o.effect, money: o.effect.money ? Math.round(o.effect.money * (cost / 5000)) : 0 }
     }));
 
+    // Gender-based framing — adds context about gender role factors
+    if (gender) {
+      const genderContext = this._getGenderContext(gender, persona, t.category || 'family');
+      if (genderContext) {
+        description += ' ' + genderContext.framing;
+        // Some life events have different satisfaction impacts based on role expectations
+        if (genderContext.satModifier) {
+          options.forEach(o => {
+            if (o.effect.satisfaction) {
+              o.effect.satisfaction += genderContext.satModifier;
+            }
+          });
+        }
+      }
+    }
+
     return { title, description, options, isLifeEvent: true };
+  }
+
+  _getGenderContext(gender, persona, category) {
+    // Contextual framing — not penalizing but reflecting real-world role pressures
+    const contexts = {
+      female: {
+        farmer: [
+          { framing: 'As a woman running one of the largest operations in the county, industry meetings and negotiations sometimes carry extra scrutiny — but your track record speaks for itself.', satModifier: -1 },
+          { framing: 'Your partner has been carrying more of the household responsibilities during the busy season. The conversation about balance is overdue.', satModifier: -2 },
+          { framing: 'A industry magazine wants to feature you in their "Women in Agriculture" profile — good visibility but takes time away from operations.', satModifier: 0 }
+        ],
+        banker: [
+          { framing: 'The board composition review highlighted that you\'re one of few women at this level in the institution — both a responsibility and an opportunity.', satModifier: -1 },
+          { framing: 'Childcare arrangements need adjusting again. The early-morning committee meetings and late client dinners add complexity that others may not face.', satModifier: -2 },
+          { framing: 'A mentoring request came in from a junior female analyst. Meaningful but another demand on limited time.', satModifier: 0 }
+        ],
+        businessman: [
+          { framing: 'A networking event for women founders could open new deal flow — but it\'s the same evening as a key client dinner.', satModifier: 0 },
+          { framing: 'Your visibility as a woman in a leadership role draws additional speaking requests. Good for brand, demanding on schedule.', satModifier: -1 },
+          { framing: 'Family expectations around holidays and caregiving fall disproportionately on your plate — a reality that affects your availability during a critical period.', satModifier: -2 }
+        ]
+      },
+      male: {
+        farmer: [
+          { framing: 'Your father\'s legacy weighs on every decision — the community expects you to maintain the family operation\'s reputation.', satModifier: -1 },
+          { framing: 'You\'ve been missing family dinners and weekend events. Your kids barely see you during planting season.', satModifier: -1 }
+        ],
+        banker: [
+          { framing: 'The long hours culture at the institution means you\'ve missed several of your child\'s school events this quarter.', satModifier: -1 },
+          { framing: 'Client entertainment expectations are high — three dinners this week on top of a full schedule.', satModifier: -1 }
+        ],
+        businessman: [
+          { framing: 'The "always available" expectation from clients means your phone is never really off. Your family notices.', satModifier: -1 },
+          { framing: 'A peer group for entrepreneurs has helped, but the pressure to provide and perform is relentless.', satModifier: -1 }
+        ]
+      },
+      other: {
+        farmer: [
+          { framing: 'Some in the traditional farming community are still adjusting, but your results and work ethic have earned respect.', satModifier: 0 }
+        ],
+        banker: [
+          { framing: 'The institution\'s DEI initiatives have created space, but navigating corporate culture still requires extra energy.', satModifier: 0 }
+        ],
+        businessman: [
+          { framing: 'Building a professional network where you\'re fully yourself has been rewarding but took intentional effort.', satModifier: 0 }
+        ]
+      }
+    };
+
+    const pool = contexts[gender]?.[persona];
+    if (!pool || pool.length === 0) return null;
+    return this.pick(pool);
   }
 
   // ============================================================

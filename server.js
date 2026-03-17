@@ -75,6 +75,8 @@ app.put('/api/profile/:fingerprint/name', (req, res) => {
 
   const profile = JSON.parse(fs.readFileSync(profilePath, 'utf8'));
   profile.name = name;
+  if (req.body.gender !== undefined) profile.gender = req.body.gender;
+  if (req.body.skinTone !== undefined) profile.skinTone = req.body.skinTone;
   fs.writeFileSync(profilePath, JSON.stringify(profile, null, 2));
   res.json({ success: true });
 });

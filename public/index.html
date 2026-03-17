@@ -18,6 +18,29 @@
         <p class="game-tagline">Three paths. One truth: business is business.</p>
         <div class="profile-form" id="profile-form">
           <input type="text" id="profile-name" class="profile-input" placeholder="Enter your name" maxlength="30" autocomplete="off">
+
+          <div class="appearance-select">
+            <div class="appearance-group">
+              <label class="appearance-label">Gender</label>
+              <div class="gender-options" id="gender-options">
+                <button class="gender-btn active" data-gender="male">Male</button>
+                <button class="gender-btn" data-gender="female">Female</button>
+                <button class="gender-btn" data-gender="other">Other</button>
+              </div>
+            </div>
+            <div class="appearance-group">
+              <label class="appearance-label">Skin Tone</label>
+              <div class="skin-options" id="skin-options">
+                <button class="skin-btn active" data-skin="0" style="background:#FDDBB4" title="Light"></button>
+                <button class="skin-btn" data-skin="1" style="background:#D2A679" title="Light-Medium"></button>
+                <button class="skin-btn" data-skin="2" style="background:#C4946B" title="Medium"></button>
+                <button class="skin-btn" data-skin="3" style="background:#A57551" title="Medium-Dark"></button>
+                <button class="skin-btn" data-skin="4" style="background:#7B5138" title="Dark"></button>
+                <button class="skin-btn" data-skin="5" style="background:#4A2E1A" title="Deep"></button>
+              </div>
+            </div>
+          </div>
+
           <button class="btn-primary btn-lg" id="profile-submit">Start Playing</button>
         </div>
         <div class="profile-returning" id="profile-returning" style="display:none">
