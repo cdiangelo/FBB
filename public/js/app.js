@@ -705,11 +705,21 @@ function showCommentaryTask(scenario) {
   const actions = scenario.periodActions || [];
   let actionsHtml = '';
   if (actions.length > 0) {
+    // Count flagged actions for summary
+    const flaggedCount = actions.filter(a => a.flags && a.flags.length > 0).length;
+    const summaryBadge = flaggedCount > 0 ? ` <span class="flag-summary-badge">${flaggedCount} flagged</span>` : '';
+
     const actionRows = actions.map(a => {
       const icon = a.type === 'decision' ? '&#9654;' : a.type === 'event' ? '&#9889;' : '&#9733;';
-      return `<div class="action-history-row"><span class="action-day">Day ${a.day}</span><span class="action-icon">${icon}</span><span class="action-detail">${a.detail}</span></div>`;
+      let flagsHtml = '';
+      if (a.flags && a.flags.length > 0) {
+        flagsHtml = '<span class="action-flags">' +
+          a.flags.map(f => `<span class="action-flag ${f.cls}" title="${f.label}">${f.code}</span>`).join('') +
+          '</span>';
+      }
+      return `<div class="action-history-row${a.flags && a.flags.length ? ' action-flagged' : ''}"><span class="action-day">Day ${a.day}</span><span class="action-icon">${icon}</span><span class="action-detail">${a.detail}</span>${flagsHtml}</div>`;
     }).join('');
-    actionsHtml = `<details class="collapsible-section"><summary>Actions This Period (${actions.length})</summary><div class="collapsible-body action-history">${actionRows}</div></details>`;
+    actionsHtml = `<details class="collapsible-section"><summary>Actions This Period (${actions.length})${summaryBadge}</summary><div class="collapsible-body action-history">${actionRows}</div></details>`;
   }
 
   // Commentary input in scrollable area
@@ -1020,7 +1030,7 @@ function selectOption(index) {
   }
 
   engine.addLog(`${scenario.title}: chose "${option.label}"`);
-  engine.addPeriodAction('decision', `${scenario.title}: chose "${option.label}"`);
+  engine.addPeriodAction('decision', `${scenario.title}: chose "${option.label}"`, option.effect);
 
   const moneyEffect = option.effect.money ? (option.effect.money > 0 ? `+$${option.effect.money.toLocaleString()}` : `-$${Math.abs(option.effect.money).toLocaleString()}`) : '';
   const scoreEffect = `+${Math.round(((option.effect.score || 0) + (option.effect.knowledge || 0)) * engine.getScaleMultiplier())} pts`;
@@ -1087,7 +1097,7 @@ function advanceAndContinue() {
   if (event) {
     const moneyStr = event.money > 0 ? `+$${event.money.toLocaleString()}` : `-$${Math.abs(event.money).toLocaleString()}`;
     engine.addLog(`${event.text} (${moneyStr})`);
-    engine.addPeriodAction('event', `${event.text} (${moneyStr})`);
+    engine.addPeriodAction('event', `${event.text} (${moneyStr})`, { money: event.money });
     showNotification(`${event.text} (${moneyStr})`);
   }
   updateAll();

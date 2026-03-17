@@ -1049,8 +1049,63 @@ class GameEngine {
     if (this.log.length > 50) this.log.pop();
   }
 
-  addPeriodAction(type, detail) {
-    this.periodActions.push({ type, detail, day: this.day });
+  addPeriodAction(type, detail, effect) {
+    // Build inline flags for notable impacts
+    const flags = [];
+    if (effect) {
+      // Financial risk
+      if (effect.financialRisk && Math.abs(effect.financialRisk) >= 5) {
+        flags.push(effect.financialRisk > 0
+          ? { code: 'FR+', label: 'Fin Risk Up', cls: 'flag-danger' }
+          : { code: 'FR-', label: 'Fin Risk Down', cls: 'flag-good' });
+      }
+      // Regulatory / legal
+      if (effect.legalExposure && Math.abs(effect.legalExposure) >= 5) {
+        flags.push(effect.legalExposure > 0
+          ? { code: 'LE+', label: 'Legal Exposure Up', cls: 'flag-danger' }
+          : { code: 'LE-', label: 'Legal Exposure Down', cls: 'flag-good' });
+      }
+      if (effect.regulatoryStanding && Math.abs(effect.regulatoryStanding) >= 5) {
+        flags.push(effect.regulatoryStanding < 0
+          ? { code: 'RS-', label: 'Reg Standing Down', cls: 'flag-danger' }
+          : { code: 'RS+', label: 'Reg Standing Up', cls: 'flag-good' });
+      }
+      // Big money moves
+      if (effect.money && Math.abs(effect.money) >= 3000) {
+        flags.push(effect.money > 0
+          ? { code: '$+', label: `+$${effect.money.toLocaleString()}`, cls: 'flag-money-up' }
+          : { code: '$-', label: `-$${Math.abs(effect.money).toLocaleString()}`, cls: 'flag-money-down' });
+      }
+      // Operational efficiency
+      if (effect.costEfficiency && Math.abs(effect.costEfficiency) >= 5) {
+        flags.push(effect.costEfficiency > 0
+          ? { code: 'EFF+', label: 'Efficiency Up', cls: 'flag-good' }
+          : { code: 'EFF-', label: 'Efficiency Down', cls: 'flag-warn' });
+      }
+      // Scalability
+      if (effect.scalability && Math.abs(effect.scalability) >= 5) {
+        flags.push(effect.scalability > 0
+          ? { code: 'SCL+', label: 'Scalability Up', cls: 'flag-good' }
+          : { code: 'SCL-', label: 'Scalability Down', cls: 'flag-warn' });
+      }
+      // Tech level
+      if (effect.techLevel && effect.techLevel >= 8) {
+        flags.push({ code: 'TECH', label: 'Tech Upgrade', cls: 'flag-info' });
+      }
+      // Tech debt
+      if (effect.techDebt && Math.abs(effect.techDebt) >= 8) {
+        flags.push(effect.techDebt > 0
+          ? { code: 'TD+', label: 'Tech Debt Up', cls: 'flag-warn' }
+          : { code: 'TD-', label: 'Tech Debt Reduced', cls: 'flag-good' });
+      }
+      // Service quality
+      if (effect.serviceQuality && Math.abs(effect.serviceQuality) >= 5) {
+        flags.push(effect.serviceQuality > 0
+          ? { code: 'SQ+', label: 'Quality Up', cls: 'flag-good' }
+          : { code: 'SQ-', label: 'Quality Down', cls: 'flag-warn' });
+      }
+    }
+    this.periodActions.push({ type, detail, day: this.day, flags });
   }
 
   flushPeriodActions() {

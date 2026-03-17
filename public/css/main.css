@@ -791,6 +791,25 @@ body {
 .action-icon { flex-shrink: 0; font-size: .7rem; }
 .action-detail { flex: 1; }
 
+/* ---- ACTION FLAG BADGES ---- */
+.action-flagged { background: rgba(255,255,255,.02); }
+.action-flags { display: flex; gap: 3px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; max-width: 120px; }
+.action-flag {
+  display: inline-block; padding: 1px 4px; font-size: .55rem; font-weight: 700;
+  border-radius: 2px; letter-spacing: .03em; line-height: 1.3; white-space: nowrap;
+}
+.flag-danger { background: rgba(211,47,47,.18); color: #ef5350; border: 1px solid rgba(211,47,47,.3); }
+.flag-warn   { background: rgba(255,152,0,.15); color: #ffb74d; border: 1px solid rgba(255,152,0,.25); }
+.flag-good   { background: rgba(76,175,80,.15); color: #66bb6a; border: 1px solid rgba(76,175,80,.25); }
+.flag-info   { background: rgba(33,150,243,.15); color: #42a5f5; border: 1px solid rgba(33,150,243,.25); }
+.flag-money-up   { background: rgba(76,175,80,.15); color: #4caf50; border: 1px solid rgba(76,175,80,.25); }
+.flag-money-down { background: rgba(244,67,54,.15); color: #ef5350; border: 1px solid rgba(244,67,54,.25); }
+.flag-summary-badge {
+  display: inline-block; margin-left: .4rem; padding: 1px 6px;
+  font-size: .6rem; font-weight: 600; background: rgba(255,152,0,.15);
+  color: #ffb74d; border-radius: 3px; vertical-align: middle;
+}
+
 /* Market Table Matrix — Condensed */
 .mkt-table {
   width: 100%; border-collapse: collapse; font-size: .72rem;
