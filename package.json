@@ -1,0 +1,13 @@
+{
+  "name": "fbb-business-simulation",
+  "version": "1.0.0",
+  "description": "Farmer, Banker, Businessman - Business Simulation Game",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

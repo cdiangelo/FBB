@@ -1,0 +1,366 @@
+/* ============================================
+   FBB - SCENE BACKGROUNDS & CHARACTER ELEMENTS
+   ============================================ */
+
+/* Robot structural elements */
+.robot-bg { position: absolute; inset: 0; z-index: 0; }
+.robot-bg::before, .robot-bg::after { content: ''; position: absolute; inset: 0; pointer-events: none; }
+
+.robot-glass {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background:
+    linear-gradient(180deg,
+      transparent 0%, transparent calc(50% - 1.5px),
+      rgba(0,0,0,.55) calc(50% - 1.5px), rgba(0,0,0,.65) 50%,
+      rgba(0,0,0,.55) calc(50% + 1.5px),
+      transparent calc(50% + 1.5px), transparent 100%),
+    linear-gradient(180deg,
+      rgba(255,255,255,.02) 0%, rgba(200,220,255,.03) 15%,
+      rgba(255,255,255,.01) 46%, rgba(255,255,255,.06) 50%,
+      rgba(180,200,220,.22) 54%, rgba(160,180,200,.28) 65%,
+      rgba(140,160,180,.24) 80%, rgba(120,140,160,.18) 100%);
+}
+.robot-glass::before, .robot-glass::after { content: ''; position: absolute; }
+.robot-glass::before {
+  top: 0; bottom: 0; left: 30%; width: 2px;
+  background: linear-gradient(180deg, rgba(0,0,0,.25) 0%, rgba(0,0,0,.50) 50%, rgba(0,0,0,.25) 100%);
+}
+.robot-glass::after {
+  top: 0; bottom: 0; right: 30%; width: 2px;
+  background: linear-gradient(180deg, rgba(0,0,0,.25) 0%, rgba(0,0,0,.50) 50%, rgba(0,0,0,.25) 100%);
+}
+
+/* Plants */
+.robot-plant {
+  position: absolute; bottom: 0; z-index: 5;
+  width: 18px; height: 30px;
+}
+.robot-plant-l { left: clamp(10px, 15%, 80px); }
+.robot-plant-r { right: clamp(10px, 15%, 80px); }
+.plant-pot {
+  position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 11px; height: 8px;
+  background: linear-gradient(180deg, #8D6E63, #6D4C41);
+  border-radius: 1px 1px 3px 3px;
+  clip-path: polygon(5% 0, 95% 0, 80% 100%, 20% 100%);
+}
+.plant-stem {
+  position: absolute; bottom: 7px; left: 50%; transform: translateX(-50%);
+  width: 1.5px; height: 13px; background: #4CAF50; border-radius: 1px;
+}
+.plant-leaf { position: absolute; width: 7px; height: 4px; border-radius: 50%; background: #66BB6A; }
+.plant-leaf-l { bottom: 16px; left: 0; transform: rotate(-30deg); }
+.plant-leaf-r { bottom: 18px; right: 0; transform: rotate(30deg); }
+.plant-leaf-t {
+  bottom: 22px; left: 50%; transform: translateX(-50%);
+  width: 5px; height: 6px; border-radius: 50% 50% 30% 30%; background: #81C784;
+}
+
+/* Workstation */
+.robot-workstation {
+  position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 120px; height: 80px; z-index: 3;
+}
+.robot-desk {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 20px;
+  background: linear-gradient(180deg, #5D4037 0%, #3E2723 100%);
+  border-radius: 3px 3px 0 0; z-index: 3;
+  box-shadow: 0 -1px 4px rgba(0,0,0,.3);
+}
+.robot-monitors {
+  position: absolute; bottom: 18px; left: 50%;
+  transform: translateX(-50%); margin-left: -16px;
+  display: flex; flex-direction: column; gap: 3px; z-index: 5;
+}
+.robot-monitor {
+  width: 30px; height: 22px; background: #0a0a0a;
+  border: 2px solid #333; border-radius: 2px;
+  box-shadow: inset 0 0 2px rgba(0,0,0,.8);
+  transition: box-shadow 0.3s, border-color 0.3s;
+}
+.robot-monitor.on { border-color: #555; box-shadow: inset 0 0 5px rgba(76,175,80,.4), 0 0 4px rgba(76,175,80,.2); }
+
+/* Robot body */
+.robot-body {
+  position: absolute; bottom: 16px; left: 50%;
+  transform: translateX(-50%); margin-left: 14px;
+  text-align: center; z-index: 4;
+}
+.robot-head {
+  width: 32px; height: 26px;
+  background: linear-gradient(180deg, #8a8a98, #6e6e7e, #5a5a68);
+  border-radius: 5px 5px 3px 3px; margin: 0 auto; position: relative;
+  box-shadow: 0 1px 3px rgba(0,0,0,.4);
+}
+.robot-glasses {
+  position: absolute; top: 7px; left: 50%; transform: translateX(-50%);
+  width: 24px; height: 6px; z-index: 1;
+}
+.robot-glasses::before, .robot-glasses::after {
+  content: ''; position: absolute; top: 0;
+  width: 9px; height: 5px;
+  border: 1.5px solid #1a1a1a; border-radius: 50%;
+  background: rgba(20,20,30,.15);
+}
+.robot-glasses::before { left: 0; }
+.robot-glasses::after { right: 0; }
+.robot-glasses-bridge {
+  position: absolute; top: 2px; left: 50%; transform: translateX(-50%);
+  width: 4px; height: 1px; background: #1a1a1a;
+}
+.robot-eyes {
+  display: flex; justify-content: center; gap: 8px;
+  padding-top: 8px; position: relative; z-index: 2;
+}
+.robot-eyes .eye { width: 4px; height: 4px; background: #1a1a1a; border-radius: 50%; }
+
+.robot-torso {
+  width: 36px; height: 26px;
+  background: linear-gradient(180deg, #7a7a88, #5e5e6e, #4a4a58);
+  border-radius: 3px; margin: 2px auto 0; position: relative;
+  box-shadow: 0 1px 3px rgba(0,0,0,.4);
+}
+.robot-tie {
+  width: 7px; height: 16px; margin: 0 auto;
+  clip-path: polygon(50% 0, 100% 15%, 65% 100%, 50% 80%, 35% 100%, 0 15%);
+  background: #D32F2F; transition: background 0.3s;
+}
+
+.robot-arms { display: flex; justify-content: center; gap: 28px; margin-top: -14px; }
+.robot-arms .arm {
+  width: 8px; height: 18px;
+  background: linear-gradient(180deg, #7a7a88, #5e5e6e);
+  border-radius: 2px; transition: transform 0.15s; transform-origin: top center;
+}
+
+.desk-light {
+  position: absolute; right: 8px; top: 5px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #444; border: 1px solid #333;
+  transition: all 0.4s ease; z-index: 5;
+}
+.desk-light.on { background: #4CAF50; box-shadow: 0 0 8px #4CAF50, 0 0 16px rgba(76,175,80,.3); }
+
+/* ---- SCENE: OFFICE (Banker) ---- */
+.scene-office {
+  background:
+    repeating-linear-gradient(52deg, rgba(255,255,255,.008) 0px, transparent 1px, transparent 8px, rgba(255,255,255,.008) 9px),
+    radial-gradient(ellipse 60% 40% at 75% 25%, rgba(180,150,100,.06) 0%, transparent 70%),
+    radial-gradient(ellipse 80% 70% at 50% 45%, #1a1a2e 0%, #141428 50%, #0e0e1a 100%);
+}
+.scene-office::before {
+  background:
+    linear-gradient(180deg, transparent 63%, rgba(255,255,255,.04) 64%, rgba(255,255,255,.04) 65%, transparent 66%),
+    repeating-linear-gradient(90deg, transparent 0px, transparent 48px, rgba(255,255,255,.015) 48px, rgba(255,255,255,.015) 49px),
+    radial-gradient(ellipse 30% 25% at 42% 50%, rgba(60,120,200,.04) 0%, transparent 100%);
+}
+
+/* Office glass with brick wall effect */
+.scene-office ~ .robot-glass {
+  background:
+    repeating-linear-gradient(180deg,
+      rgba(140,70,45,.2) 0px, rgba(120,58,38,.22) 4px,
+      rgba(105,50,32,.18) 7px, rgba(80,40,25,.14) 8px,
+      rgba(55,28,18,.2) 8px, rgba(55,28,18,.2) 9px),
+    repeating-linear-gradient(90deg, transparent 0px, transparent 16px,
+      rgba(55,28,18,.15) 16px, rgba(55,28,18,.15) 17px),
+    linear-gradient(180deg, rgba(100,50,30,.15) 0%, rgba(85,42,25,.18) 100%);
+}
+.scene-office ~ .robot-glass::before { background: none; }
+.scene-office ~ .robot-glass::after { background: none; }
+
+/* ---- SCENE: FARM (Farmer) ---- */
+.scene-farm {
+  background:
+    radial-gradient(circle 10px at 75% 6%, rgba(255,250,220,.6) 0%, rgba(255,240,180,.3) 40%, transparent 100%),
+    radial-gradient(circle 24px at 75% 6%, rgba(255,240,160,.2) 0%, transparent 100%),
+    linear-gradient(180deg, transparent 18%, rgba(180,220,180,.08) 20%, rgba(140,200,140,.04) 24%, transparent 28%),
+    linear-gradient(180deg, #6ec6e8 0%, #5db8dc 3%, #4caace 6%, #3a9cc0 10%, #3a8a5a 18%, #3d9e44 22%, #368e3c 28%, #2e8c35 34%, #247a2c 42%, #1c6c24 52%, #145a1c 64%, #0c4814 78%, #051f08 100%);
+}
+.scene-farm::before {
+  background:
+    repeating-linear-gradient(90deg, rgba(101,67,33,.3) 0px, rgba(101,67,33,.3) 2px, transparent 2px, transparent 14px),
+    linear-gradient(180deg, transparent 60%, rgba(139,119,42,.15) 62%, rgba(218,165,32,.1) 68%, rgba(139,119,42,.2) 72%, transparent 76%),
+    radial-gradient(ellipse 15% 8% at 25% 70%, rgba(139,90,43,.3) 0%, transparent 100%),
+    radial-gradient(ellipse 12% 6% at 60% 68%, rgba(139,90,43,.25) 0%, transparent 100%);
+}
+.scene-farm ~ .robot-glass { background: none; }
+.scene-farm ~ .robot-glass::before { background: none; }
+.scene-farm ~ .robot-glass::after { background: none; }
+
+/* ---- SCENE: CITY (Businessman) ---- */
+.scene-city {
+  background:
+    radial-gradient(ellipse 80% 30% at 50% 85%, rgba(255,180,80,.04) 0%, transparent 100%),
+    linear-gradient(180deg, #04041a 0%, #080824 3%, #0c0c2e 6%, #121040 10%, #1a1050 14%, #2d1568 18%, #3a1878 22%, #301466 26%, #241050 32%, #1a0c40 40%, #120a30 52%, #0e0820 66%, #0a0618 82%, #080514 100%);
+}
+.scene-city::before {
+  /* Building silhouettes */
+  background:
+    linear-gradient(180deg, transparent 40%, #0a0818 40%, #0a0818 100%) no-repeat 5% bottom / 8% 55%,
+    linear-gradient(180deg, transparent 30%, #080616 30%, #080616 100%) no-repeat 15% bottom / 6% 65%,
+    linear-gradient(180deg, transparent 20%, #0c0a1e 20%, #0c0a1e 100%) no-repeat 25% bottom / 10% 72%,
+    linear-gradient(180deg, transparent 35%, #0a0818 35%, #0a0818 100%) no-repeat 38% bottom / 7% 58%,
+    linear-gradient(180deg, transparent 15%, #0e0c20 15%, #0e0c20 100%) no-repeat 48% bottom / 12% 78%,
+    linear-gradient(180deg, transparent 25%, #0a0818 25%, #0a0818 100%) no-repeat 62% bottom / 9% 68%,
+    linear-gradient(180deg, transparent 32%, #080616 32%, #080616 100%) no-repeat 74% bottom / 7% 60%,
+    linear-gradient(180deg, transparent 18%, #0c0a1e 18%, #0c0a1e 100%) no-repeat 85% bottom / 11% 75%;
+}
+.scene-city::after {
+  /* Window lights */
+  background:
+    radial-gradient(1px 1px at 27% 45%, #FFD54F 50%, transparent 100%),
+    radial-gradient(1px 1px at 28% 55%, #FFC107 50%, transparent 100%),
+    radial-gradient(1px 1px at 26% 65%, #FFD54F 50%, transparent 100%),
+    radial-gradient(1px 1px at 50% 35%, #FFC107 50%, transparent 100%),
+    radial-gradient(1px 1px at 52% 45%, #FFD54F 50%, transparent 100%),
+    radial-gradient(1px 1px at 49% 55%, #FF8F00 50%, transparent 100%),
+    radial-gradient(1px 1px at 51% 65%, #FFC107 50%, transparent 100%),
+    radial-gradient(1px 1px at 53% 75%, #FFD54F 50%, transparent 100%),
+    radial-gradient(1px 1px at 87% 40%, #FFD54F 50%, transparent 100%),
+    radial-gradient(1px 1px at 86% 50%, #FFC107 50%, transparent 100%),
+    radial-gradient(1px 1px at 88% 60%, #FF8F00 50%, transparent 100%),
+    radial-gradient(2px 2px at 30% 28%, #f44 50%, transparent 100%),
+    radial-gradient(2px 2px at 55% 18%, #f44 50%, transparent 100%),
+    radial-gradient(3px 1px at 65% 82%, rgba(194,24,91,.6) 50%, transparent 100%),
+    radial-gradient(3px 1px at 40% 85%, rgba(0,150,255,.5) 50%, transparent 100%);
+  animation: sceneTwinkle 3.5s ease-in-out infinite;
+}
+.scene-city ~ .robot-glass {
+  background:
+    linear-gradient(180deg,
+      rgba(255,255,255,.01) 0%, rgba(200,220,255,.02) 50%,
+      rgba(180,200,220,.12) 70%, rgba(120,140,160,.10) 100%);
+}
+.scene-city ~ .robot-glass::before { background: none; }
+.scene-city ~ .robot-glass::after { background: none; }
+
+/* ============================================
+   HUMAN CHARACTER PERSONA OVERRIDES
+   ============================================ */
+
+/* --- Shared human skin tones for head --- */
+.robot-head {
+  border-radius: 8px 8px 4px 4px; /* rounder, more human */
+}
+
+/* Hair (pseudo-element on head) */
+.robot-head::before {
+  content: '';
+  position: absolute;
+  top: -4px; left: -1px; right: -1px;
+  height: 10px;
+  border-radius: 8px 8px 0 0;
+  z-index: 0;
+}
+
+/* --- FARMER: Hat (straw/cap), overalls, no tie, no glasses --- */
+.persona-farmer .robot-head::before {
+  /* Straw hat */
+  top: -8px; left: -8px; right: -8px;
+  height: 8px;
+  background: linear-gradient(180deg, #D4A54A, #C49538, #B8862E);
+  border-radius: 2px;
+  box-shadow: 0 2px 0 0 #A07828;
+}
+.persona-farmer .robot-head::after {
+  /* Hat brim */
+  content: '';
+  position: absolute;
+  top: -9px; left: -12px; right: -12px;
+  height: 4px;
+  background: linear-gradient(180deg, #C49538, #A87A28);
+  border-radius: 6px;
+  z-index: -1;
+}
+.persona-farmer .robot-torso {
+  /* Denim overalls with visible straps */
+  background: linear-gradient(180deg, #5B7DB1, #4A6A9A, #3D5A85) !important;
+}
+.persona-farmer .robot-torso::before {
+  /* Overall straps */
+  content: '';
+  position: absolute;
+  top: 0; left: 5px;
+  width: 3px; height: 8px;
+  background: #5B7DB1;
+  border-radius: 1px;
+  box-shadow: 19px 0 0 0 #5B7DB1;
+}
+.persona-farmer .robot-arms .arm {
+  /* Plaid flannel sleeves */
+  background: linear-gradient(180deg, #C0392B, #A93226);
+}
+.persona-farmer .robot-arms .arm::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: repeating-linear-gradient(90deg,
+    transparent, transparent 2px,
+    rgba(255,255,255,.15) 2px, rgba(255,255,255,.15) 3px);
+}
+
+/* --- BANKER: Hair, dark suit, tie, glasses --- */
+.persona-banker .robot-head::before {
+  /* Neat dark hair */
+  background: linear-gradient(180deg, #2C1810, #1A0E08);
+  border-radius: 8px 8px 0 0;
+}
+.persona-banker .robot-torso {
+  background: linear-gradient(180deg, #2C2C3E, #1E1E2E, #151520) !important;
+}
+.persona-banker .robot-arms .arm {
+  /* Suit sleeves */
+  background: linear-gradient(180deg, #2C2C3E, #1E1E2E);
+}
+/* White shirt collar peek */
+.persona-banker .robot-torso::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 50%; transform: translateX(-50%);
+  width: 14px; height: 4px;
+  background: #E8E0D8;
+  border-radius: 0 0 3px 3px;
+  clip-path: polygon(0 0, 100% 0, 85% 100%, 15% 100%);
+}
+
+/* --- BUSINESSMAN: Styled hair, blazer, pocket square, no glasses --- */
+.persona-businessman .robot-head::before {
+  /* Styled brown hair */
+  background: linear-gradient(180deg, #4A3222, #3A2618);
+  border-radius: 8px 8px 0 0;
+}
+.persona-businessman .robot-torso {
+  background: linear-gradient(180deg, #3E3E50, #2E2E40, #202032) !important;
+}
+/* Pocket square */
+.persona-businessman .robot-torso::after {
+  content: '';
+  position: absolute;
+  top: 4px; right: 4px;
+  width: 5px; height: 4px;
+  background: #FF8F00;
+  border-radius: 1px 1px 0 0;
+  clip-path: polygon(20% 100%, 80% 100%, 100% 0, 0 0);
+}
+.persona-businessman .robot-arms .arm {
+  /* Blazer sleeves */
+  background: linear-gradient(180deg, #3E3E50, #2E2E40);
+}
+
+/* --- Skin-tone hands for all personas --- */
+.robot-arms .arm {
+  position: relative;
+}
+.persona-farmer .robot-arms .arm::before,
+.persona-banker .robot-arms .arm::before,
+.persona-businessman .robot-arms .arm::before {
+  content: '';
+  position: absolute;
+  bottom: -2px; left: 50%; transform: translateX(-50%);
+  width: 6px; height: 5px;
+  border-radius: 50%;
+}
+.persona-farmer .robot-arms .arm::before { background: #D2A679; }
+.persona-banker .robot-arms .arm::before { background: #D4A574; }
+.persona-businessman .robot-arms .arm::before { background: #C9956A; }

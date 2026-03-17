@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FBB - Farmer, Banker, Businessman</title>
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/animations.css">
+  <link rel="stylesheet" href="/css/scenes.css">
+</head>
+<body>
+  <div id="app">
+    <!-- TITLE SCREEN -->
+    <div id="screen-title" class="screen active">
+      <div class="title-container">
+        <h1 class="game-title">FBB</h1>
+        <p class="game-subtitle">Farmer &bull; Banker &bull; Businessman</p>
+        <p class="game-tagline">Three paths. One truth: business is business.</p>
+        <div class="persona-select">
+          <div class="persona-card" data-persona="farmer">
+            <div class="persona-icon">
+              <div class="robot-mini-preview farmer-preview">
+                <div class="mini-head"><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div>
+                <div class="mini-torso"><div class="mini-tie" style="background:#4CAF50"></div></div>
+              </div>
+            </div>
+            <h2>The Farmer</h2>
+            <p>Manage crops, navigate commodity markets, and grow your operation from a small family farm to an agricultural empire.</p>
+            <div class="persona-tags"><span>Outdoor</span><span>Markets</span><span>Operations</span></div>
+          </div>
+          <div class="persona-card" data-persona="banker">
+            <div class="persona-icon">
+              <div class="robot-mini-preview banker-preview">
+                <div class="mini-head"><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div>
+                <div class="mini-torso"><div class="mini-tie" style="background:#1565C0"></div></div>
+              </div>
+            </div>
+            <h2>The Banker</h2>
+            <p>Evaluate credit, make lending decisions, and build your institution from a small fund to a major financial player.</p>
+            <div class="persona-tags"><span>Office</span><span>Analytics</span><span>Finance</span></div>
+          </div>
+          <div class="persona-card" data-persona="businessman">
+            <div class="persona-icon">
+              <div class="robot-mini-preview businessman-preview">
+                <div class="mini-head"><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div>
+                <div class="mini-torso"><div class="mini-tie" style="background:#FF8F00"></div></div>
+              </div>
+            </div>
+            <h2>The Businessman</h2>
+            <p>Explore markets, build partnerships, and create ventures from a solo consultant to a diversified business portfolio.</p>
+            <div class="persona-tags"><span>Meetings</span><span>Advisory</span><span>Ventures</span></div>
+          </div>
+        </div>
+        <div class="saved-games" id="saved-games"></div>
+      </div>
+    </div>
+
+    <!-- GAME SCREEN -->
+    <div id="screen-game" class="screen">
+      <div class="game-layout">
+        <!-- TOP BAR -->
+        <div class="top-bar">
+          <button class="btn-back" id="btn-back">← Menu</button>
+          <div class="status-bar">
+            <span class="status-persona" id="status-persona"></span>
+            <span class="status-day" id="status-day">Day 1</span>
+            <span class="status-money" id="status-money">$0</span>
+            <span class="status-level" id="status-level">Entry Level</span>
+          </div>
+          <button class="btn-save" id="btn-save">Save</button>
+        </div>
+
+        <!-- MAIN CONTENT AREA -->
+        <div class="game-content">
+          <!-- JOURNEY PANEL (left) -->
+          <div class="journey-panel">
+            <h3>Your Journey</h3>
+            <div class="journey-track" id="journey-track">
+              <div class="journey-path"></div>
+              <div class="journey-avatar" id="journey-avatar">
+                <div class="mini-head"><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div>
+                <div class="mini-torso"><div class="mini-tie" id="journey-tie"></div></div>
+              </div>
+              <div class="journey-milestones" id="journey-milestones"></div>
+            </div>
+            <div class="journey-stats" id="journey-stats"></div>
+          </div>
+
+          <!-- TASK PANEL (center) -->
+          <div class="task-panel">
+            <div class="scene-display" id="scene-display">
+              <div class="robot-bg" id="robot-bg"></div>
+              <div class="robot-glass"></div>
+              <div class="robot-plant robot-plant-l"><div class="plant-pot"></div><div class="plant-stem"></div><div class="plant-leaf plant-leaf-l"></div><div class="plant-leaf plant-leaf-r"></div><div class="plant-leaf plant-leaf-t"></div></div>
+              <div class="robot-plant robot-plant-r"><div class="plant-pot"></div><div class="plant-stem"></div><div class="plant-leaf plant-leaf-l"></div><div class="plant-leaf plant-leaf-r"></div><div class="plant-leaf plant-leaf-t"></div></div>
+              <div class="robot-workstation">
+                <div class="robot-desk"></div>
+                <div class="robot-monitors"><div class="robot-monitor on"></div></div>
+                <div class="robot-body">
+                  <div class="robot-head">
+                    <div class="robot-glasses"><div class="robot-glasses-bridge"></div></div>
+                    <div class="robot-eyes"><span class="eye"></span><span class="eye"></span></div>
+                  </div>
+                  <div class="robot-torso"><div class="robot-tie" id="robot-tie"></div></div>
+                  <div class="robot-arms"><div class="arm arm-l"></div><div class="arm arm-r"></div></div>
+                </div>
+                <div class="desk-light" id="desk-light"></div>
+              </div>
+            </div>
+
+            <div class="task-content" id="task-content">
+              <div class="task-header" id="task-header">
+                <h2 id="task-title">Welcome</h2>
+                <p id="task-description">Select a task to begin your day.</p>
+              </div>
+              <div class="task-body" id="task-body"></div>
+              <div class="task-actions" id="task-actions"></div>
+            </div>
+          </div>
+
+          <!-- INFO PANEL (right) -->
+          <div class="info-panel">
+            <div class="score-display">
+              <h3>Performance</h3>
+              <div class="score-overall" id="score-overall">
+                <div class="score-circle">
+                  <span class="score-value" id="score-value">0</span>
+                  <span class="score-label">Score</span>
+                </div>
+              </div>
+              <div class="score-breakdown" id="score-breakdown"></div>
+            </div>
+            <div class="activity-log">
+              <h3>Activity Log</h3>
+              <div class="log-entries" id="log-entries"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NOTIFICATION OVERLAY -->
+    <div class="notification" id="notification"></div>
+  </div>
+
+  <script src="/js/gameData.js"></script>
+  <script src="/js/engine.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

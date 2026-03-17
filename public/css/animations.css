@@ -1,0 +1,84 @@
+/* ============================================
+   FBB - ANIMATIONS (Robot Design System)
+   ============================================ */
+
+@keyframes titlePulse {
+  0%, 100% { opacity: 1; filter: brightness(1); }
+  50% { opacity: .9; filter: brightness(1.15); }
+}
+
+@keyframes robotLook {
+  0%, 65%, 100% { transform: rotate(0deg) translateX(0); }
+  18%, 48% { transform: rotate(-8deg) translateX(-3px); }
+}
+
+@keyframes milestonePulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent); }
+  50% { box-shadow: 0 0 0 4px rgba(76,175,80,.3); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(60px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes sceneTwinkle {
+  0%, 100% { opacity: .15; }
+  50% { opacity: .7; }
+}
+
+@keyframes desertShimmer {
+  0% { opacity: .4; transform: translateX(0) scaleY(1); }
+  50% { opacity: .65; transform: translateX(2px) scaleY(1.01); }
+  100% { opacity: .4; transform: translateX(-1px) scaleY(.99); }
+}
+
+@keyframes genieFloat {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-8px); }
+}
+
+@keyframes typingArm {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  25% { transform: rotate(-8deg) translateY(2px); }
+  75% { transform: rotate(8deg) translateY(2px); }
+}
+
+@keyframes monitorGlow {
+  0%, 100% { box-shadow: inset 0 0 5px rgba(76,175,80,.4), 0 0 4px rgba(76,175,80,.2); }
+  50% { box-shadow: inset 0 0 8px rgba(76,175,80,.6), 0 0 8px rgba(76,175,80,.3); }
+}
+
+@keyframes deskLightPulse {
+  0%, 100% { box-shadow: 0 0 8px #4CAF50, 0 0 16px rgba(76,175,80,.3); }
+  50% { box-shadow: 0 0 12px #4CAF50, 0 0 24px rgba(76,175,80,.4); }
+}
+
+/* Robot working state */
+.robot-working .robot-head { animation: robotLook 5s ease-in-out infinite; }
+.robot-working .arm-l { animation: typingArm 1.2s ease-in-out infinite; }
+.robot-working .arm-r { animation: typingArm 1.2s ease-in-out infinite .6s; }
+.robot-working .robot-monitor.on { animation: monitorGlow 3s ease-in-out infinite; }
+.robot-working .desk-light { animation: deskLightPulse 3s ease-in-out infinite; }
+
+/* Task content animations */
+.task-content { animation: fadeInUp .4s ease; }
+.option-btn { animation: fadeInUp .3s ease backwards; }
+.option-btn:nth-child(1) { animation-delay: .05s; }
+.option-btn:nth-child(2) { animation-delay: .1s; }
+.option-btn:nth-child(3) { animation-delay: .15s; }
+.option-btn:nth-child(4) { animation-delay: .2s; }
+
+/* Progress bar animation */
+@keyframes progressFill {
+  from { width: 0; }
+}
+.score-bar-fill { animation: progressFill .8s ease; }
+
+/* Card hover ripple */
+.persona-card { transition: all .3s cubic-bezier(.4, 0, .2, 1); }
