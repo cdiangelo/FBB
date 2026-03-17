@@ -312,77 +312,241 @@ body {
 }
 
 /* ---- FEMININE / GENDER VARIANT STYLES ---- */
-/* Long hair — farmer feminine */
+
+/* Feminine body shape — narrower shoulders, shaped waist */
+.mini-torso-f {
+  width: 14px; height: 12px;
+  border-radius: 2px 2px 3px 3px; margin: 1px auto 0;
+  position: relative;
+  clip-path: polygon(5% 0, 95% 0, 100% 30%, 90% 60%, 92% 100%, 8% 100%, 10% 60%, 0% 30%);
+}
+
+/* Feminine head — slightly rounder */
+.mini-head-f {
+  width: 13px; height: 11px;
+  border-radius: 5px 5px 3px 3px;
+  margin: 0 auto; position: relative;
+}
+
+/* Long flowing hair — farmer feminine */
 .mini-hair-long {
   position: absolute;
-  top: -2px; left: 0; right: 0;
-  height: 8px;
+  top: -3px; left: -2px; right: -2px;
+  height: 10px;
   background: linear-gradient(180deg, #6B3A1F, #4A2810);
-  border-radius: 5px 5px 1px 1px;
+  border-radius: 6px 6px 2px 2px;
   z-index: 0;
+}
+.mini-hair-long::before {
+  content: '';
+  position: absolute;
+  bottom: -4px; left: 0;
+  width: 3px; height: 5px;
+  background: #4A2810;
+  border-radius: 0 0 0 3px;
 }
 .mini-hair-long::after {
   content: '';
   position: absolute;
-  bottom: -3px; left: -1px; right: -1px;
-  height: 4px;
-  background: linear-gradient(180deg, transparent, #4A2810);
-  border-radius: 0 0 3px 3px;
+  bottom: -5px; right: 0;
+  width: 3px; height: 6px;
+  background: #4A2810;
+  border-radius: 0 0 3px 0;
 }
+
 /* Bob hair — banker feminine */
 .mini-hair-bob {
   position: absolute;
-  top: -2px; left: -1px; right: -1px;
-  height: 6px;
+  top: -3px; left: -2px; right: -2px;
+  height: 8px;
   background: linear-gradient(180deg, #1a1a2e, #0d0d1a);
-  border-radius: 4px 4px 2px 2px;
+  border-radius: 5px 5px 1px 1px;
   z-index: 0;
+}
+.mini-hair-bob::before {
+  content: '';
+  position: absolute;
+  bottom: -3px; left: 0;
+  width: 4px; height: 4px;
+  background: #0d0d1a;
+  border-radius: 0 0 0 3px;
 }
 .mini-hair-bob::after {
   content: '';
   position: absolute;
-  bottom: -2px; left: 0; right: 0;
-  height: 3px;
+  bottom: -3px; right: 0;
+  width: 4px; height: 4px;
   background: #0d0d1a;
-  border-radius: 0 0 2px 2px;
+  border-radius: 0 0 3px 0;
 }
-/* Styled feminine — businessman feminine */
+
+/* Styled feminine updo — businessman feminine */
 .mini-hair-styled-f {
   position: absolute;
-  top: -2px; left: 0px; right: 0px;
-  height: 5px;
+  top: -4px; left: -1px; right: -1px;
+  height: 7px;
   background: linear-gradient(180deg, #5C3D2E, #3E2820);
-  border-radius: 4px 4px 0 0;
+  border-radius: 5px 5px 0 0;
   z-index: 0;
 }
-.mini-hair-styled-f::after {
+.mini-hair-styled-f::before {
   content: '';
   position: absolute;
-  top: 3px; right: -2px;
-  width: 3px; height: 5px;
+  top: -2px; right: 1px;
+  width: 5px; height: 4px;
   background: #3E2820;
-  border-radius: 0 2px 2px 0;
+  border-radius: 50%;
 }
-/* V-collar for feminine blazer */
-.mini-collar-v {
+
+/* Feminine farmer: bandana instead of big hat */
+.mini-bandana {
+  width: 17px; height: 3px;
+  background: linear-gradient(90deg, #e06060, #c94040);
+  border-radius: 4px;
+  margin: 0 auto; position: relative;
+}
+.mini-bandana::after {
+  content: '';
+  position: absolute;
+  top: 0; right: -2px;
+  width: 4px; height: 3px;
+  background: #c94040;
+  border-radius: 0 3px 3px 0;
+  transform: rotate(15deg);
+}
+
+/* Feminine overalls — denim dress/jumper */
+.mini-overalls-f {
+  background: linear-gradient(180deg, #6B8FC5, #5578AE, #4268A0) !important;
+}
+
+/* Feminine blouse detail */
+.mini-blouse-v {
   width: 0; height: 0;
   border-left: 3px solid transparent;
   border-right: 3px solid transparent;
-  border-top: 4px solid #e8e8f0;
+  border-top: 3px solid #f0e8e0;
   margin: 0 auto;
 }
-/* Collar for feminine farmer */
-.mini-collar {
-  width: 8px; height: 1px;
-  background: #e8e8f0;
-  border-radius: 1px;
+
+/* Feminine blazer — navy with pearl necklace hint */
+.mini-blazer-f {
+  background: linear-gradient(180deg, #1a237e, #131a5e, #0d1242) !important;
+}
+.mini-necklace {
+  width: 6px; height: 1px;
+  background: linear-gradient(90deg, transparent, #e8d5b0, #f0e0c0, #e8d5b0, transparent);
+  border-radius: 2px;
   margin: 1px auto 0;
 }
-/* Scarf/accessory for feminine businessman */
+
+/* Feminine businessman blazer — charcoal with color accent */
+.mini-blazer-chic {
+  background: linear-gradient(180deg, #37474F, #2C393F, #1F2D33) !important;
+}
 .mini-scarf {
-  width: 4px; height: 6px;
-  margin: 0 auto;
+  width: 3px; height: 5px;
+  margin: 1px auto 0;
   border-radius: 0 0 1px 1px;
+}
+
+/* Feminine eyelashes hint — slightly bigger eyes */
+.mini-eyes-f {
+  display: flex; justify-content: center; gap: 4px; padding-top: 3px;
+}
+.mini-eyes-f .eye {
+  width: 2.5px; height: 2px; background: #1a1a1a; border-radius: 50% 50% 50% 50%;
+}
+.mini-eyes-f .eye::after {
+  content: '';
+  position: absolute;
+  top: -0.5px;
+  width: 3px; height: 0.5px;
+  background: #1a1a1a;
+}
+
+/* ---- "OTHER" GENDER VARIANT STYLES ---- */
+
+/* Colorful beanie hat */
+.mini-beanie {
+  width: 16px; height: 5px;
+  background: linear-gradient(180deg, #9C27B0, #7B1FA2, #6A1B9A);
+  border-radius: 5px 5px 1px 1px;
+  margin: 0 auto; position: relative;
+}
+.mini-beanie::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #FF9800, #E91E63, #00BCD4, #4CAF50);
+  border-radius: 0 0 1px 1px;
+}
+
+/* Colorful dyed short hair */
+.mini-hair-dyed {
+  position: absolute;
+  top: -3px; left: -1px; right: -1px;
+  height: 6px;
+  background: linear-gradient(135deg, #E91E63, #9C27B0, #3F51B5);
+  border-radius: 4px 4px 0 0;
+  z-index: 0;
+}
+.mini-hair-dyed::after {
+  content: '';
+  position: absolute;
+  bottom: -1px; right: -1px;
+  width: 4px; height: 3px;
+  background: linear-gradient(135deg, #9C27B0, #3F51B5);
+  border-radius: 0 2px 2px 0;
+}
+
+/* Colorful undercut / asymmetric */
+.mini-hair-undercut {
+  position: absolute;
+  top: -3px; left: 0px; right: -2px;
+  height: 6px;
+  background: linear-gradient(135deg, #00BCD4, #009688, #26A69A);
+  border-radius: 3px 5px 0 0;
+  z-index: 0;
+}
+
+/* Other torso — creative/expressive, slightly different shape */
+.mini-torso-nb {
+  width: 15px; height: 11px;
+  border-radius: 2px; margin: 1px auto 0;
+  position: relative;
+}
+
+/* Colorful jacket */
+.mini-jacket-color {
+  background: linear-gradient(180deg, #4A148C, #38006b, #2A004E) !important;
+}
+.mini-pin {
+  position: absolute;
+  top: 1px; left: 2px;
+  width: 3px; height: 3px;
+  background: linear-gradient(135deg, #FF9800, #E91E63, #9C27B0, #2196F3, #4CAF50);
+  border-radius: 50%;
+}
+
+/* Colorful overalls — farmer other */
+.mini-overalls-nb {
+  background: linear-gradient(180deg, #7E57C2, #6A4BAD, #5C3F99) !important;
+}
+
+/* Colorful blazer — banker other */
+.mini-blazer-nb {
+  background: linear-gradient(180deg, #00695C, #00574B, #004940) !important;
+  position: relative;
+}
+
+/* Creative scarf/bandana — businessman other */
+.mini-scarf-nb {
+  width: 4px; height: 4px;
+  margin: 0 auto;
+  background: linear-gradient(135deg, #FF9800, #E91E63);
+  border-radius: 1px;
 }
 
 .persona-card h2 { font-size: 1.3rem; margin-bottom: .5rem; }

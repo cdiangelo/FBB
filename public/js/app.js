@@ -27,25 +27,41 @@ const SKIN_GRADIENTS = [
 ];
 
 // ---- PERSONA VISUAL BUILDER ----
+function _buildAvatarParts(persona, skinBg) {
+  const eyes = '<div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div>';
+  const eyesF = '<div class="mini-eyes-f"><span class="eye"></span><span class="eye"></span></div>';
+
+  // MALE variants
+  const male = {
+    farmer: `<div class="mini-hat"></div><div class="mini-head" style="background:${skinBg}">${eyes}</div><div class="mini-torso mini-overalls"></div>`,
+    banker: `<div class="mini-head" style="background:${skinBg}"><div class="mini-hair"></div><div class="mini-glasses"></div>${eyes}</div><div class="mini-torso mini-suit"><div class="mini-tie" style="background:#1565C0"></div></div>`,
+    businessman: `<div class="mini-head" style="background:${skinBg}"><div class="mini-hair-styled"></div>${eyes}</div><div class="mini-torso mini-blazer"><div class="mini-tie" style="background:#FF8F00"></div><div class="mini-pocket-square"></div></div>`
+  };
+
+  // FEMALE variants — rounder head, shaped torso, distinct outfits
+  const female = {
+    farmer: `<div class="mini-bandana"></div><div class="mini-head-f" style="background:${skinBg}"><div class="mini-hair-long"></div>${eyesF}</div><div class="mini-torso-f mini-overalls-f"><div class="mini-blouse-v"></div></div>`,
+    banker: `<div class="mini-head-f" style="background:${skinBg}"><div class="mini-hair-bob"></div>${eyesF}</div><div class="mini-torso-f mini-blazer-f"><div class="mini-necklace"></div></div>`,
+    businessman: `<div class="mini-head-f" style="background:${skinBg}"><div class="mini-hair-styled-f"></div>${eyesF}</div><div class="mini-torso-f mini-blazer-chic"><div class="mini-scarf" style="background:#FF8F00"></div></div>`
+  };
+
+  // OTHER variants — colorful, expressive, creative
+  const other = {
+    farmer: `<div class="mini-beanie"></div><div class="mini-head" style="background:${skinBg}"><div class="mini-hair-dyed"></div>${eyes}</div><div class="mini-torso-nb mini-overalls-nb"><div class="mini-pin"></div></div>`,
+    banker: `<div class="mini-head" style="background:${skinBg}"><div class="mini-hair-undercut"></div>${eyes}</div><div class="mini-torso-nb mini-blazer-nb"><div class="mini-pin"></div></div>`,
+    businessman: `<div class="mini-beanie"></div><div class="mini-head" style="background:${skinBg}"><div class="mini-hair-dyed"></div>${eyes}</div><div class="mini-torso-nb mini-jacket-color"><div class="mini-scarf-nb"></div><div class="mini-pin"></div></div>`
+  };
+
+  const map = { male, female, other };
+  const genderMap = map[playerGender] || male;
+  return genderMap[persona] || genderMap.businessman;
+}
+
 function buildPersonaVisual(persona, scale = 1) {
   const grad = SKIN_GRADIENTS[playerSkinTone] || SKIN_GRADIENTS[1];
   const skinBg = `linear-gradient(180deg, ${grad[0]}, ${grad[1]}, ${grad[2]})`;
-  const isFeminine = playerGender === 'female';
   const scaleStyle = scale !== 1 ? ` style="transform:scale(${scale})"` : '';
-
-  const outfits = {
-    farmer: isFeminine
-      ? `<div class="mini-hat" style="background:linear-gradient(#8B6914,#6B4F0A)"></div><div class="mini-head" style="background:${skinBg}"><div class="mini-hair-long"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-overalls" style="background:linear-gradient(180deg,#4a90d9,#3a78c0)"><div class="mini-collar"></div></div>`
-      : `<div class="mini-hat"></div><div class="mini-head" style="background:${skinBg}"><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-overalls"></div>`,
-    banker: isFeminine
-      ? `<div class="mini-head" style="background:${skinBg}"><div class="mini-hair-bob"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-blazer" style="background:linear-gradient(180deg,#1a237e,#0d1642)"><div class="mini-collar-v"></div></div>`
-      : `<div class="mini-head" style="background:${skinBg}"><div class="mini-hair"></div><div class="mini-glasses"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-suit"><div class="mini-tie" style="background:#1565C0"></div></div>`,
-    businessman: isFeminine
-      ? `<div class="mini-head" style="background:${skinBg}"><div class="mini-hair-styled-f"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-blazer" style="background:linear-gradient(180deg,#37474F,#263238)"><div class="mini-scarf" style="background:#FF8F00"></div></div>`
-      : `<div class="mini-head" style="background:${skinBg}"><div class="mini-hair-styled"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-blazer"><div class="mini-tie" style="background:#FF8F00"></div><div class="mini-pocket-square"></div></div>`
-  };
-
-  return `<div class="robot-mini-preview ${persona}-preview"${scaleStyle}>${outfits[persona] || outfits.businessman}</div>`;
+  return `<div class="robot-mini-preview ${persona}-preview"${scaleStyle}>${_buildAvatarParts(persona, skinBg)}</div>`;
 }
 
 // ---- DOM REFERENCES ----
@@ -402,19 +418,7 @@ function updateJourneyPanel() {
   if (persona) {
     const grad = SKIN_GRADIENTS[playerSkinTone] || SKIN_GRADIENTS[1];
     const skinBg = `linear-gradient(180deg, ${grad[0]}, ${grad[1]}, ${grad[2]})`;
-    const isFeminine = playerGender === 'female';
-    const avatarParts = {
-      farmer: isFeminine
-        ? `<div class="mini-hat" style="background:linear-gradient(#8B6914,#6B4F0A)"></div><div class="mini-head" style="background:${skinBg}"><div class="mini-hair-long"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-overalls" style="background:linear-gradient(180deg,#4a90d9,#3a78c0)"></div>`
-        : `<div class="mini-hat"></div><div class="mini-head" style="background:${skinBg}"><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-overalls"></div>`,
-      banker: isFeminine
-        ? `<div class="mini-head" style="background:${skinBg}"><div class="mini-hair-bob"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-blazer" style="background:linear-gradient(180deg,#1a237e,#0d1642)"></div>`
-        : `<div class="mini-head" style="background:${skinBg}"><div class="mini-hair"></div><div class="mini-glasses"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-suit"><div class="mini-tie" style="background:#1565C0"></div></div>`,
-      businessman: isFeminine
-        ? `<div class="mini-head" style="background:${skinBg}"><div class="mini-hair-styled-f"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-blazer" style="background:linear-gradient(180deg,#37474F,#263238)"><div class="mini-scarf" style="background:#FF8F00"></div></div>`
-        : `<div class="mini-head" style="background:${skinBg}"><div class="mini-hair-styled"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso mini-blazer"><div class="mini-tie" style="background:#FF8F00"></div><div class="mini-pocket-square"></div></div>`
-    };
-    els.journeyAvatar.innerHTML = avatarParts[persona] || '';
+    els.journeyAvatar.innerHTML = _buildAvatarParts(persona, skinBg);
     els.journeyAvatar.className = `journey-avatar ${persona}-preview`;
   }
 
