@@ -348,7 +348,7 @@
   background: linear-gradient(180deg, #3E3E50, #2E2E40);
 }
 
-/* --- Skin-tone hands for all personas --- */
+/* --- Skin-tone hands — uses CSS custom property set by JS --- */
 .robot-arms .arm {
   position: relative;
 }
@@ -360,7 +360,180 @@
   bottom: -2px; left: 50%; transform: translateX(-50%);
   width: 6px; height: 5px;
   border-radius: 50%;
+  background: var(--skin-color, #D2A679);
 }
-.persona-farmer .robot-arms .arm::before { background: #D2A679; }
-.persona-banker .robot-arms .arm::before { background: #D4A574; }
-.persona-businessman .robot-arms .arm::before { background: #C9956A; }
+
+/* ============================================
+   GENDER-SPECIFIC CHARACTER OVERRIDES
+   ============================================ */
+
+/* --- FEMALE: longer hair, rounder head, shaped torso, accessories --- */
+
+/* Rounder head shape */
+.gender-female .robot-head {
+  border-radius: 9px 9px 5px 5px;
+}
+
+/* Narrower, shaped torso */
+.gender-female .robot-torso {
+  width: 32px;
+  border-radius: 3px 3px 5px 5px;
+  clip-path: polygon(5% 0, 95% 0, 100% 25%, 92% 55%, 95% 100%, 5% 100%, 8% 55%, 0% 25%);
+}
+
+/* Farmer female: long flowing hair instead of hat */
+.gender-female.persona-farmer .robot-head::before {
+  top: -6px; left: -4px; right: -4px;
+  height: 16px;
+  background: linear-gradient(180deg, #6B3A1F, #4A2810);
+  border-radius: 10px 10px 3px 3px;
+  box-shadow: none;
+}
+.gender-female.persona-farmer .robot-head::after {
+  /* Hair sides hanging down */
+  top: 6px; left: -5px; right: -5px;
+  height: 14px;
+  background: linear-gradient(180deg, #4A2810, transparent);
+  border-radius: 0 0 4px 4px;
+}
+/* Farmer female: lighter denim jumper, no straps */
+.gender-female.persona-farmer .robot-torso::before {
+  /* Blouse collar instead of straps */
+  width: 16px; height: 4px;
+  top: 0; left: 50%; transform: translateX(-50%);
+  background: #f0e8e0;
+  border-radius: 0 0 4px 4px;
+  clip-path: polygon(0 0, 100% 0, 80% 100%, 20% 100%);
+  box-shadow: none;
+}
+/* Flannel → denim jacket sleeves */
+.gender-female.persona-farmer .robot-arms .arm {
+  background: linear-gradient(180deg, #6B8FC5, #5578AE);
+}
+.gender-female.persona-farmer .robot-arms .arm::after {
+  background: none;
+}
+
+/* Banker female: bob hair, no glasses, pearl necklace accent */
+.gender-female.persona-banker .robot-head::before {
+  top: -5px; left: -4px; right: -4px;
+  height: 12px;
+  background: linear-gradient(180deg, #1a1a2e, #0d0d1a);
+  border-radius: 8px 8px 2px 2px;
+}
+.gender-female.persona-banker .robot-head::after {
+  /* Bob sides */
+  content: '';
+  position: absolute;
+  top: 4px; left: -5px; right: -5px;
+  height: 10px;
+  background: linear-gradient(180deg, #0d0d1a, transparent);
+  border-radius: 0 0 5px 5px;
+}
+/* Necklace hint on blazer */
+.gender-female.persona-banker .robot-torso::before {
+  width: 12px; height: 2px;
+  top: 2px; left: 50%; transform: translateX(-50%);
+  background: linear-gradient(90deg, transparent, #e8d5b0, #f0e0c0, #e8d5b0, transparent);
+  border-radius: 2px;
+  clip-path: none;
+  box-shadow: none;
+}
+/* Navy blazer sleeves */
+.gender-female.persona-banker .robot-arms .arm {
+  background: linear-gradient(180deg, #1a237e, #0d1642);
+}
+
+/* Businessman female: updo hair, scarf, chic blazer */
+.gender-female.persona-businessman .robot-head::before {
+  top: -6px; left: -2px; right: -2px;
+  height: 11px;
+  background: linear-gradient(180deg, #5C3D2E, #3E2820);
+  border-radius: 8px 8px 0 0;
+}
+.gender-female.persona-businessman .robot-head::after {
+  /* Hair bun */
+  content: '';
+  position: absolute;
+  top: -8px; right: 2px;
+  width: 8px; height: 7px;
+  background: #3E2820;
+  border-radius: 50%;
+}
+/* Orange scarf instead of tie */
+.gender-female.persona-businessman .robot-tie {
+  width: 6px; height: 10px;
+  clip-path: none;
+  background: #FF8F00 !important;
+  border-radius: 0 0 2px 2px;
+  display: block !important;
+}
+/* No pocket square */
+.gender-female.persona-businessman .robot-torso::after { display: none; }
+/* Charcoal blazer sleeves */
+.gender-female.persona-businessman .robot-arms .arm {
+  background: linear-gradient(180deg, #37474F, #2C393F);
+}
+
+/* --- OTHER: colorful/expressive hair, creative outfits, rainbow pin --- */
+
+/* Other: dyed colorful hair for all personas */
+.gender-other .robot-head::before {
+  background: linear-gradient(135deg, #E91E63, #9C27B0, #3F51B5) !important;
+  border-radius: 8px 8px 0 0;
+}
+/* Asymmetric side sweep */
+.gender-other .robot-head::after {
+  content: '';
+  position: absolute;
+  top: -2px; right: -4px;
+  width: 8px; height: 10px;
+  background: linear-gradient(135deg, #9C27B0, #3F51B5);
+  border-radius: 0 6px 4px 0;
+  z-index: 0;
+}
+
+/* Farmer other: purple overalls */
+.gender-other.persona-farmer .robot-torso::before {
+  /* Rainbow pin instead of straps */
+  width: 5px; height: 5px;
+  top: 3px; left: 5px;
+  background: linear-gradient(135deg, #FF9800, #E91E63, #9C27B0, #2196F3, #4CAF50);
+  border-radius: 50%;
+  box-shadow: none;
+}
+.gender-other.persona-farmer .robot-arms .arm {
+  background: linear-gradient(180deg, #7E57C2, #6A4BAD);
+}
+.gender-other.persona-farmer .robot-arms .arm::after {
+  background: none;
+}
+
+/* Banker other: teal suit + pin */
+.gender-other.persona-banker .robot-torso::before {
+  width: 5px; height: 5px;
+  top: 3px; left: 5px;
+  background: linear-gradient(135deg, #FF9800, #E91E63, #9C27B0, #2196F3, #4CAF50);
+  border-radius: 50%;
+  clip-path: none;
+  box-shadow: none;
+}
+.gender-other.persona-banker .robot-arms .arm {
+  background: linear-gradient(180deg, #00695C, #00574B);
+}
+
+/* Businessman other: deep purple jacket + rainbow accents */
+.gender-other.persona-businessman .robot-torso::after {
+  /* Rainbow pin instead of pocket square */
+  width: 5px; height: 5px;
+  top: 3px; right: 4px;
+  background: linear-gradient(135deg, #FF9800, #E91E63, #9C27B0, #2196F3, #4CAF50);
+  border-radius: 50%;
+  clip-path: none;
+}
+.gender-other.persona-businessman .robot-tie {
+  background: linear-gradient(180deg, #FF9800, #E91E63) !important;
+}
+.gender-other.persona-businessman .robot-arms .arm {
+  background: linear-gradient(180deg, #4A148C, #38006b);
+}

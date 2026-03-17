@@ -131,6 +131,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // ---- DEVICE FINGERPRINT ----
 async function generateFingerprint() {
+  // Use stored fingerprint if available — prevents identity loss on browser changes
+  const stored = localStorage.getItem('fbb_fingerprint');
+  if (stored) return stored;
+
   const components = [
     navigator.userAgent,
     navigator.language,
@@ -138,15 +142,18 @@ async function generateFingerprint() {
     screen.colorDepth,
     new Date().getTimezoneOffset(),
     navigator.hardwareConcurrency || 0,
-    navigator.platform || ''
+    navigator.platform || '',
+    Date.now().toString(36),
+    Math.random().toString(36).slice(2)
   ];
   const str = components.join('|');
-  // Simple hash
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
   }
-  return 'fp_' + Math.abs(hash).toString(36);
+  const fp = 'fp_' + Math.abs(hash).toString(36);
+  localStorage.setItem('fbb_fingerprint', fp);
+  return fp;
 }
 
 // ---- PROFILE ----
@@ -188,7 +195,19 @@ function goToTitle() {
   if (playerProfile) {
     els.playerNameDisplay.textContent = playerProfile.name;
   }
+  updateTitlePersonaCards();
   loadSavedGamesMenu();
+}
+
+function updateTitlePersonaCards() {
+  // Update persona card previews to reflect player's gender and skin tone
+  document.querySelectorAll('.persona-card').forEach(card => {
+    const persona = card.dataset.persona;
+    const iconEl = card.querySelector('.persona-icon');
+    if (iconEl) {
+      iconEl.innerHTML = buildPersonaVisual(persona);
+    }
+  });
 }
 
 // ---- EVENTS ----
@@ -363,26 +382,57 @@ function updateCharacterOutfit(persona) {
   const head = document.querySelector('.robot-head');
   const torso = document.querySelector('.robot-torso');
   const glasses = document.querySelector('.robot-glasses');
+  const body = document.querySelector('.robot-body');
 
-  workstation.classList.remove('persona-farmer', 'persona-banker', 'persona-businessman');
-  workstation.classList.add(`persona-${persona}`);
+  // Clear persona and gender classes
+  workstation.classList.remove('persona-farmer', 'persona-banker', 'persona-businessman',
+    'gender-male', 'gender-female', 'gender-other');
+  workstation.classList.add(`persona-${persona}`, `gender-${playerGender}`);
+
+  // Apply skin tone to head and hands via CSS custom properties
+  const grad = SKIN_GRADIENTS[playerSkinTone] || SKIN_GRADIENTS[1];
+  const skinBg = `linear-gradient(180deg, ${grad[0]}, ${grad[1]}, ${grad[2]})`;
+  head.style.background = skinBg;
+  // Set hand color as CSS custom property
+  workstation.style.setProperty('--skin-color', grad[1]);
 
   if (persona === 'farmer') {
-    head.style.background = 'linear-gradient(180deg, #D2A679, #C4946B, #B8845E)';
-    torso.style.background = 'linear-gradient(180deg, #5B7DB1, #4A6A9A, #3D5A85)';
+    if (playerGender === 'female') {
+      torso.style.background = 'linear-gradient(180deg, #6B8FC5, #5578AE, #4268A0)';
+    } else if (playerGender === 'other') {
+      torso.style.background = 'linear-gradient(180deg, #7E57C2, #6A4BAD, #5C3F99)';
+    } else {
+      torso.style.background = 'linear-gradient(180deg, #5B7DB1, #4A6A9A, #3D5A85)';
+    }
     els.robotTie.style.display = 'none';
     glasses.style.display = 'none';
   } else if (persona === 'banker') {
-    head.style.background = 'linear-gradient(180deg, #D4A574, #C69568, #BA855C)';
-    torso.style.background = 'linear-gradient(180deg, #2C2C3E, #1E1E2E, #151520)';
-    els.robotTie.style.display = '';
-    els.robotTie.style.background = '#1565C0';
-    glasses.style.display = '';
+    if (playerGender === 'female') {
+      torso.style.background = 'linear-gradient(180deg, #1a237e, #131a5e, #0d1242)';
+      els.robotTie.style.display = 'none';
+    } else if (playerGender === 'other') {
+      torso.style.background = 'linear-gradient(180deg, #00695C, #00574B, #004940)';
+      els.robotTie.style.display = 'none';
+    } else {
+      torso.style.background = 'linear-gradient(180deg, #2C2C3E, #1E1E2E, #151520)';
+      els.robotTie.style.display = '';
+      els.robotTie.style.background = '#1565C0';
+    }
+    glasses.style.display = playerGender === 'male' ? '' : 'none';
   } else {
-    head.style.background = 'linear-gradient(180deg, #C9956A, #BB875E, #AE7952)';
-    torso.style.background = 'linear-gradient(180deg, #3E3E50, #2E2E40, #202032)';
-    els.robotTie.style.display = '';
-    els.robotTie.style.background = '#FF8F00';
+    if (playerGender === 'female') {
+      torso.style.background = 'linear-gradient(180deg, #37474F, #2C393F, #1F2D33)';
+    } else if (playerGender === 'other') {
+      torso.style.background = 'linear-gradient(180deg, #4A148C, #38006b, #2A004E)';
+    } else {
+      torso.style.background = 'linear-gradient(180deg, #3E3E50, #2E2E40, #202032)';
+    }
+    if (playerGender === 'female') {
+      els.robotTie.style.display = 'none';
+    } else {
+      els.robotTie.style.display = '';
+      els.robotTie.style.background = '#FF8F00';
+    }
     glasses.style.display = 'none';
   }
 }

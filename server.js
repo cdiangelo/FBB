@@ -25,6 +25,28 @@ function saveAdminSettings(settings) {
   fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
 }
 
+// ---- CENTRAL USER REGISTRY ----
+const REGISTRY_PATH = path.join(DATA_DIR, '_user_registry.json');
+
+function loadUserRegistry() {
+  try {
+    if (fs.existsSync(REGISTRY_PATH)) return JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8'));
+  } catch (e) {}
+  return { users: {} };
+}
+
+function updateUserRegistry(profile) {
+  const registry = loadUserRegistry();
+  registry.users[profile.id] = {
+    name: profile.name,
+    gender: profile.gender || 'male',
+    createdAt: profile.createdAt,
+    lastSeen: profile.lastSeen || new Date().toISOString(),
+    hasSaves: !!(profile.saves && Object.keys(profile.saves).length > 0)
+  };
+  fs.writeFileSync(REGISTRY_PATH, JSON.stringify(registry, null, 2));
+}
+
 // ---- PROFILE APIs ----
 
 // Get or create profile by fingerprint
@@ -45,6 +67,7 @@ app.post('/api/profile/identify', (req, res) => {
       profile.accessLog.push({ ip, time: new Date().toISOString(), userAgent: req.headers['user-agent'] || '' });
       if (profile.accessLog.length > 50) profile.accessLog = profile.accessLog.slice(-50);
       fs.writeFileSync(profilePath, JSON.stringify(profile, null, 2));
+      updateUserRegistry(profile);
       return res.json({ profile, isReturning: true });
     } catch (e) {
       // Corrupted file — recreate
@@ -62,6 +85,7 @@ app.post('/api/profile/identify', (req, res) => {
     saves: {}
   };
   fs.writeFileSync(profilePath, JSON.stringify(profile, null, 2));
+  updateUserRegistry(profile);
   res.json({ profile, isReturning: false });
 });
 
@@ -77,7 +101,9 @@ app.put('/api/profile/:fingerprint/name', (req, res) => {
   profile.name = name;
   if (req.body.gender !== undefined) profile.gender = req.body.gender;
   if (req.body.skinTone !== undefined) profile.skinTone = req.body.skinTone;
+  profile.lastSeen = new Date().toISOString();
   fs.writeFileSync(profilePath, JSON.stringify(profile, null, 2));
+  updateUserRegistry(profile);
   res.json({ success: true });
 });
 
@@ -94,6 +120,7 @@ app.post('/api/profile/:fingerprint/save', (req, res) => {
   profile.saves[persona] = saveData;
   profile.lastSeen = new Date().toISOString();
   fs.writeFileSync(profilePath, JSON.stringify(profile, null, 2));
+  updateUserRegistry(profile);
   res.json({ success: true });
 });
 
@@ -310,20 +337,32 @@ app.post('/api/admin/login', (req, res) => {
     return res.json({ success: false });
   }
 
-  // List all registered users
-  const users = [];
+  // List all registered users from registry + file scan
+  const registry = loadUserRegistry();
+  const usersMap = {};
+
+  // Start with registry entries
+  Object.entries(registry.users || {}).forEach(([id, u]) => {
+    usersMap[id] = { id, name: u.name, lastSeen: u.lastSeen, gender: u.gender, hasSaves: u.hasSaves };
+  });
+
+  // Merge with profile files (catches any not yet in registry)
   try {
     const files = fs.readdirSync(DATA_DIR);
     files.forEach(f => {
       if (f.startsWith('profile_') && f.endsWith('.json') && !f.startsWith('_')) {
         try {
           const profile = JSON.parse(fs.readFileSync(path.join(DATA_DIR, f), 'utf8'));
-          users.push({ id: profile.id, name: profile.name, lastSeen: profile.lastSeen });
+          if (!usersMap[profile.id]) {
+            usersMap[profile.id] = { id: profile.id, name: profile.name, lastSeen: profile.lastSeen };
+            updateUserRegistry(profile); // backfill registry
+          }
         } catch (e) {}
       }
     });
   } catch (e) {}
 
+  const users = Object.values(usersMap).sort((a, b) => (b.lastSeen || '').localeCompare(a.lastSeen || ''));
   res.json({ success: true, settings, users });
 });
 
