@@ -1302,6 +1302,8 @@ body {
 
   /* Scene display smaller */
   .scene-display { height: 100px; }
+  .robot-workstation { transform: translateX(-50%) scale(0.8); transform-origin: bottom center; }
+  .robot-plant { transform: scale(0.8); transform-origin: bottom center; }
 
   /* Option buttons more compact */
   .option-btn { padding: .75rem; font-size: .82rem; gap: .5rem; }
@@ -1343,6 +1345,8 @@ body {
 
   /* Scene even smaller */
   .scene-display { height: 80px; }
+  .robot-workstation { transform: translateX(-50%) scale(0.65); transform-origin: bottom center; }
+  .robot-plant { transform: scale(0.65); transform-origin: bottom center; }
 
   /* Admin panel */
   .admin-panel { padding: 1rem; }
@@ -1375,6 +1379,8 @@ body {
 
   /* Scene minimal */
   .scene-display { height: 60px; }
+  .robot-workstation { transform: translateX(-50%) scale(0.5); transform-origin: bottom center; }
+  .robot-plant { transform: scale(0.5); transform-origin: bottom center; }
 
   /* Task area */
   .task-header-fixed { padding: .5rem .7rem .4rem; }
