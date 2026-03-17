@@ -15,6 +15,7 @@ class GameEngine {
     this.satisfactionHistory = [];
     this.scoreSatisfaction = false; // toggle
     this.log = [];
+    this.periodActions = []; // actions since last commentary review
     this.scenarioIndex = {};
     this.completedScenarios = new Set();
     this.generator = new ScenarioGenerator();
@@ -45,6 +46,7 @@ class GameEngine {
     this.satisfactionHistory = [50];
     this.scoreSatisfaction = options.scoreSatisfaction || false;
     this.log = [];
+    this.periodActions = [];
     this.scenarioIndex = {};
     this.completedScenarios = new Set();
     this.generator = new ScenarioGenerator();
@@ -92,6 +94,7 @@ class GameEngine {
       satisfactionHistory: saveData.satisfactionHistory || [50],
       scoreSatisfaction: saveData.scoreSatisfaction ?? false,
       log: [...saveData.log],
+      periodActions: saveData.periodActions || [],
       state: JSON.parse(JSON.stringify(saveData.state)),
       scenarioIndex: saveData.scenarioIndex || {},
       celebrationShown75: saveData.celebrationShown75 || false,
@@ -120,6 +123,7 @@ class GameEngine {
       satisfactionHistory: [...this.satisfactionHistory],
       scoreSatisfaction: this.scoreSatisfaction,
       log: [...this.log],
+      periodActions: [...this.periodActions],
       state: JSON.parse(JSON.stringify(this.state)),
       scenarioIndex: { ...this.scenarioIndex },
       completedScenarios: [...this.completedScenarios],
@@ -356,7 +360,8 @@ class GameEngine {
       description: prompt,
       context: this.persona,
       prompt: prompt,
-      businessSummary: summary
+      businessSummary: summary,
+      periodActions: this.periodActions.slice()
     };
   }
 
@@ -560,6 +565,16 @@ class GameEngine {
   addLog(message) {
     this.log.unshift({ message, day: this.day, time: new Date().toLocaleTimeString() });
     if (this.log.length > 50) this.log.pop();
+  }
+
+  addPeriodAction(type, detail) {
+    this.periodActions.push({ type, detail, day: this.day });
+  }
+
+  flushPeriodActions() {
+    const actions = this.periodActions.slice();
+    this.periodActions = [];
+    return actions;
   }
 
   getMoney() {

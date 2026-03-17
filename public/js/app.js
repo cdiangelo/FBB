@@ -432,12 +432,16 @@ function showDecisionTask(scenario, badge) {
     return `<div class="ticker-item"><span class="ticker-name">${d.name}</span><span class="ticker-price">${d.price}</span><span class="ticker-change ${dir}">${sign}${d.pct}%</span></div>`;
   }).join('')}</div>`;
 
-  // Data table in fixed area
+  // Data table as collapsible in scroll area
   if (scenario.data) {
-    els.taskDataTable.innerHTML = '<table class="data-table">' +
-      Object.entries(scenario.data).map(([k, v]) =>
-        `<tr><th>${formatKey(k)}</th><td>${v}</td></tr>`
-      ).join('') + '</table>';
+    els.taskDataTable.innerHTML = `<details class="collapsible-section" open>
+      <summary>Application Details</summary>
+      <div class="collapsible-body"><table class="data-table">${
+        Object.entries(scenario.data).map(([k, v]) =>
+          `<tr><th>${formatKey(k)}</th><td>${v}</td></tr>`
+        ).join('')
+      }</table></div>
+    </details>`;
   }
 
   // Options in scrollable area
@@ -462,13 +466,25 @@ function showCommentaryTask(scenario) {
   setTaskHeader(scenario.title, scenario.description);
   clearTaskFixed();
 
-  // Business summary in fixed area
+  // Business summary as collapsible section in scroll area
   if (scenario.businessSummary) {
-    els.taskBizSummary.innerHTML = buildBizSummaryHTML(scenario.businessSummary);
+    els.taskBizSummary.innerHTML = '<details class="collapsible-section"><summary>Business Summary</summary><div class="collapsible-body">' + buildBizSummaryHTML(scenario.businessSummary) + '</div></details>';
+  }
+
+  // Action history as collapsible section
+  const actions = scenario.periodActions || [];
+  let actionsHtml = '';
+  if (actions.length > 0) {
+    const actionRows = actions.map(a => {
+      const icon = a.type === 'decision' ? '&#9654;' : a.type === 'event' ? '&#9889;' : '&#9733;';
+      return `<div class="action-history-row"><span class="action-day">Day ${a.day}</span><span class="action-icon">${icon}</span><span class="action-detail">${a.detail}</span></div>`;
+    }).join('');
+    actionsHtml = `<details class="collapsible-section"><summary>Actions This Period (${actions.length})</summary><div class="collapsible-body action-history">${actionRows}</div></details>`;
   }
 
   // Commentary input in scrollable area
   els.taskBody.innerHTML = `
+    ${actionsHtml}
     <p style="color:var(--text-secondary);margin-bottom:1rem;font-size:.85rem">${scenario.prompt}</p>
     <textarea class="commentary-input" id="commentary-text" placeholder="Write your performance commentary here..."></textarea>
   `;
@@ -537,6 +553,7 @@ function selectOption(index) {
 
   engine.applyEffect(option.effect);
   engine.addLog(`${scenario.title}: chose "${option.label}"`);
+  engine.addPeriodAction('decision', `${scenario.title}: chose "${option.label}"`);
 
   const moneyEffect = option.effect.money ? (option.effect.money > 0 ? `+$${option.effect.money.toLocaleString()}` : `-$${Math.abs(option.effect.money).toLocaleString()}`) : '';
   const scoreEffect = `+${Math.round(((option.effect.score || 0) + (option.effect.knowledge || 0)) * engine.getScaleMultiplier())} pts`;
@@ -584,6 +601,7 @@ async function submitCommentary() {
 function handleCommentaryResult(result) {
   engine.applyCommentaryScore(result);
   engine.addLog(`Commentary submitted — Grade: ${result.grade} (${result.score}/100)`);
+  engine.flushPeriodActions();
 
   setTaskHeader('Commentary Evaluated', 'Your review has been graded.');
   clearTaskFixed();
@@ -602,6 +620,7 @@ function advanceAndContinue() {
   if (event) {
     const moneyStr = event.money > 0 ? `+$${event.money.toLocaleString()}` : `-$${Math.abs(event.money).toLocaleString()}`;
     engine.addLog(`${event.text} (${moneyStr})`);
+    engine.addPeriodAction('event', `${event.text} (${moneyStr})`);
     showNotification(`${event.text} (${moneyStr})`);
   }
   updateAll();
@@ -666,6 +685,7 @@ function executeSellOff(type) {
   const value = engine.executeSellOff(type);
   const labels = { full: 'Full Sale', majority: 'Majority Sale', minority: 'Minority Sale' };
   engine.addLog(`${labels[type]} executed at $${value.toLocaleString()} valuation.`);
+  engine.addPeriodAction('sell-off', `${labels[type]} executed at $${value.toLocaleString()} valuation.`);
   showNotification(`${labels[type]} complete!`);
   updateAll();
   updateSellOffButton();

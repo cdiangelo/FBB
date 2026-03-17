@@ -52,8 +52,9 @@
           <div class="persona-card" data-persona="farmer">
             <div class="persona-icon">
               <div class="robot-mini-preview farmer-preview">
+                <div class="mini-hat"></div>
                 <div class="mini-head"><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div>
-                <div class="mini-torso"><div class="mini-tie" style="background:#4CAF50"></div></div>
+                <div class="mini-torso mini-overalls"></div>
               </div>
             </div>
             <h2>The Farmer</h2>
@@ -63,8 +64,8 @@
           <div class="persona-card" data-persona="banker">
             <div class="persona-icon">
               <div class="robot-mini-preview banker-preview">
-                <div class="mini-head"><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div>
-                <div class="mini-torso"><div class="mini-tie" style="background:#1565C0"></div></div>
+                <div class="mini-head"><div class="mini-hair"></div><div class="mini-glasses"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div>
+                <div class="mini-torso mini-suit"><div class="mini-tie" style="background:#1565C0"></div></div>
               </div>
             </div>
             <h2>The Banker</h2>
@@ -74,8 +75,8 @@
           <div class="persona-card" data-persona="businessman">
             <div class="persona-icon">
               <div class="robot-mini-preview businessman-preview">
-                <div class="mini-head"><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div>
-                <div class="mini-torso"><div class="mini-tie" style="background:#FF8F00"></div></div>
+                <div class="mini-head"><div class="mini-hair-styled"></div><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div>
+                <div class="mini-torso mini-blazer"><div class="mini-tie" style="background:#FF8F00"></div><div class="mini-pocket-square"></div></div>
               </div>
             </div>
             <h2>The Businessman</h2>
@@ -144,19 +145,19 @@
               </div>
             </div>
 
-            <!-- FIXED task header -->
+            <!-- FIXED task header — only title + description + ticker -->
             <div class="task-header-fixed" id="task-header-fixed">
               <div class="task-header">
                 <h2 id="task-title">Welcome</h2>
                 <p id="task-description">Select a task to begin your day.</p>
               </div>
               <div class="task-market-ticker" id="task-market-ticker"></div>
-              <div class="task-data-table" id="task-data-table"></div>
-              <div class="task-biz-summary" id="task-biz-summary"></div>
             </div>
 
-            <!-- SCROLLABLE task options/actions -->
+            <!-- SCROLLABLE — data, summary, options, actions all scroll -->
             <div class="task-scroll-area" id="task-scroll-area">
+              <div class="task-data-table" id="task-data-table"></div>
+              <div class="task-biz-summary" id="task-biz-summary"></div>
               <div class="task-body" id="task-body"></div>
               <div class="task-actions" id="task-actions"></div>
             </div>

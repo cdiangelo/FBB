@@ -206,6 +206,88 @@ body {
   clip-path: polygon(50% 0, 100% 15%, 65% 100%, 50% 80%, 35% 100%, 0 15%);
 }
 
+/* ---- MINI PERSONA OUTFITS ---- */
+/* Farmer: straw hat + overalls */
+.mini-hat {
+  width: 20px; height: 3px;
+  background: linear-gradient(180deg, #D4A54A, #B8862E);
+  border-radius: 4px;
+  margin: 0 auto 0;
+  position: relative;
+}
+.mini-hat::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 4px;
+  width: 12px; height: 4px;
+  background: linear-gradient(180deg, #C49538, #A87A28);
+  border-radius: 1px;
+}
+.farmer-preview .mini-head {
+  background: linear-gradient(180deg, #D2A679, #C4946B, #B8845E);
+}
+.mini-overalls {
+  background: linear-gradient(180deg, #5B7DB1, #4A6A9A, #3D5A85) !important;
+}
+
+/* Banker: dark hair + glasses + dark suit */
+.mini-hair {
+  position: absolute;
+  top: -2px; left: 1px; right: 1px;
+  height: 4px;
+  background: linear-gradient(180deg, #2C1810, #1A0E08);
+  border-radius: 3px 3px 0 0;
+  z-index: 0;
+}
+.mini-glasses {
+  position: absolute;
+  top: 4px; left: 2px;
+  width: 10px; height: 2px;
+  border-bottom: 1px solid #1a1a1a;
+  z-index: 3;
+}
+.mini-glasses::before, .mini-glasses::after {
+  content: '';
+  position: absolute; top: -1px;
+  width: 3px; height: 2px;
+  border: 0.5px solid #1a1a1a;
+  border-radius: 50%;
+}
+.mini-glasses::before { left: 0; }
+.mini-glasses::after { right: 0; }
+.banker-preview .mini-head {
+  background: linear-gradient(180deg, #D4A574, #C69568, #BA855C);
+  position: relative;
+}
+.mini-suit {
+  background: linear-gradient(180deg, #2C2C3E, #1E1E2E, #151520) !important;
+}
+
+/* Businessman: styled hair + blazer + pocket square */
+.mini-hair-styled {
+  position: absolute;
+  top: -2px; left: 1px; right: 1px;
+  height: 4px;
+  background: linear-gradient(180deg, #4A3222, #3A2618);
+  border-radius: 3px 3px 0 0;
+  z-index: 0;
+}
+.businessman-preview .mini-head {
+  background: linear-gradient(180deg, #C9956A, #BB875E, #AE7952);
+  position: relative;
+}
+.mini-blazer {
+  background: linear-gradient(180deg, #3E3E50, #2E2E40, #202032) !important;
+  position: relative;
+}
+.mini-pocket-square {
+  position: absolute;
+  top: 1px; right: 1px;
+  width: 2px; height: 2px;
+  background: #FF8F00;
+  border-radius: 0.5px;
+}
+
 .persona-card h2 { font-size: 1.3rem; margin-bottom: .5rem; }
 .persona-card[data-persona="farmer"] h2 { color: var(--accent-farmer); }
 .persona-card[data-persona="banker"] h2 { color: var(--accent-banker); }
@@ -370,6 +452,53 @@ body {
 .task-header p { color: var(--text-secondary); font-size: .9rem; line-height: 1.5; }
 
 .task-market-ticker:empty, .task-data-table:empty, .task-biz-summary:empty { display: none; }
+
+/* ---- COLLAPSIBLE DETAILS (data tables, biz summaries) ---- */
+.collapsible-section {
+  margin-bottom: .75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.collapsible-section summary {
+  padding: .6rem .75rem;
+  cursor: pointer;
+  font-size: .8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  user-select: none;
+  transition: color .2s;
+  list-style: none;
+}
+.collapsible-section summary::-webkit-details-marker { display: none; }
+.collapsible-section summary::before {
+  content: '▶';
+  font-size: .55rem;
+  transition: transform .2s;
+  flex-shrink: 0;
+}
+.collapsible-section[open] summary::before { transform: rotate(90deg); }
+.collapsible-section summary:hover { color: var(--text-primary); }
+.collapsible-section .collapsible-body {
+  padding: 0 .75rem .75rem;
+  animation: fadeInUp .2s ease;
+}
+
+/* Action History (quarterly review) */
+.action-history { max-height: 250px; overflow-y: auto; }
+.action-history-row {
+  display: flex; align-items: baseline; gap: .5rem;
+  padding: .35rem 0; border-bottom: 1px solid var(--border);
+  font-size: .8rem; color: var(--text-secondary);
+}
+.action-history-row:last-child { border-bottom: none; }
+.action-day { flex-shrink: 0; font-weight: 600; color: var(--accent); min-width: 3.5rem; }
+.action-icon { flex-shrink: 0; font-size: .7rem; }
+.action-detail { flex: 1; }
 
 /* SCROLLABLE AREA — only this scrolls */
 .task-scroll-area {
