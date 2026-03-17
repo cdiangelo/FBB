@@ -58,6 +58,8 @@ class ScenarioGenerator {
     if (difficulty === 'hard') {
       scenario = this._applyHardMode(scenario, day);
     }
+    // Inject depreciation options for large purchases (>= $10k)
+    scenario = this._injectDepreciationOptions(scenario, 10000);
     return scenario;
   }
 

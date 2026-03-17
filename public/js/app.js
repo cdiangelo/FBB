@@ -16,14 +16,23 @@ let advisorReasoningLevel = 50; // 0-100 slider
 let adminSettings = null; // loaded from server
 let playerGender = 'male';     // male, female, other
 let playerSkinTone = 0;        // 0-5 index into skin color palette
-const SKIN_COLORS = ['#FDDBB4', '#D2A679', '#C4946B', '#A57551', '#7B5138', '#4A2E1A'];
+const SKIN_COLORS = [
+  '#FDDBB4', '#D2A679', '#C4946B', '#A57551', '#7B5138', '#4A2E1A',
+  '#C5B8E8', '#FFD1B8', '#B8E8D0', '#B8D8F0', '#F0C8D8', '#F0DCA0'
+];
 const SKIN_GRADIENTS = [
   ['#FDDBB4', '#ECC9A0', '#DEB78C'], // light
   ['#D2A679', '#C4946B', '#B8845E'], // light-medium
   ['#C4946B', '#B0815A', '#9C6E4A'], // medium
   ['#A57551', '#916343', '#7D5236'], // medium-dark
   ['#7B5138', '#6A422C', '#593420'], // dark
-  ['#4A2E1A', '#3D2415', '#301B10']  // deep
+  ['#4A2E1A', '#3D2415', '#301B10'], // deep
+  ['#C5B8E8', '#B0A0D8', '#9B88C8'], // lavender
+  ['#FFD1B8', '#FFC0A0', '#FFB088'], // peach
+  ['#B8E8D0', '#A0D8BC', '#88C8A8'], // mint
+  ['#B8D8F0', '#A0C8E8', '#88B8E0'], // sky
+  ['#F0C8D8', '#E8B0C4', '#E098B0'], // rose
+  ['#F0DCA0', '#E8D090', '#E0C480']  // gold
 ];
 
 // ---- PERSONA VISUAL BUILDER ----
@@ -730,12 +739,17 @@ function showDecisionTask(scenario, badge) {
     const cost = engine.getOptionCost(opt);
     const affordable = engine.canAfford(opt);
     const costHtml = cost > 0 ? `<span class="option-cost ${affordable ? '' : 'option-cost-blocked'}">${affordable ? '' : '⚠ '}$${cost.toLocaleString()}${affordable ? '' : ' — not enough $'}</span>` : '';
+    // Depreciation policy badge
+    let policyHtml = '';
+    if (opt._depreciationMeta) {
+      policyHtml = `<span class="option-policy ${opt._depreciationMeta.cls}">${opt._depreciationMeta.label}</span>`;
+    }
     return `<button class="option-btn${affordable ? '' : ' option-unaffordable'}" onclick="selectOption(${i})">
       <span class="option-key">${String.fromCharCode(65 + i)}</span>
       <span class="option-text">
         <span class="option-label">${opt.label}${costHtml ? ' ' + costHtml : ''}</span>
         <span class="option-detail">${opt.detail}</span>
-        ${satHtml}
+        ${policyHtml}${satHtml}
       </span>
     </button>`;
   }).join('')}</div>`;
@@ -1086,8 +1100,27 @@ function selectOption(index) {
   }
 
   // Handle investment/asset purchases
-  if (option.assetPurchase) {
+  if (option.assetPurchase && !option.capitalizeAsset) {
     engine.addAsset(option.assetPurchase);
+  }
+
+  // Handle capitalized purchases (depreciation schedule)
+  if (option.capitalizeAsset) {
+    engine.capitalizeAsset(option.capitalizeAsset);
+    // Grey area / aggressive depreciation increases financial + regulatory risk
+    if (option.capitalizeAsset.policyAlignment === 'aggressive') {
+      engine.financialRisk = Math.min(100, engine.financialRisk + 5);
+      engine.regulatoryStanding = Math.max(0, (engine.regulatoryStanding || 100) - 5);
+      engine.addLog('Aggressive depreciation schedule — auditors may question.');
+    } else if (option.capitalizeAsset.policyAlignment === 'non_compliant') {
+      engine.financialRisk = Math.min(100, engine.financialRisk + 12);
+      engine.regulatoryStanding = Math.max(0, (engine.regulatoryStanding || 100) - 15);
+      engine.legalExposure = Math.min(100, (engine.legalExposure || 0) + 10);
+      engine.addLog('Non-compliant depreciation — significant audit and regulatory risk.');
+    }
+    if (option.assetPurchase) {
+      engine.addAsset({ ...option.assetPurchase, value: 0 }); // track asset in portfolio at 0 cost (already capitalized)
+    }
   }
 
   engine.addLog(`${scenario.title}: chose "${option.label}"`);
@@ -1097,12 +1130,28 @@ function selectOption(index) {
   const scoreEffect = `+${Math.round(((option.effect.score || 0) + (option.effect.knowledge || 0)) * engine.getScaleMultiplier())} pts`;
   const satEffect = option.effect.satisfaction ? ` | Satisfaction: ${option.effect.satisfaction > 0 ? '+' : ''}${option.effect.satisfaction}` : '';
 
+  // Depreciation summary line
+  let depreciationInfo = '';
+  if (option.capitalizeAsset) {
+    const cap = option.capitalizeAsset;
+    const dailyExp = Math.round(cap.totalCost / cap.usefulLifeDays);
+    const deposit = Math.round(cap.totalCost * 0.10);
+    const policy = option._depreciationMeta || GameEngine.getDepreciationPolicy(cap.type, cap.usefulLifeDays);
+    depreciationInfo = `<div style="font-size:.8rem;margin-top:.5rem;padding:.5rem;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid var(--border)">
+      <strong>Capitalized:</strong> $${cap.totalCost.toLocaleString()} over ${cap.usefulLifeDays} days ($${dailyExp}/day) | Deposit: $${deposit.toLocaleString()}
+      <br><span class="option-policy ${policy.cls}" style="margin-top:4px">${policy.label}</span>
+      ${cap.policyAlignment === 'aggressive' ? '<br><span style="color:#FF9800;font-size:.75rem">Increased financial risk +5 | Regulatory standing -5</span>' : ''}
+      ${cap.policyAlignment === 'non_compliant' ? '<br><span style="color:#f44336;font-size:.75rem">Financial risk +12 | Regulatory standing -15 | Legal exposure +10</span>' : ''}
+    </div>`;
+  }
+
   setTaskHeader('Decision Made', `You chose: ${option.label}`);
   clearTaskFixed();
 
   els.taskBody.innerHTML = `<div class="grade-display">
     <div style="font-size:1.2rem;margin-bottom:.5rem;color:var(--accent)">${scoreEffect} ${moneyEffect ? '| ' + moneyEffect : ''}${satEffect}</div>
     <p class="grade-feedback">${option.detail}</p>
+    ${depreciationInfo}
   </div>`;
 
   els.taskActions.innerHTML = `
@@ -1515,10 +1564,56 @@ function showAdminPanel() {
   }).catch(() => showNotification('Admin login failed.'));
 }
 
+let _adminSettings = null;
+let _adminUsers = null;
+let _adminTab = 'settings';
+
 function renderAdminPanel(settings, users) {
+  _adminSettings = settings;
+  _adminUsers = users;
+  _adminTab = 'settings';
+  _renderAdminTab();
+}
+
+function _renderAdminTab() {
   const overlay = document.getElementById('celebration-overlay');
   const content = document.getElementById('celebration-content');
+  const settings = _adminSettings;
+  const users = _adminUsers;
 
+  const tabs = [
+    { id: 'settings', label: 'Settings' },
+    { id: 'levels', label: 'Level Jump' },
+    { id: 'avatars', label: 'Avatars' },
+    { id: 'scenarios', label: 'Scenarios' }
+  ];
+  const tabsHtml = tabs.map(t =>
+    `<button class="admin-tab-btn${_adminTab === t.id ? ' active' : ''}" onclick="_adminTab='${t.id}';_renderAdminTab()">${t.label}</button>`
+  ).join('');
+
+  let body = '';
+  if (_adminTab === 'settings') body = _adminSettingsTab(settings, users);
+  else if (_adminTab === 'levels') body = _adminLevelsTab();
+  else if (_adminTab === 'avatars') body = _adminAvatarsTab();
+  else if (_adminTab === 'scenarios') body = _adminScenariosTab();
+
+  content.innerHTML = `
+    <div class="admin-panel">
+      <div class="admin-header">
+        <h3>Admin Panel</h3>
+        <button class="trend-close" onclick="closeAdminPanel()">&#10005;</button>
+      </div>
+      <div class="admin-tabs">${tabsHtml}</div>
+      <div class="admin-tab-body">${body}</div>
+      <div class="admin-footer">
+        <button class="btn-secondary" onclick="closeAdminPanel()">Close</button>
+      </div>
+    </div>
+  `;
+  overlay.style.display = 'flex';
+}
+
+function _adminSettingsTab(settings, users) {
   let userRows = (users || []).map(u => {
     const disabled = (settings.disabledUsers || []).includes(u.id);
     return `<tr>
@@ -1528,58 +1623,178 @@ function renderAdminPanel(settings, users) {
     </tr>`;
   }).join('');
 
-  content.innerHTML = `
-    <div class="admin-panel">
-      <div class="admin-header">
-        <h3>Admin Settings</h3>
-        <button class="trend-close" onclick="closeAdminPanel()">&#10005;</button>
+  return `
+    <div class="admin-section">
+      <h4>AI Advisor (Claude)</h4>
+      <div class="admin-row">
+        <label>Global Enable</label>
+        <label class="toggle-label-sm"><input type="checkbox" id="admin-advisor-toggle" ${settings.advisorEnabled !== false ? 'checked' : ''} onchange="adminToggleAdvisor(this.checked)"><span class="toggle-switch-sm"></span></label>
       </div>
-      <div class="admin-section">
-        <h4>AI Advisor (Claude)</h4>
-        <div class="admin-row">
-          <label>Global Enable</label>
-          <label class="toggle-label-sm"><input type="checkbox" id="admin-advisor-toggle" ${settings.advisorEnabled !== false ? 'checked' : ''} onchange="adminToggleAdvisor(this.checked)"><span class="toggle-switch-sm"></span></label>
-        </div>
-        <div class="admin-row">
-          <label>Default Reasoning Level</label>
-          <input type="range" id="admin-reasoning-slider" min="10" max="100" value="${settings.reasoningLevel || 50}" onchange="adminSetReasoning(this.value)">
-          <span id="admin-reasoning-val">${settings.reasoningLevel || 50}</span>
-        </div>
+      <div class="admin-row">
+        <label>Default Reasoning Level</label>
+        <input type="range" id="admin-reasoning-slider" min="10" max="100" value="${settings.reasoningLevel || 50}" oninput="document.getElementById('admin-reasoning-val').textContent=this.value">
+        <span id="admin-reasoning-val">${settings.reasoningLevel || 50}</span>
       </div>
-      <div class="admin-section">
-        <h4>Registered Users</h4>
-        <table class="admin-user-table">
-          <thead><tr><th>Name</th><th>Last Seen</th><th>AI Access</th></tr></thead>
-          <tbody>${userRows || '<tr><td colspan="3">No users yet</td></tr>'}</tbody>
-        </table>
-      </div>
-      <div class="admin-footer">
-        <button class="btn-secondary" onclick="closeAdminPanel()">Close</button>
+      <div class="admin-row" style="margin-top:.5rem">
+        <button class="btn-primary" onclick="adminSaveSettings()" style="padding:.4rem 1rem;font-size:.8rem">Save Settings</button>
+        <span id="admin-save-status" style="font-size:.75rem;color:#4CAF50;margin-left:.5rem"></span>
       </div>
     </div>
+    <div class="admin-section">
+      <h4>Registered Users</h4>
+      <table class="admin-user-table">
+        <thead><tr><th>Name</th><th>Last Seen</th><th>AI Access</th></tr></thead>
+        <tbody>${userRows || '<tr><td colspan="3">No users yet</td></tr>'}</tbody>
+      </table>
+    </div>
   `;
-  overlay.style.display = 'flex';
+}
+
+function _adminLevelsTab() {
+  const personas = ['farmer', 'banker', 'businessman'];
+  let html = '<p style="font-size:.8rem;color:var(--text-secondary);margin-bottom:1rem">Click any level to start a new game at that point with pre-set score, day, and cash. Hard mode levels include empire-tier categories.</p>';
+
+  personas.forEach(persona => {
+    const baseLevels = GAME_DATA.levels[persona] || [];
+    const hardLevels = GAME_DATA.hardModeLevels?.[persona] || [];
+    const startState = GAME_DATA.startingState[persona];
+
+    html += `<div class="admin-section"><h4>${capitalize(persona)}</h4><div class="admin-level-grid">`;
+    baseLevels.forEach((lvl, i) => {
+      const cash = Math.round(startState.money * (1 + i * 0.8));
+      html += `<button class="admin-level-btn" onclick="adminJumpToLevel('${persona}','easy',${lvl.minScore},${lvl.day},${cash})">
+        <span class="admin-level-name">${lvl.name}</span>
+        <span class="admin-level-meta">Day ${lvl.day} | ${lvl.minScore} pts | $${cash.toLocaleString()}</span>
+      </button>`;
+    });
+    if (hardLevels.length) {
+      html += '<div style="font-size:.7rem;color:#FF8F00;margin:.5rem 0;font-weight:600">HARD MODE / EMPIRE TIER</div>';
+      hardLevels.forEach((lvl, i) => {
+        const cash = Math.round(startState.money * (3 + i * 2));
+        html += `<button class="admin-level-btn admin-level-hard" onclick="adminJumpToLevel('${persona}','hard',${lvl.minScore},${lvl.day},${cash})">
+          <span class="admin-level-name">${lvl.name}</span>
+          <span class="admin-level-meta">Day ${lvl.day} | ${lvl.minScore} pts | $${cash.toLocaleString()}</span>
+        </button>`;
+      });
+    }
+    html += '</div></div>';
+  });
+  return html;
+}
+
+function _adminAvatarsTab() {
+  const personas = ['farmer', 'banker', 'businessman'];
+  const genders = ['male', 'female', 'other'];
+  const skinLabels = ['Light', 'Lt-Med', 'Medium', 'Med-Dk', 'Dark', 'Deep',
+    'Lavender', 'Peach', 'Mint', 'Sky', 'Rose', 'Gold'];
+
+  let html = '<p style="font-size:.8rem;color:var(--text-secondary);margin-bottom:1rem">Preview all character combinations. Click to see the desk scene version.</p>';
+  html += '<div class="admin-avatar-grid">';
+
+  genders.forEach(gender => {
+    html += `<div class="admin-avatar-section"><h4 style="text-transform:capitalize;margin-bottom:.5rem">${gender}</h4><div class="admin-avatar-row">`;
+    personas.forEach(persona => {
+      SKIN_GRADIENTS.forEach((grad, si) => {
+        const skinBg = `linear-gradient(180deg, ${grad[0]}, ${grad[1]}, ${grad[2]})`;
+        // Temporarily swap gender to render
+        const savedGender = playerGender;
+        playerGender = gender;
+        const avatarHtml = buildPersonaVisual(persona, 1.3);
+        playerGender = savedGender;
+        html += `<div class="admin-avatar-cell" onclick="adminPreviewDeskScene('${persona}','${gender}',${si})" title="${capitalize(persona)} - ${gender} - ${skinLabels[si] || si}">
+          ${avatarHtml}
+          <span class="admin-avatar-label">${persona.charAt(0).toUpperCase()}/${gender.charAt(0).toUpperCase()}/${si}</span>
+        </div>`;
+      });
+    });
+    html += '</div></div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+function _adminScenariosTab() {
+  const gen = new ScenarioGenerator();
+  const personas = ['farmer', 'banker', 'businessman'];
+
+  // Category groups by theme
+  const groups = [
+    { theme: 'Core Operations', categories: {
+      farmer: ['morning', 'inputs', 'crops', 'weather', 'equipment', 'labor', 'landUse', 'livestock'],
+      banker: ['credit', 'portfolio', 'deposit', 'clientRelation', 'capitalPlanning'],
+      businessman: ['meetings', 'market', 'client', 'pricing', 'hiring', 'negotiation']
+    }},
+    { theme: 'Market & Investment', categories: {
+      farmer: ['market', 'investment'],
+      banker: ['investment', 'riskEvent'],
+      businessman: ['venture', 'partnership', 'investment']
+    }},
+    { theme: 'Technology & Operations', categories: {
+      all: ['techEnablement']
+    }},
+    { theme: 'Regulatory & Legal', categories: {
+      farmer: ['regulatory'],
+      banker: ['regulatory'],
+      businessman: [],
+      all_hard: ['legal']
+    }},
+    { theme: 'Empire Tier (Hard Mode)', categories: {
+      all_hard: ['empire', 'ethics', 'consolidation']
+    }}
+  ];
+
+  let html = '<p style="font-size:.8rem;color:var(--text-secondary);margin-bottom:1rem">Sample scenarios by theme. Click "Generate" to preview a random scenario from that category.</p>';
+
+  groups.forEach(group => {
+    html += `<div class="admin-section"><h4>${group.theme}</h4>`;
+    personas.forEach(persona => {
+      const cats = [
+        ...(group.categories[persona] || []),
+        ...(group.categories.all || []),
+        ...(group.categories.all_hard || [])
+      ];
+      if (!cats.length) return;
+      const state = GAME_DATA.startingState[persona];
+      html += `<div style="margin:.4rem 0"><strong style="font-size:.8rem;color:var(--accent)">${capitalize(persona)}</strong>`;
+      html += '<div class="admin-scenario-cats">';
+      cats.forEach(cat => {
+        const isHard = ['empire', 'ethics', 'legal', 'consolidation'].includes(cat);
+        html += `<button class="admin-scenario-btn${isHard ? ' admin-scenario-hard' : ''}" onclick="adminPreviewScenario('${persona}','${cat}')">${cat}${isHard ? ' *' : ''}</button>`;
+      });
+      html += '</div></div>';
+    });
+    html += '</div>';
+  });
+
+  html += '<div id="admin-scenario-preview" class="admin-scenario-preview"></div>';
+  return html;
 }
 
 function closeAdminPanel() {
   document.getElementById('celebration-overlay').style.display = 'none';
 }
 
-function adminToggleAdvisor(enabled) {
+function adminSaveSettings() {
+  const advisorEnabled = document.getElementById('admin-advisor-toggle')?.checked ?? true;
+  const reasoningLevel = parseInt(document.getElementById('admin-reasoning-slider')?.value || 50);
   fetch('/api/admin/settings', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ advisorEnabled: enabled })
-  }).then(() => loadAdminSettings());
+    body: JSON.stringify({ advisorEnabled, reasoningLevel })
+  }).then(() => {
+    loadAdminSettings();
+    const status = document.getElementById('admin-save-status');
+    if (status) { status.textContent = 'Saved!'; setTimeout(() => status.textContent = '', 2000); }
+  });
+}
+
+function adminToggleAdvisor(enabled) {
+  // No auto-save; user clicks "Save Settings"
 }
 
 function adminSetReasoning(val) {
   document.getElementById('admin-reasoning-val').textContent = val;
-  fetch('/api/admin/settings', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reasoningLevel: parseInt(val) })
-  });
+  // No auto-save; user clicks "Save Settings"
 }
 
 function adminToggleUser(userId, enabled) {
@@ -1587,7 +1802,90 @@ function adminToggleUser(userId, enabled) {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId, enabled })
-  }).then(() => loadAdminSettings());
+  }).then(() => {
+    loadAdminSettings();
+    showNotification(enabled ? 'User access enabled.' : 'User access disabled.');
+  });
+}
+
+function adminJumpToLevel(persona, difficulty, score, day, cash) {
+  closeAdminPanel();
+  const scoreSat = false;
+  difficultyMode = difficulty;
+  engine.newGame(persona, { scoreSatisfaction: scoreSat, marketDataMode: 'simulated', difficulty, gender: playerGender, skinTone: playerSkinTone });
+  engine.totalScore = score;
+  engine.day = day;
+  engine.state.money = cash;
+  // Pre-populate some state for higher levels
+  if (score >= 450) {
+    engine.debtStructure.totalDebt = Math.round(cash * 0.3);
+    engine.portfolio.totalAssetValue = Math.round(cash * 0.5);
+    engine.operatingModel.techLevel = Math.min(40, Math.round(score / 30));
+    engine.operatingModel.scalability = Math.min(50, Math.round(score / 25));
+    engine.operatingModel.serviceQuality = Math.min(90, 70 + Math.round(score / 100));
+  }
+  if (score >= 1200) {
+    engine.operatingModel.techApproach = 'build_own';
+    engine.operatingModel.scalability = 60;
+    engine.operatingModel.techLevel = 50;
+    engine.financialRisk = 35;
+  }
+  engine._tickFinancialRisk();
+  engine.addLog(`Admin jump: ${capitalize(persona)} at ${GAME_DATA.levels[persona]?.find(l => l.minScore <= score)?.name || 'Level'} (Day ${day}, $${cash.toLocaleString()}, ${score} pts)`);
+  enterGameScreen();
+  showNotification(`Jumped to Day ${day} as ${capitalize(persona)} with $${cash.toLocaleString()} and ${score} pts.`);
+}
+
+function adminPreviewDeskScene(persona, gender, skinTone) {
+  closeAdminPanel();
+  const savedGender = playerGender;
+  const savedSkin = playerSkinTone;
+  playerGender = gender;
+  playerSkinTone = skinTone;
+  // Start a quick game just for visual preview
+  difficultyMode = 'easy';
+  engine.newGame(persona, { difficulty: 'easy', gender, skinTone });
+  enterGameScreen();
+  showNotification(`Previewing: ${capitalize(persona)} / ${gender} / skin ${skinTone}. Use browser back or restart to return.`);
+  playerGender = gender;
+  playerSkinTone = skinTone;
+}
+
+function adminPreviewScenario(persona, category) {
+  const state = JSON.parse(JSON.stringify(GAME_DATA.startingState[persona]));
+  // Give enough resources to see all options as affordable
+  state.money = 500000;
+  const gen = new ScenarioGenerator();
+  const isHard = ['empire', 'ethics', 'legal', 'consolidation'].includes(category);
+  const scenario = gen.generate(persona, 30, category, state, isHard ? 'hard' : 'easy');
+
+  const preview = document.getElementById('admin-scenario-preview');
+  if (!preview) return;
+
+  let optionsHtml = scenario.options.map((opt, i) => {
+    const cost = (opt.effect?.money && opt.effect.money < 0) ? Math.abs(opt.effect.money) : (opt.assetPurchase?.value || 0);
+    const costStr = cost > 0 ? ` <span style="color:#FF8F00">$${cost.toLocaleString()}</span>` : '';
+    const policyStr = opt._depreciationMeta ? ` <span class="option-policy ${opt._depreciationMeta.cls}">${opt._depreciationMeta.label}</span>` : '';
+    const effects = Object.entries(opt.effect || {}).filter(([k, v]) => k !== 'money' && k !== 'score' && v).map(([k, v]) => `${k}: ${v > 0 ? '+' : ''}${v}`).join(', ');
+    return `<div style="padding:.5rem;margin:.3rem 0;background:rgba(255,255,255,.03);border-radius:6px;border:1px solid var(--border)">
+      <strong>${String.fromCharCode(65 + i)}. ${opt.label}</strong>${costStr}${policyStr}
+      <div style="font-size:.75rem;color:var(--text-secondary);margin-top:.2rem">${opt.detail}</div>
+      ${effects ? `<div style="font-size:.7rem;color:var(--text-dim);margin-top:.2rem">${effects}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  preview.innerHTML = `
+    <div style="margin-top:1rem;padding:1rem;background:var(--bg-card);border-radius:var(--radius);border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+        <h4 style="font-size:.9rem">${scenario.title}</h4>
+        <button class="admin-scenario-btn" onclick="adminPreviewScenario('${persona}','${category}')">Regenerate</button>
+      </div>
+      <p style="font-size:.8rem;color:var(--text-secondary);margin-bottom:.75rem">${scenario.description}</p>
+      <div style="font-size:.7rem;color:var(--text-dim);margin-bottom:.5rem">Category: ${category} | Persona: ${persona}${scenario.isTechDecision ? ' | Tech Decision' : ''}${scenario.isInvestment ? ' | Investment' : ''}</div>
+      ${optionsHtml}
+    </div>
+  `;
+  preview.scrollIntoView({ behavior: 'smooth' });
 }
 
 // ===============================
