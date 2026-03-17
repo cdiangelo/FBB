@@ -63,6 +63,9 @@ class GameEngine {
     this.cultureEvents = [];
     this.debtStructure = { totalDebt: 0, debtRate: 6.0, equityInvestors: 0, equityGiven: 0 };
 
+    // Market tracker
+    this.marketTracker = new MarketTracker(persona);
+
     // Set categories per persona
     this._initCategories();
     return this;
@@ -110,6 +113,8 @@ class GameEngine {
     this.generator = new ScenarioGenerator();
     this.generator.restore(saveData.generatorHashes || []);
     this.completedScenarios = new Set(saveData.completedScenarios || []);
+    this.marketTracker = new MarketTracker(this.persona);
+    if (saveData.marketData) this.marketTracker.restore(saveData.marketData);
     this._initCategories();
     this.catPointer = saveData.catPointer || 0;
     return this;
@@ -138,6 +143,7 @@ class GameEngine {
       employeeSatisfaction: this.employeeSatisfaction,
       cultureEvents: this.cultureEvents,
       debtStructure: { ...this.debtStructure },
+      marketData: this.marketTracker ? this.marketTracker.export() : null,
       savedAt: new Date().toISOString()
     };
   }
@@ -262,6 +268,8 @@ class GameEngine {
   // ---- DAY ADVANCE ----
   advanceDay() {
     this.day++;
+    // Advance market prices
+    if (this.marketTracker) this.marketTracker.tick(this.day);
     // Debt service
     const debtPayment = this.getDebtService();
     if (debtPayment > 0) {

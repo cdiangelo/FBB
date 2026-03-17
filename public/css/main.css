@@ -500,6 +500,62 @@ body {
 .action-icon { flex-shrink: 0; font-size: .7rem; }
 .action-detail { flex: 1; }
 
+/* Market Matrix */
+.market-sort-controls {
+  display: flex; align-items: center; gap: .4rem; margin-bottom: .6rem; flex-wrap: wrap;
+}
+.sort-label { font-size: .7rem; color: var(--text-dim); }
+.sort-btn {
+  background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-secondary);
+  padding: .2rem .5rem; border-radius: 4px; font-size: .7rem; cursor: pointer; transition: all .15s;
+}
+.sort-btn:hover { color: var(--text-primary); border-color: var(--accent); }
+.sort-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+.sort-dir { min-width: 1.5rem; text-align: center; }
+.market-category { margin-bottom: .5rem; }
+.market-cat-label {
+  font-size: .65rem; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--text-dim); margin-bottom: .3rem; padding-left: .2rem;
+}
+.market-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .4rem;
+}
+.market-cell {
+  background: var(--bg-secondary); border-radius: 6px; padding: .4rem .5rem;
+  cursor: pointer; transition: all .15s; border-left: 3px solid transparent;
+}
+.market-cell:hover { background: var(--bg-card); transform: translateY(-1px); }
+.market-cell-name { font-size: .72rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.market-cell-price { font-size: .8rem; font-weight: 700; color: var(--text-primary); }
+.market-cell-changes { display: flex; gap: .5rem; font-size: .7rem; font-weight: 600; }
+.market-cell-period { opacity: .7; }
+.market-cell-sparkline { margin-top: .2rem; }
+.sparkline-svg { display: block; }
+
+/* Trend Popup */
+.trend-popup {
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px;
+  padding: 1.5rem; max-width: 560px; width: 90vw;
+}
+.trend-header {
+  display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;
+}
+.trend-header h3 { margin: 0; font-size: 1.1rem; flex: 1; }
+.trend-current { color: var(--accent); font-weight: 700; font-size: .95rem; }
+.trend-close {
+  background: none; border: none; color: var(--text-secondary); font-size: 1.2rem;
+  cursor: pointer; padding: .2rem .4rem; border-radius: 4px;
+}
+.trend-close:hover { background: rgba(255,255,255,.1); color: var(--text-primary); }
+.trend-chart { background: var(--bg-secondary); border-radius: 8px; padding: .5rem; margin-bottom: .75rem; }
+.trend-svg { width: 100%; height: auto; }
+.trend-legend {
+  display: flex; gap: 1rem; justify-content: center; margin-bottom: .5rem;
+}
+.trend-leg-item { display: flex; align-items: center; gap: .3rem; font-size: .75rem; color: var(--text-secondary); }
+.leg-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.trend-note { font-size: .7rem; color: var(--text-dim); text-align: center; margin: 0; }
+
 /* SCROLLABLE AREA — only this scrolls */
 .task-scroll-area {
   flex: 1;

@@ -402,15 +402,131 @@ const LIFE_EVENTS = {
 };
 
 // ============================================================
-//  MARKET TICKER GENERATOR
+//  MARKET TRACKER — persistent prices with history
 // ============================================================
+class MarketTracker {
+  constructor(persona) {
+    this.persona = persona;
+    this.items = [];
+    this.history = {}; // { name: [{ day, price }] }
+    this.currentPrices = {}; // { name: price }
+    this._init(persona);
+  }
+
+  _init(persona) {
+    if (persona === 'farmer') {
+      const bp = GAME_DATA.markets.farmer.baseprices;
+      this.items = GAME_DATA.markets.farmer.crops.map(name => ({
+        name, category: 'Commodity', base: bp[name], volatility: 0.04, unit: '$/bu'
+      }));
+      // Also add inputs
+      Object.entries(GAME_DATA.markets.farmer.inputs).forEach(([k, v]) => {
+        this.items.push({ name: k.charAt(0).toUpperCase() + k.slice(1), category: 'Input', base: v.base, volatility: 0.03, unit: v.unit });
+      });
+    } else if (persona === 'banker') {
+      GAME_DATA.markets.banker.riskRatings.forEach(rating => {
+        this.items.push({ name: rating + ' Rate', category: 'Credit Rate', base: GAME_DATA.markets.banker.baseRates[rating], volatility: 0.02, unit: '%' });
+      });
+      GAME_DATA.markets.banker.loanTypes.forEach(type => {
+        const base = 80 + Math.random() * 40;
+        this.items.push({ name: type, category: 'Loan Demand', base, volatility: 0.05, unit: 'idx' });
+      });
+    } else {
+      GAME_DATA.markets.businessman.sectors.forEach(sector => {
+        const base = 100 + Math.random() * 50;
+        this.items.push({ name: sector, category: 'Sector Index', base, volatility: 0.04, unit: 'idx' });
+      });
+      // Add some advisory metrics
+      ['Deal Flow', 'Client Pipeline', 'M&A Activity', 'IPO Market'].forEach(name => {
+        this.items.push({ name, category: 'Advisory', base: 50 + Math.random() * 50, volatility: 0.06, unit: 'idx' });
+      });
+    }
+    // Initialize current prices at base
+    this.items.forEach(item => {
+      this.currentPrices[item.name] = item.base;
+      this.history[item.name] = [{ day: 0, price: item.base }];
+    });
+  }
+
+  // Advance prices by one day using geometric Brownian motion
+  tick(day) {
+    this.items.forEach(item => {
+      const prev = this.currentPrices[item.name];
+      const drift = (Math.random() - 0.48) * item.volatility; // slight upward bias
+      const shock = (Math.random() - 0.5) * item.volatility * 2;
+      const newPrice = Math.max(prev * 0.3, prev * (1 + drift + shock));
+      this.currentPrices[item.name] = newPrice;
+      this.history[item.name].push({ day, price: newPrice });
+      // Keep max 60 days of history
+      if (this.history[item.name].length > 60) this.history[item.name].shift();
+    });
+  }
+
+  // Get current snapshot sorted by period change
+  getSnapshot(sortBy = 'pctChange', ascending = false) {
+    const snapshot = this.items.map(item => {
+      const price = this.currentPrices[item.name];
+      const hist = this.history[item.name];
+      const prevPrice = hist.length > 1 ? hist[hist.length - 2].price : item.base;
+      const periodStart = hist.length > 5 ? hist[hist.length - 5].price : hist[0].price;
+      const change = price - prevPrice;
+      const pctChange = ((price - prevPrice) / prevPrice) * 100;
+      const periodChange = ((price - periodStart) / periodStart) * 100;
+      return {
+        name: item.name, category: item.category, unit: item.unit,
+        price, prevPrice, change, pctChange, periodChange,
+        base: item.base, totalReturn: ((price - item.base) / item.base) * 100
+      };
+    });
+    snapshot.sort((a, b) => ascending ? a[sortBy] - b[sortBy] : b[sortBy] - a[sortBy]);
+    return snapshot;
+  }
+
+  // Simulate 1yr (252 trading days) trend from current price
+  simulateTrend(name, days = 252) {
+    const item = this.items.find(i => i.name === name);
+    if (!item) return [];
+    const hist = this.history[name] || [];
+    // Start from actual history
+    const points = hist.map(h => ({ day: h.day, price: h.price }));
+    let price = this.currentPrices[name];
+    const lastDay = points.length > 0 ? points[points.length - 1].day : 0;
+    // Generate 3 scenarios: bull, base, bear
+    const scenarios = { bull: [], base: [], bear: [] };
+    const drifts = { bull: 0.0008, base: 0.0001, bear: -0.0006 };
+    Object.keys(scenarios).forEach(scenario => {
+      let p = price;
+      for (let d = 1; d <= days; d++) {
+        const r = drifts[scenario] + (Math.random() - 0.5) * item.volatility * 0.8;
+        p = Math.max(p * 0.5, p * (1 + r));
+        if (d % 5 === 0 || d === days) {
+          scenarios[scenario].push({ day: lastDay + d, price: p });
+        }
+      }
+    });
+    return { history: points, scenarios, currentPrice: price, name: item.name, unit: item.unit };
+  }
+
+  // Export for save
+  export() {
+    return { currentPrices: { ...this.currentPrices }, history: JSON.parse(JSON.stringify(this.history)) };
+  }
+
+  // Restore from save
+  restore(data) {
+    if (!data) return;
+    if (data.currentPrices) this.currentPrices = { ...data.currentPrices };
+    if (data.history) this.history = JSON.parse(JSON.stringify(data.history));
+  }
+}
+
+// Legacy wrapper for compatibility
 function generateMarketData(persona) {
+  // Fallback if no engine market tracker — returns simple data
   const data = [];
   if (persona === 'farmer') {
-    const crops = GAME_DATA.markets.farmer.crops;
-    const prices = GAME_DATA.markets.farmer.baseprices;
-    crops.forEach(crop => {
-      const base = prices[crop];
+    GAME_DATA.markets.farmer.crops.forEach(crop => {
+      const base = GAME_DATA.markets.farmer.baseprices[crop];
       if (!base) return;
       const change = (Math.random() - 0.48) * base * 0.08;
       data.push({ name: crop, price: (base + change).toFixed(2), change: change.toFixed(2), pct: ((change / base) * 100).toFixed(1) });

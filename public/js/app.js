@@ -413,6 +413,8 @@ function clearTaskFixed() {
   els.taskMarketTicker.innerHTML = '';
   els.taskDataTable.innerHTML = '';
   els.taskBizSummary.innerHTML = '';
+  const mc = document.getElementById('market-matrix-container');
+  if (mc) mc.innerHTML = '';
 }
 
 function showDecisionTask(scenario, badge) {
@@ -424,13 +426,8 @@ function showDecisionTask(scenario, badge) {
   if (badge === 'life') badgeHtml = '<span class="life-event-badge">Life Event</span>';
   if (badge === 'culture') badgeHtml = '<span class="culture-event-badge">Workforce Culture</span>';
 
-  // Market ticker in fixed area
-  const marketData = generateMarketData(engine.persona);
-  els.taskMarketTicker.innerHTML = `<div class="market-ticker">${marketData.map(d => {
-    const dir = parseFloat(d.change) >= 0 ? 'up' : 'down';
-    const sign = parseFloat(d.change) >= 0 ? '+' : '';
-    return `<div class="ticker-item"><span class="ticker-name">${d.name}</span><span class="ticker-price">${d.price}</span><span class="ticker-change ${dir}">${sign}${d.pct}%</span></div>`;
-  }).join('')}</div>`;
+  // Market ticker strip in fixed area + expandable matrix in scroll area
+  renderMarketTicker();
 
   // Data table as collapsible in scroll area
   if (scenario.data) {
@@ -536,6 +533,223 @@ function buildBizSummaryHTML(summary) {
       </div>
     </div>
   </div>`;
+}
+
+// ===============================
+//  MARKET MATRIX & TREND LINES
+// ===============================
+let currentMarketSort = 'pctChange';
+let currentMarketAsc = false;
+
+function renderMarketTicker() {
+  const tracker = engine.marketTracker;
+  if (!tracker) {
+    // Fallback to legacy
+    const marketData = generateMarketData(engine.persona);
+    els.taskMarketTicker.innerHTML = `<div class="market-ticker">${marketData.map(d => {
+      const dir = parseFloat(d.change) >= 0 ? 'up' : 'down';
+      const sign = parseFloat(d.change) >= 0 ? '+' : '';
+      return `<div class="ticker-item"><span class="ticker-name">${d.name}</span><span class="ticker-price">${d.price}</span><span class="ticker-change ${dir}">${sign}${d.pct}%</span></div>`;
+    }).join('')}</div>`;
+    return;
+  }
+
+  const snapshot = tracker.getSnapshot(currentMarketSort, currentMarketAsc);
+  // Compact ticker strip (top 6 movers)
+  const top = snapshot.slice(0, 6);
+  els.taskMarketTicker.innerHTML = `<div class="market-ticker">${top.map(d => {
+    const dir = d.pctChange >= 0 ? 'up' : 'down';
+    const sign = d.pctChange >= 0 ? '+' : '';
+    const priceStr = d.unit === '%' ? d.price.toFixed(2) + '%' : d.unit === '$/bu' ? '$' + d.price.toFixed(2) : d.price.toFixed(0);
+    return `<div class="ticker-item"><span class="ticker-name">${d.name}</span><span class="ticker-price">${priceStr}</span><span class="ticker-change ${dir}">${sign}${d.pctChange.toFixed(1)}%</span></div>`;
+  }).join('')}</div>`;
+
+  // Full matrix in scroll area
+  const matrixHtml = buildMarketMatrix(snapshot);
+  const matrixContainer = document.getElementById('market-matrix-container');
+  if (matrixContainer) matrixContainer.innerHTML = matrixHtml;
+}
+
+function buildMarketMatrix(snapshot) {
+  // Group by category
+  const categories = {};
+  snapshot.forEach(item => {
+    if (!categories[item.category]) categories[item.category] = [];
+    categories[item.category].push(item);
+  });
+
+  let html = '<details class="collapsible-section"><summary>Market Data (' + snapshot.length + ' instruments)</summary><div class="collapsible-body">';
+
+  // Sort controls
+  html += `<div class="market-sort-controls">
+    <span class="sort-label">Sort by:</span>
+    <button class="sort-btn ${currentMarketSort === 'pctChange' ? 'active' : ''}" onclick="sortMarket('pctChange')">Day Change</button>
+    <button class="sort-btn ${currentMarketSort === 'periodChange' ? 'active' : ''}" onclick="sortMarket('periodChange')">Period</button>
+    <button class="sort-btn ${currentMarketSort === 'totalReturn' ? 'active' : ''}" onclick="sortMarket('totalReturn')">Total Return</button>
+    <button class="sort-btn sort-dir" onclick="toggleMarketDir()">${currentMarketAsc ? '&#9650;' : '&#9660;'}</button>
+  </div>`;
+
+  Object.entries(categories).forEach(([cat, items]) => {
+    html += `<div class="market-category"><div class="market-cat-label">${cat}</div>`;
+    html += '<div class="market-grid">';
+    items.forEach(item => {
+      const heatColor = getHeatColor(item.pctChange);
+      const periodHeat = getHeatColor(item.periodChange);
+      const priceStr = item.unit === '%' ? item.price.toFixed(2) + '%' : item.unit === '$/bu' ? '$' + item.price.toFixed(2) : item.price.toFixed(0);
+      const sign = item.pctChange >= 0 ? '+' : '';
+      const periodSign = item.periodChange >= 0 ? '+' : '';
+
+      html += `<div class="market-cell" style="border-left: 3px solid ${heatColor}" onclick="showTrendPopup('${item.name.replace(/'/g, "\\'")}')">
+        <div class="market-cell-name">${item.name}</div>
+        <div class="market-cell-price">${priceStr}</div>
+        <div class="market-cell-changes">
+          <span style="color:${heatColor}">${sign}${item.pctChange.toFixed(1)}%</span>
+          <span class="market-cell-period" style="color:${periodHeat}" title="Period change">${periodSign}${item.periodChange.toFixed(1)}%</span>
+        </div>
+        <div class="market-cell-sparkline">${buildMiniSparkline(engine.marketTracker.history[item.name] || [])}</div>
+      </div>`;
+    });
+    html += '</div></div>';
+  });
+
+  html += '</div></details>';
+  return html;
+}
+
+function getHeatColor(pct) {
+  if (pct > 3) return '#00e676';
+  if (pct > 1) return '#69f0ae';
+  if (pct > 0) return '#a5d6a7';
+  if (pct > -1) return '#ef9a9a';
+  if (pct > -3) return '#ef5350';
+  return '#d32f2f';
+}
+
+function buildMiniSparkline(history) {
+  if (history.length < 2) return '';
+  const prices = history.slice(-15).map(h => h.price);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const range = max - min || 1;
+  const w = 60, h = 16;
+  const points = prices.map((p, i) => {
+    const x = (i / (prices.length - 1)) * w;
+    const y = h - ((p - min) / range) * h;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const color = prices[prices.length - 1] >= prices[0] ? '#69f0ae' : '#ef5350';
+  return `<svg width="${w}" height="${h}" class="sparkline-svg"><polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.5"/></svg>`;
+}
+
+function sortMarket(field) {
+  if (currentMarketSort === field) {
+    currentMarketAsc = !currentMarketAsc;
+  } else {
+    currentMarketSort = field;
+    currentMarketAsc = false;
+  }
+  renderMarketTicker();
+}
+
+function toggleMarketDir() {
+  currentMarketAsc = !currentMarketAsc;
+  renderMarketTicker();
+}
+
+function showTrendPopup(name) {
+  const tracker = engine.marketTracker;
+  if (!tracker) return;
+  const trend = tracker.simulateTrend(name);
+  if (!trend) return;
+
+  const overlay = document.getElementById('celebration-overlay');
+  const content = document.getElementById('celebration-content');
+
+  const priceStr = trend.unit === '%' ? trend.currentPrice.toFixed(2) + '%' : trend.unit === '$/bu' ? '$' + trend.currentPrice.toFixed(2) : trend.currentPrice.toFixed(0);
+
+  content.innerHTML = `
+    <div class="trend-popup">
+      <div class="trend-header">
+        <h3>${trend.name}</h3>
+        <span class="trend-current">Current: ${priceStr}</span>
+        <button class="trend-close" onclick="closeTrendPopup()">&#10005;</button>
+      </div>
+      <div class="trend-chart" id="trend-chart"></div>
+      <div class="trend-legend">
+        <span class="trend-leg-item"><span class="leg-dot" style="background:#69f0ae"></span> Bull</span>
+        <span class="trend-leg-item"><span class="leg-dot" style="background:#90caf9"></span> Base</span>
+        <span class="trend-leg-item"><span class="leg-dot" style="background:#ef5350"></span> Bear</span>
+        <span class="trend-leg-item"><span class="leg-dot" style="background:#fff"></span> History</span>
+      </div>
+      <p class="trend-note">1-year simulated projection based on current volatility. Not a prediction.</p>
+    </div>
+  `;
+
+  overlay.style.display = 'flex';
+  drawTrendChart(trend);
+}
+
+function closeTrendPopup() {
+  document.getElementById('celebration-overlay').style.display = 'none';
+}
+
+function drawTrendChart(trend) {
+  const container = document.getElementById('trend-chart');
+  if (!container) return;
+
+  // Collect all points to find range
+  const allPrices = [];
+  trend.history.forEach(p => allPrices.push(p.price));
+  Object.values(trend.scenarios).forEach(s => s.forEach(p => allPrices.push(p.price)));
+  const minP = Math.min(...allPrices) * 0.95;
+  const maxP = Math.max(...allPrices) * 1.05;
+  const range = maxP - minP || 1;
+
+  const allDays = [];
+  trend.history.forEach(p => allDays.push(p.day));
+  Object.values(trend.scenarios).forEach(s => s.forEach(p => allDays.push(p.day)));
+  const minD = Math.min(...allDays);
+  const maxD = Math.max(...allDays);
+  const dayRange = maxD - minD || 1;
+
+  const w = 500, h = 200, pad = 10;
+
+  const toX = d => pad + ((d - minD) / dayRange) * (w - 2 * pad);
+  const toY = p => pad + (1 - (p - minP) / range) * (h - 2 * pad);
+
+  const makeLine = (pts, color, dashed) => {
+    if (!pts.length) return '';
+    const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${toX(p.day).toFixed(1)},${toY(p.price).toFixed(1)}`).join(' ');
+    return `<path d="${d}" fill="none" stroke="${color}" stroke-width="2" ${dashed ? 'stroke-dasharray="6,3"' : ''}/>`;
+  };
+
+  // Y-axis grid
+  let gridLines = '';
+  const steps = 5;
+  for (let i = 0; i <= steps; i++) {
+    const price = minP + (range * i / steps);
+    const y = toY(price);
+    const label = price.toFixed(price < 10 ? 2 : 0);
+    gridLines += `<line x1="${pad}" y1="${y}" x2="${w - pad}" y2="${y}" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>`;
+    gridLines += `<text x="${pad - 2}" y="${y + 3}" fill="rgba(255,255,255,0.4)" font-size="9" text-anchor="end">${label}</text>`;
+  }
+
+  // Divider line between history and projection
+  const lastHistDay = trend.history.length > 0 ? trend.history[trend.history.length - 1].day : 0;
+  const divX = toX(lastHistDay);
+  const divider = `<line x1="${divX}" y1="${pad}" x2="${divX}" y2="${h - pad}" stroke="rgba(255,255,255,0.3)" stroke-width="1" stroke-dasharray="4,4"/>`;
+  const divLabel = `<text x="${divX}" y="${h - 2}" fill="rgba(255,255,255,0.4)" font-size="8" text-anchor="middle">Today</text>`;
+
+  const svg = `<svg viewBox="0 0 ${w} ${h}" class="trend-svg">
+    ${gridLines}
+    ${divider}${divLabel}
+    ${makeLine(trend.history, '#ffffff', false)}
+    ${makeLine(trend.scenarios.bull, '#69f0ae', true)}
+    ${makeLine(trend.scenarios.base, '#90caf9', true)}
+    ${makeLine(trend.scenarios.bear, '#ef5350', true)}
+  </svg>`;
+
+  container.innerHTML = svg;
 }
 
 function reanimateScroll() {
