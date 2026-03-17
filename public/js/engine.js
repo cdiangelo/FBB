@@ -34,6 +34,14 @@ class GameEngine {
 
     // Debt/equity
     this.debtStructure = { totalDebt: 0, debtRate: 6.0, equityInvestors: 0, equityGiven: 0 };
+    this.financialRisk = 30;
+    this.creditCapacity = 100;
+    this.creditRating = 'A';
+    this.portfolio = { assets: [], totalAssetValue: 0, investmentReturns: 0 };
+    this.operatingModel = {
+      techLevel: 0, techApproach: null, serviceQuality: 70, costEfficiency: 50,
+      scalability: 30, techDebt: 0, techInvestments: []
+    };
 
     // Interpersonal dynamics
     this.interpersonal = {
@@ -80,6 +88,29 @@ class GameEngine {
     this.legalEvents = [];         // history of legal issues
     this.regulatoryStanding = 100; // 0-100, degrades with risky behavior
 
+    // Financial risk profile (always active)
+    this.financialRisk = 30;       // 0-100 general risk score (30 = conservative start)
+    this.creditCapacity = 100;     // max borrowing capacity multiplier (100 = baseline)
+    this.creditRating = 'A';       // AAA, AA, A, BBB, BB, B (affects rates)
+
+    // Investment & asset portfolio
+    this.portfolio = {
+      assets: [],        // { name, type, value, risk, returnRate, day }
+      totalAssetValue: 0,
+      investmentReturns: 0 // accumulated returns
+    };
+
+    // Operating model & tech enablement
+    this.operatingModel = {
+      techLevel: 0,        // 0-100: 0=manual, 100=fully automated/AI-driven
+      techApproach: null,   // null until chosen: 'build_own', 'design_build_external', 'full_external', 'hybrid'
+      serviceQuality: 70,   // 0-100: affected by tech approach and investment
+      costEfficiency: 50,   // 0-100: lower costs at higher efficiency
+      scalability: 30,      // 0-100: ability to scale operations, gates empire tier
+      techDebt: 0,          // 0-100: accumulates with quick/cheap choices
+      techInvestments: []    // history of tech decisions
+    };
+
     // Market tracker
     this.marketTracker = new MarketTracker(persona);
     this.marketDataMode = options.marketDataMode || 'simulated';
@@ -114,6 +145,8 @@ class GameEngine {
         this.categories = ['meetings', 'market', 'venture', 'partnership', 'client', 'pricing', 'hiring', 'negotiation'];
         break;
     }
+    // Tech & investment categories (always available after day 10)
+    this.categories.push('techEnablement', 'investment');
     // Hard mode empire-tier: add high-level categories
     if (this.difficulty === 'hard') {
       this.categories.push('empire', 'ethics', 'legal', 'consolidation');
@@ -152,6 +185,14 @@ class GameEngine {
       legalExposure: saveData.legalExposure || 0,
       legalEvents: saveData.legalEvents || [],
       regulatoryStanding: saveData.regulatoryStanding ?? 100,
+      financialRisk: saveData.financialRisk ?? 30,
+      creditCapacity: saveData.creditCapacity ?? 100,
+      creditRating: saveData.creditRating || 'A',
+      portfolio: saveData.portfolio || { assets: [], totalAssetValue: 0, investmentReturns: 0 },
+      operatingModel: saveData.operatingModel || {
+        techLevel: 0, techApproach: null, serviceQuality: 70, costEfficiency: 50,
+        scalability: 30, techDebt: 0, techInvestments: []
+      },
       marketDataMode: saveData.marketDataMode || 'simulated',
       actionsToday: saveData.actionsToday || 0,
       maxActionsPerDay: 5,
@@ -199,6 +240,11 @@ class GameEngine {
       legalExposure: this.legalExposure || 0,
       legalEvents: this.legalEvents || [],
       regulatoryStanding: this.regulatoryStanding ?? 100,
+      financialRisk: this.financialRisk ?? 30,
+      creditCapacity: this.creditCapacity ?? 100,
+      creditRating: this.creditRating || 'A',
+      portfolio: JSON.parse(JSON.stringify(this.portfolio || { assets: [], totalAssetValue: 0, investmentReturns: 0 })),
+      operatingModel: JSON.parse(JSON.stringify(this.operatingModel || {})),
       marketDataMode: this.marketDataMode,
       actionsToday: this.actionsToday,
       categoriesUsedToday: [...(this.categoriesUsedToday || [])],
@@ -252,7 +298,13 @@ class GameEngine {
   }
 
   // Is the player at empire tier (past original Business Owner level)?
+  // Requires tech readiness — can't scale to empire without operational infrastructure
   isEmpireTier() {
+    return this.difficulty === 'hard' && this.totalScore >= 1200 && this.isTechReadyForEmpire();
+  }
+
+  // Score qualifies but tech isn't ready — show gate message
+  isEmpireScoreReady() {
     return this.difficulty === 'hard' && this.totalScore >= 1200;
   }
 
@@ -295,6 +347,29 @@ class GameEngine {
     }
     if (effect.regulatoryStanding) {
       this.regulatoryStanding = Math.max(0, Math.min(100, this.regulatoryStanding + effect.regulatoryStanding));
+    }
+
+    // Financial risk effects
+    if (effect.financialRisk) {
+      this.financialRisk = Math.max(0, Math.min(100, this.financialRisk + effect.financialRisk));
+      this._tickFinancialRisk();
+    }
+
+    // Tech/operating model effects
+    if (effect.techLevel) {
+      this.operatingModel.techLevel = Math.max(0, Math.min(100, this.operatingModel.techLevel + effect.techLevel));
+    }
+    if (effect.scalability) {
+      this.operatingModel.scalability = Math.max(0, Math.min(100, this.operatingModel.scalability + effect.scalability));
+    }
+    if (effect.serviceQuality) {
+      this.operatingModel.serviceQuality = Math.max(0, Math.min(100, this.operatingModel.serviceQuality + effect.serviceQuality));
+    }
+    if (effect.costEfficiency) {
+      this.operatingModel.costEfficiency = Math.max(0, Math.min(100, this.operatingModel.costEfficiency + effect.costEfficiency));
+    }
+    if (effect.techDebt) {
+      this.operatingModel.techDebt = Math.max(0, Math.min(100, this.operatingModel.techDebt + effect.techDebt));
     }
 
     // Hard mode: track action patterns for compounding penalties
@@ -378,7 +453,133 @@ class GameEngine {
   }
 
   getDebtService() {
-    return Math.round(this.debtStructure.totalDebt * this.debtStructure.debtRate / 100 / 12);
+    // Debt rate adjusted by financial risk profile
+    const effectiveRate = this._getEffectiveRate();
+    return Math.round(this.debtStructure.totalDebt * effectiveRate / 100 / 12);
+  }
+
+  // ---- FINANCIAL RISK PROFILE ----
+  _getEffectiveRate() {
+    // Base rate from credit rating, adjusted by financial risk
+    const ratingRates = { 'AAA': 4.5, 'AA': 5.2, 'A': 6.0, 'BBB': 7.5, 'BB': 9.0, 'B': 12.0 };
+    const baseRate = ratingRates[this.creditRating] || 6.0;
+    // Financial risk adds 0-4% on top of base rate
+    const riskPremium = (this.financialRisk / 100) * 4;
+    return +(baseRate + riskPremium).toFixed(2);
+  }
+
+  _getMaxBorrowingCapacity() {
+    // Credit capacity as a multiplier on current assets
+    const assetBase = Math.max(1000, this.state.money + this.portfolio.totalAssetValue);
+    const ratingMultipliers = { 'AAA': 5, 'AA': 4, 'A': 3, 'BBB': 2, 'BB': 1.5, 'B': 1 };
+    const mult = ratingMultipliers[this.creditRating] || 2;
+    // Reduce by existing debt and financial risk
+    const debtRatio = this.debtStructure.totalDebt / Math.max(1, assetBase);
+    const riskFactor = Math.max(0.2, 1 - (this.financialRisk / 150));
+    return Math.round(assetBase * mult * riskFactor * Math.max(0.1, 1 - debtRatio));
+  }
+
+  _updateCreditRating() {
+    // Credit rating based on composite financial health
+    const debtRatio = this.debtStructure.totalDebt / Math.max(1, this.state.money + this.portfolio.totalAssetValue);
+    const riskScore = this.financialRisk;
+    // Composite: lower is better
+    const composite = (debtRatio * 40) + (riskScore * 0.6);
+    if (composite < 15) this.creditRating = 'AAA';
+    else if (composite < 25) this.creditRating = 'AA';
+    else if (composite < 40) this.creditRating = 'A';
+    else if (composite < 60) this.creditRating = 'BBB';
+    else if (composite < 80) this.creditRating = 'BB';
+    else this.creditRating = 'B';
+  }
+
+  _tickFinancialRisk() {
+    // Recalculate financial risk based on portfolio, debt, and market conditions
+    const debtRatio = this.debtStructure.totalDebt / Math.max(1, this.state.money + this.portfolio.totalAssetValue);
+    const portfolioRisk = this.portfolio.assets.length > 0
+      ? this.portfolio.assets.reduce((sum, a) => sum + a.risk, 0) / this.portfolio.assets.length
+      : 20;
+    const leverageRisk = Math.min(50, debtRatio * 30);
+    const cashRisk = this.state.money < 2000 ? 20 : this.state.money < 5000 ? 10 : 0;
+    // Blend: portfolio weight + leverage + cash position
+    this.financialRisk = Math.max(0, Math.min(100, Math.round(
+      portfolioRisk * 0.4 + leverageRisk * 0.35 + cashRisk * 0.25
+    )));
+    // Update credit rating and effective debt rate
+    this._updateCreditRating();
+    this.debtStructure.debtRate = this._getEffectiveRate();
+    this.creditCapacity = Math.round(100 * Math.max(0.2, 1 - this.financialRisk / 150));
+  }
+
+  // ---- INVESTMENT & ASSET PORTFOLIO ----
+  addAsset(asset) {
+    // asset: { name, type, value, risk (0-100), returnRate (% annual) }
+    this.portfolio.assets.push({
+      ...asset,
+      day: this.day,
+      originalValue: asset.value
+    });
+    this.portfolio.totalAssetValue += asset.value;
+    this.state.money -= asset.value;
+    this.addLog(`Acquired asset: ${asset.name} ($${asset.value.toLocaleString()})`);
+    this._tickFinancialRisk();
+  }
+
+  _tickInvestmentReturns() {
+    // Daily returns on portfolio (annual rate / 365)
+    let totalReturns = 0;
+    this.portfolio.assets.forEach(asset => {
+      const dailyReturn = Math.round(asset.value * asset.returnRate / 100 / 365);
+      // Volatile assets can fluctuate
+      const volatility = asset.risk > 60 ? (Math.random() - 0.4) * 3 : (Math.random() - 0.3) * 1.5;
+      const adjusted = Math.round(dailyReturn * (1 + volatility));
+      asset.value = Math.max(0, asset.value + adjusted);
+      totalReturns += adjusted;
+    });
+    this.portfolio.totalAssetValue = this.portfolio.assets.reduce((s, a) => s + a.value, 0);
+    if (totalReturns !== 0) {
+      this.portfolio.investmentReturns += totalReturns;
+      this.state.money += totalReturns;
+      if (totalReturns > 0) this.state.revenue += totalReturns;
+      else this.state.costs += Math.abs(totalReturns);
+    }
+  }
+
+  // ---- OPERATING MODEL & TECH ----
+  applyTechDecision(decision) {
+    // decision: { approach, investment, qualityImpact, efficiencyImpact, scalabilityImpact, techDebtImpact }
+    const om = this.operatingModel;
+    if (decision.approach && !om.techApproach) {
+      om.techApproach = decision.approach;
+    }
+    om.techLevel = Math.max(0, Math.min(100, om.techLevel + (decision.techLevelBoost || 0)));
+    om.serviceQuality = Math.max(0, Math.min(100, om.serviceQuality + (decision.qualityImpact || 0)));
+    om.costEfficiency = Math.max(0, Math.min(100, om.costEfficiency + (decision.efficiencyImpact || 0)));
+    om.scalability = Math.max(0, Math.min(100, om.scalability + (decision.scalabilityImpact || 0)));
+    om.techDebt = Math.max(0, Math.min(100, om.techDebt + (decision.techDebtImpact || 0)));
+    om.techInvestments.push({ ...decision, day: this.day });
+    this.addLog(`Tech decision: ${decision.label || decision.approach}`);
+  }
+
+  _tickTechDebt() {
+    const om = this.operatingModel;
+    if (om.techDebt > 0) {
+      // Tech debt slowly degrades service quality and efficiency
+      if (om.techDebt > 50) {
+        om.serviceQuality = Math.max(20, om.serviceQuality - 1);
+        om.costEfficiency = Math.max(10, om.costEfficiency - 1);
+      }
+      // Small natural tech debt accumulation from operations
+      if (om.techLevel > 30) {
+        om.techDebt = Math.min(100, om.techDebt + 0.3);
+      }
+    }
+  }
+
+  // Check if player meets tech readiness for empire scaling
+  isTechReadyForEmpire() {
+    const om = this.operatingModel;
+    return om.scalability >= 50 && om.techLevel >= 30 && om.techApproach !== null;
   }
 
   // ---- DAY ADVANCE ----
@@ -397,6 +598,10 @@ class GameEngine {
       this.state.money -= debtPayment;
       this.state.costs += debtPayment;
     }
+    // Financial risk & portfolio tick
+    this._tickFinancialRisk();
+    this._tickInvestmentReturns();
+    this._tickTechDebt();
     // Hard mode: legal/regulatory tick
     if (this.difficulty === 'hard') {
       this._tickLegalExposure();
@@ -603,14 +808,23 @@ class GameEngine {
       equityInvestors: this.debtStructure.equityInvestors,
       ownershipRetained,
       monthlyDebtService: this.getDebtService(),
-      debtRate: this.debtStructure.debtRate
+      debtRate: this.debtStructure.debtRate,
+      creditRating: this.creditRating,
+      maxBorrowing: this._getMaxBorrowingCapacity(),
+      financialRisk: this.financialRisk,
+      portfolioValue: this.portfolio.totalAssetValue
     };
   }
 
   _getForecast() {
     const momentum = this.totalScore > 300 ? 'positive' : this.totalScore > 100 ? 'neutral' : 'building';
-    const risk = this.debtStructure.totalDebt > this.state.money * 2 ? 'elevated' : 'manageable';
-    return { momentum, risk, projectedGrowth: Math.round(10 + Math.random() * 15) + '%' };
+    const riskLevel = this.financialRisk > 60 ? 'high' : this.financialRisk > 35 ? 'elevated' : 'manageable';
+    return {
+      momentum, risk: riskLevel,
+      projectedGrowth: Math.round(10 + Math.random() * 15) + '%',
+      creditRating: this.creditRating,
+      effectiveRate: this._getEffectiveRate()
+    };
   }
 
   // ---- CULTURE EVENT ----

@@ -824,6 +824,42 @@ body {
 .legal-value { font-size: .65rem; margin-top: .15rem; display: block; }
 
 /* ===============================
+   FINANCIAL RISK PROFILE DISPLAY
+   =============================== */
+.risk-profile-display { padding: .5rem 0; }
+.risk-profile-display h3 { font-size: .8rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .1em; margin-bottom: .5rem; }
+.risk-stats { display: flex; flex-direction: column; gap: .25rem; margin-top: .4rem; }
+.risk-stat { display: flex; justify-content: space-between; font-size: .7rem; color: var(--text-secondary); }
+.risk-portfolio { display: flex; justify-content: space-between; align-items: center; margin-top: .5rem; padding-top: .4rem; border-top: 1px solid var(--border); font-size: .7rem; }
+.risk-portfolio-header { color: var(--text-secondary); font-weight: 600; }
+.risk-portfolio-return { font-size: .65rem; }
+.risk-assets { margin-top: .3rem; }
+.risk-asset-row { display: flex; justify-content: space-between; font-size: .65rem; color: var(--text-dim); padding: .15rem 0; }
+.risk-asset-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px; }
+
+/* ===============================
+   OPERATING MODEL DISPLAY
+   =============================== */
+.operating-model-display { padding: .5rem 0; }
+.operating-model-display h3 { font-size: .8rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .1em; margin-bottom: .5rem; }
+.om-approach {
+  display: inline-block; padding: .2rem .5rem; font-size: .65rem; font-weight: 600;
+  background: rgba(33, 150, 243, .15); color: #2196F3; border-radius: 3px; margin-bottom: .4rem;
+}
+.om-metrics { display: flex; flex-direction: column; gap: .3rem; }
+.om-metric-row { display: flex; align-items: center; gap: .4rem; font-size: .68rem; }
+.om-metric-label { min-width: 80px; color: var(--text-dim); }
+.om-metric-bar { flex: 1; height: 4px; background: rgba(255,255,255,.06); border-radius: 2px; overflow: hidden; }
+.om-metric-fill { height: 100%; border-radius: 2px; transition: width .5s; }
+.om-metric-val { font-size: .6rem; color: var(--text-secondary); width: 22px; text-align: right; }
+.om-tech-debt { font-size: .65rem; margin-top: .4rem; font-weight: 600; }
+.om-gate-warning {
+  font-size: .62rem; margin-top: .4rem; padding: .3rem .5rem;
+  background: rgba(255, 152, 0, .1); border: 1px solid rgba(255, 152, 0, .3);
+  border-radius: 4px; color: #ff9800; line-height: 1.3;
+}
+
+/* ===============================
    ADVISOR PANEL (slide-out)
    =============================== */
 .btn-advisor-toggle {

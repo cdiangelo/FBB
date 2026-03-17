@@ -263,6 +263,8 @@ function enterGameScreen() {
   updateScorePanel();
   updateSatisfactionPanel();
   updateCulturePanel();
+  updateRiskProfilePanel();
+  updateOperatingModelPanel();
   updateLogPanel();
   updateSellOffButton();
   updateAdvisorButton();
@@ -425,6 +427,103 @@ function updateCulturePanel() {
   } else if (legalContainer) {
     legalContainer.style.display = 'none';
   }
+}
+
+function updateRiskProfilePanel() {
+  const panel = document.getElementById('risk-profile-display');
+  if (!panel || !engine.persona) return;
+
+  const fr = engine.financialRisk;
+  const cr = engine.creditRating;
+  const cap = engine._getMaxBorrowingCapacity();
+  const rate = engine._getEffectiveRate();
+  const pv = engine.portfolio.totalAssetValue;
+  const returns = engine.portfolio.investmentReturns;
+
+  const frColor = fr > 60 ? '#d32f2f' : fr > 35 ? '#ff9800' : '#4caf50';
+  const frLabel = fr > 70 ? 'Critical' : fr > 50 ? 'High' : fr > 35 ? 'Elevated' : fr > 20 ? 'Moderate' : 'Low';
+  const crColor = ['AAA', 'AA'].includes(cr) ? '#4caf50' : ['A', 'BBB'].includes(cr) ? '#ff9800' : '#d32f2f';
+
+  let html = '<h3>Financial Risk Profile</h3>';
+  html += `<div class="legal-metric">
+    <span>General Risk</span>
+    <div class="legal-bar"><div class="legal-bar-fill" style="width:${fr}%;background:${frColor}"></div></div>
+    <span class="legal-value" style="color:${frColor}">${fr} — ${frLabel}</span>
+  </div>`;
+  html += `<div class="risk-stats">
+    <div class="risk-stat"><span>Credit Rating</span><span style="color:${crColor};font-weight:700">${cr}</span></div>
+    <div class="risk-stat"><span>Effective Rate</span><span>${rate}%</span></div>
+    <div class="risk-stat"><span>Borrowing Capacity</span><span>$${cap.toLocaleString()}</span></div>
+  </div>`;
+
+  if (engine.portfolio.assets.length > 0) {
+    html += `<div class="risk-portfolio">
+      <span class="risk-portfolio-header">Portfolio: $${pv.toLocaleString()}</span>
+      <span class="risk-portfolio-return" style="color:${returns >= 0 ? '#4caf50' : '#d32f2f'}">${returns >= 0 ? '+' : ''}$${returns.toLocaleString()} returns</span>
+    </div>`;
+    html += '<div class="risk-assets">';
+    engine.portfolio.assets.slice(0, 4).forEach(a => {
+      const aColor = a.risk > 60 ? '#d32f2f' : a.risk > 30 ? '#ff9800' : '#4caf50';
+      html += `<div class="risk-asset-row"><span class="risk-asset-name">${a.name}</span><span style="color:${aColor}">$${a.value.toLocaleString()}</span></div>`;
+    });
+    if (engine.portfolio.assets.length > 4) {
+      html += `<div class="risk-asset-row" style="color:var(--text-dim)">+${engine.portfolio.assets.length - 4} more</div>`;
+    }
+    html += '</div>';
+  }
+
+  panel.innerHTML = html;
+}
+
+function updateOperatingModelPanel() {
+  const panel = document.getElementById('operating-model-display');
+  if (!panel || !engine.persona) return;
+
+  const om = engine.operatingModel;
+  const approachLabels = {
+    'build_own': 'Build & Own',
+    'design_build_external': 'Design & Build External',
+    'full_external': 'Full External / SaaS',
+    'hybrid': 'Hybrid'
+  };
+
+  let html = '<h3>Operating Model</h3>';
+
+  // Tech approach badge
+  if (om.techApproach) {
+    html += `<div class="om-approach">${approachLabels[om.techApproach] || 'Not Set'}</div>`;
+  }
+
+  // Mini bars for tech metrics
+  const metrics = [
+    { label: 'Tech Level', value: om.techLevel, color: '#2196F3' },
+    { label: 'Service Quality', value: om.serviceQuality, color: '#4caf50' },
+    { label: 'Cost Efficiency', value: om.costEfficiency, color: '#ff9800' },
+    { label: 'Scalability', value: om.scalability, color: '#9c27b0' }
+  ];
+
+  html += '<div class="om-metrics">';
+  metrics.forEach(m => {
+    html += `<div class="om-metric-row">
+      <span class="om-metric-label">${m.label}</span>
+      <div class="om-metric-bar"><div class="om-metric-fill" style="width:${m.value}%;background:${m.color}"></div></div>
+      <span class="om-metric-val">${m.value}</span>
+    </div>`;
+  });
+  html += '</div>';
+
+  // Tech debt warning
+  if (om.techDebt > 30) {
+    const tdColor = om.techDebt > 60 ? '#d32f2f' : '#ff9800';
+    html += `<div class="om-tech-debt" style="color:${tdColor}">Tech Debt: ${om.techDebt}/100 ${om.techDebt > 60 ? '— Critical' : '— Needs attention'}</div>`;
+  }
+
+  // Empire gate indicator (hard mode)
+  if (engine.difficulty === 'hard' && engine.isEmpireScoreReady() && !engine.isTechReadyForEmpire()) {
+    html += `<div class="om-gate-warning">Empire scaling blocked — need Scalability ≥50, Tech Level ≥30, and a tech approach</div>`;
+  }
+
+  panel.innerHTML = html;
 }
 
 function updateLogPanel() {
@@ -840,6 +939,16 @@ function selectOption(index) {
     engine.resolveRequest(scenario.requestIndex, index === 0 ? 'thorough' : index === 1 ? 'quick' : 'delegated');
   }
 
+  // Handle tech enablement decisions
+  if (option.techDecision) {
+    engine.applyTechDecision(option.techDecision);
+  }
+
+  // Handle investment/asset purchases
+  if (option.assetPurchase) {
+    engine.addAsset(option.assetPurchase);
+  }
+
   engine.addLog(`${scenario.title}: chose "${option.label}"`);
   engine.addPeriodAction('decision', `${scenario.title}: chose "${option.label}"`);
 
@@ -921,6 +1030,8 @@ function updateAll() {
   updateScorePanel();
   updateSatisfactionPanel();
   updateCulturePanel();
+  updateRiskProfilePanel();
+  updateOperatingModelPanel();
   updateJourneyPanel();
   updateLogPanel();
   updateInterpersonalPanel();
@@ -1494,10 +1605,34 @@ function buildMobileStatsContent() {
     </div>
   </div>`;
 
+  // Financial risk profile
+  const fr = engine.financialRisk;
+  const frLabel = fr > 70 ? 'Critical' : fr > 50 ? 'High' : fr > 35 ? 'Elevated' : fr > 20 ? 'Moderate' : 'Low';
+  const frColor = fr > 60 ? '#d32f2f' : fr > 35 ? '#ff9800' : '#4caf50';
+  html += `<div style="margin-bottom:.75rem">
+    <h3 style="font-size:.8rem;color:var(--text-dim);text-transform:uppercase;margin-bottom:.4rem">Financial Risk</h3>
+    <div style="font-size:.75rem;color:var(--text-secondary)">
+      <div>Risk Level: <span style="color:${frColor}">${fr} — ${frLabel}</span></div>
+      <div>Credit Rating: <strong>${engine.creditRating}</strong> | Rate: ${engine._getEffectiveRate()}%</div>
+      ${engine.portfolio.assets.length > 0 ? `<div>Portfolio: $${engine.portfolio.totalAssetValue.toLocaleString()}</div>` : ''}
+    </div>
+  </div>`;
+
+  // Operating model
+  const om = engine.operatingModel;
+  html += `<div style="margin-bottom:.75rem">
+    <h3 style="font-size:.8rem;color:var(--text-dim);text-transform:uppercase;margin-bottom:.4rem">Operations & Tech</h3>
+    <div style="font-size:.75rem;color:var(--text-secondary)">
+      <div>Tech: ${om.techLevel}/100 | Quality: ${om.serviceQuality}/100</div>
+      <div>Scalability: ${om.scalability}/100 | Efficiency: ${om.costEfficiency}/100</div>
+      ${om.techDebt > 30 ? `<div style="color:#ff9800">Tech Debt: ${om.techDebt}/100</div>` : ''}
+    </div>
+  </div>`;
+
   // Legal (hard mode)
   if (engine.difficulty === 'hard') {
     html += `<div style="margin-bottom:.75rem">
-      <h3 style="font-size:.8rem;color:#ff9800;text-transform:uppercase;margin-bottom:.4rem">Risk & Compliance</h3>
+      <h3 style="font-size:.8rem;color:#ff9800;text-transform:uppercase;margin-bottom:.4rem">Legal & Compliance</h3>
       <div style="font-size:.75rem;color:var(--text-secondary)">
         <div>Legal Exposure: ${engine.legalExposure || 0}/100</div>
         <div>Regulatory Standing: ${engine.regulatoryStanding ?? 100}/100</div>

@@ -66,6 +66,9 @@ class ScenarioGenerator {
     if (['empire', 'ethics', 'legal', 'consolidation'].includes(category)) {
       return this.genEmpireTier(persona, category, day, state);
     }
+    // Tech & investment categories — shared across personas
+    if (category === 'techEnablement') return this._techEnablementScenario(persona, day, state);
+    if (category === 'investment') return this._investmentScenario(persona, day, state);
     switch (persona) {
       case 'farmer': return this.genFarmer(category, day, state);
       case 'banker': return this.genBanker(category, day, state);
@@ -131,6 +134,236 @@ class ScenarioGenerator {
     }
 
     return scenario;
+  }
+
+  // ============================================================
+  //  TECH ENABLEMENT & OPERATING MODEL SCENARIOS
+  //  Build/own, design/build external, full external paths
+  // ============================================================
+
+  _techEnablementScenario(persona, day, state) {
+    const techLabels = {
+      farmer: { domain: 'agricultural technology', ops: 'farm operations', examples: ['precision agriculture sensors', 'automated irrigation systems', 'drone crop monitoring', 'AI yield prediction'] },
+      banker: { domain: 'financial technology', ops: 'banking operations', examples: ['automated underwriting', 'digital lending platform', 'AI fraud detection', 'mobile banking suite'] },
+      businessman: { domain: 'business technology', ops: 'advisory operations', examples: ['CRM and pipeline automation', 'AI-powered market analysis', 'client portal platform', 'automated reporting suite'] }
+    };
+    const t = techLabels[persona] || techLabels.businessman;
+    const scenarios = [
+      // Core platform decision — the big tech approach choice
+      () => {
+        const platform = this.pick(t.examples);
+        const buildCost = this.randMoney(15000, 50000, 5000);
+        const designBuildCost = this.randMoney(8000, 25000, 2000);
+        const externalCost = this.randMoney(3000, 10000, 1000);
+        return {
+          title: 'Technology Strategy: Core Platform',
+          description: `Your ${t.ops} need modernization. A ${platform} system could transform your service delivery and scalability. Your team has presented three approaches with different cost, quality, and control trade-offs. This decision will shape how you scale.`,
+          isTechDecision: true,
+          options: [
+            {
+              label: 'Build & own in-house',
+              detail: `Invest ${this.dollar(buildCost)} to build proprietary technology. Highest quality and full control. Slowest to deliver but creates lasting competitive advantage. Requires ongoing maintenance investment.`,
+              effect: { score: 14, money: -buildCost, knowledge: 10, techLevel: 20, scalability: 18, serviceQuality: 15, costEfficiency: -5, techDebt: -5, financialRisk: 8 },
+              techDecision: { approach: 'build_own', label: 'Build & own in-house' }
+            },
+            {
+              label: 'Design internally, build externally',
+              detail: `Spend ${this.dollar(designBuildCost)} — you design the specs, a vendor builds it. Good balance of control and cost. Quality depends on vendor selection. Medium timeline.`,
+              effect: { score: 12, money: -designBuildCost, knowledge: 8, techLevel: 15, scalability: 14, serviceQuality: 10, costEfficiency: 5, techDebt: 5 },
+              techDecision: { approach: 'design_build_external', label: 'Design & build external' }
+            },
+            {
+              label: 'Full external / SaaS solution',
+              detail: `Subscribe for ${this.dollar(externalCost)}/period. Fast deployment, low upfront cost. Limited customization. Vendor lock-in risk. Ongoing subscription costs scale with usage.`,
+              effect: { score: 8, money: -externalCost, knowledge: 3, techLevel: 10, scalability: 8, serviceQuality: 5, costEfficiency: 12, techDebt: 10, financialRisk: -3 },
+              techDecision: { approach: 'full_external', label: 'Full external SaaS' }
+            },
+            {
+              label: 'Stay manual — invest in people instead',
+              detail: `Skip the tech investment. Hire more staff to handle growing volume. Works short-term but scaling costs will grow linearly. No tech debt but limited scalability.`,
+              effect: { score: 4, money: -2000, satisfaction: 3, costEfficiency: -5, scalability: -5 }
+            }
+          ]
+        };
+      },
+      // Tech adoption — incremental decisions
+      () => {
+        const tool = this.pick(t.examples);
+        const stance = this.pick(['proactive', 'measured', 'aggressive']);
+        const cost = this.randMoney(3000, 15000, 1000);
+        return {
+          title: `Tech Adoption: ${tool.charAt(0).toUpperCase() + tool.slice(1)}`,
+          description: `A new ${tool} solution has emerged in ${t.domain}. Early adopters report ${this.pick(['30% efficiency gains', 'significant cost reduction', 'improved client satisfaction', 'faster turnaround times'])}. Your competitors are ${this.pick(['already implementing it', 'evaluating it cautiously', 'mostly ignoring it', 'piloting with mixed results'])}. How aggressively do you adopt?`,
+          isTechDecision: true,
+          options: [
+            {
+              label: 'Aggressive adoption — first mover',
+              detail: `Invest ${this.dollar(cost)} immediately. Be the first in your market to deploy. High risk if it doesn't work, but massive advantage if it does. Disrupts current workflows.`,
+              effect: { score: 12, money: -cost, knowledge: 8, techLevel: 12, scalability: 8, serviceQuality: 8, costEfficiency: 5, techDebt: 8, satisfaction: -5, financialRisk: 5 }
+            },
+            {
+              label: 'Measured pilot — test before committing',
+              detail: `Spend ${this.dollar(Math.round(cost * 0.3))} on a limited trial. Learn from the pilot before scaling. Balanced approach but competitors may gain ground.`,
+              effect: { score: 10, money: -Math.round(cost * 0.3), knowledge: 10, techLevel: 6, scalability: 4, serviceQuality: 3, costEfficiency: 3, techDebt: 3 }
+            },
+            {
+              label: 'Neutral — wait and watch',
+              detail: `Let others work out the bugs. Monitor results. Lower risk but you fall behind if it proves transformative. No cost, no gain.`,
+              effect: { score: 5, knowledge: 5, techLevel: 1, satisfaction: 2 }
+            },
+            {
+              label: 'Counter-invest — double down on existing approach',
+              detail: `Instead of new tech, optimize your current systems. Spend ${this.dollar(Math.round(cost * 0.5))} improving what works. Steady but risks obsolescence.`,
+              effect: { score: 6, money: -Math.round(cost * 0.5), techLevel: 3, serviceQuality: 5, costEfficiency: 5, techDebt: -5, scalability: -3 }
+            }
+          ]
+        };
+      },
+      // Tech debt management
+      () => {
+        const debtCost = this.randMoney(5000, 20000, 2000);
+        return {
+          title: 'Technical Debt Review',
+          description: `Your technology stack is showing strain. ${this.pick(['System outages are becoming more frequent', 'Integration points are breaking under load', 'Manual workarounds are consuming staff time', 'Data quality issues are affecting decisions'])}. Your CTO estimates ${this.dollar(debtCost)} to address the accumulated technical debt properly. Ignoring it risks ${this.pick(['a critical system failure', 'losing key clients to reliability issues', 'regulatory findings on data integrity', 'escalating maintenance costs'])}.`,
+          isTechDecision: true,
+          options: [
+            {
+              label: 'Full remediation — invest properly',
+              detail: `Spend ${this.dollar(debtCost)} to clean up technical debt comprehensively. Painful now but prevents compounding issues. Improves reliability and scalability.`,
+              effect: { score: 14, money: -debtCost, techDebt: -25, serviceQuality: 10, scalability: 8, costEfficiency: 5 }
+            },
+            {
+              label: 'Targeted fixes — address critical issues only',
+              detail: `Spend ${this.dollar(Math.round(debtCost * 0.4))} on the most urgent problems. Stops the bleeding but underlying issues remain. Good enough for now.`,
+              effect: { score: 8, money: -Math.round(debtCost * 0.4), techDebt: -10, serviceQuality: 5, scalability: 3 }
+            },
+            {
+              label: 'Defer — too many competing priorities',
+              detail: `Kick the can down the road. Every day you wait, the debt compounds. But the money stays in operations where it's needed.`,
+              effect: { score: 2, techDebt: 8, serviceQuality: -5, scalability: -5, satisfaction: 3 }
+            },
+            {
+              label: 'Replace the whole system',
+              detail: `Scorched earth. Scrap the old and build new. ${this.dollar(Math.round(debtCost * 2.5))} and 6 months of disruption. But you start clean.`,
+              effect: { score: 10, money: -Math.round(debtCost * 2.5), techDebt: -40, techLevel: 15, serviceQuality: 5, scalability: 15, satisfaction: -8, financialRisk: 10 }
+            }
+          ]
+        };
+      }
+    ];
+    return this.pick(scenarios)();
+  }
+
+  // ============================================================
+  //  INVESTMENT & ASSET SCENARIOS
+  //  Portfolio building, risk management, asset allocation
+  // ============================================================
+
+  _investmentScenario(persona, day, state) {
+    const assetTypes = {
+      farmer: [
+        { name: 'Adjacent farmland', type: 'real_estate', valueRange: [20000, 80000], risk: 25, returnRate: 6 },
+        { name: 'Grain storage facility', type: 'infrastructure', valueRange: [15000, 40000], risk: 20, returnRate: 8 },
+        { name: 'Equipment fleet upgrade', type: 'equipment', valueRange: [10000, 50000], risk: 15, returnRate: 5 },
+        { name: 'Commodity futures contracts', type: 'financial', valueRange: [5000, 30000], risk: 65, returnRate: 18 },
+        { name: 'Organic certification & branding', type: 'intangible', valueRange: [5000, 15000], risk: 30, returnRate: 12 }
+      ],
+      banker: [
+        { name: 'Commercial real estate portfolio', type: 'real_estate', valueRange: [50000, 200000], risk: 35, returnRate: 7 },
+        { name: 'Government bond allocation', type: 'financial', valueRange: [20000, 100000], risk: 10, returnRate: 4 },
+        { name: 'Fintech equity stake', type: 'equity', valueRange: [10000, 50000], risk: 70, returnRate: 22 },
+        { name: 'Branch expansion investment', type: 'infrastructure', valueRange: [30000, 80000], risk: 25, returnRate: 9 },
+        { name: 'Mortgage-backed securities', type: 'financial', valueRange: [25000, 75000], risk: 45, returnRate: 11 }
+      ],
+      businessman: [
+        { name: 'Office space acquisition', type: 'real_estate', valueRange: [25000, 100000], risk: 20, returnRate: 6 },
+        { name: 'Startup equity position', type: 'equity', valueRange: [5000, 40000], risk: 75, returnRate: 25 },
+        { name: 'Revenue-share partnership', type: 'contractual', valueRange: [10000, 30000], risk: 40, returnRate: 14 },
+        { name: 'Brand and IP development', type: 'intangible', valueRange: [8000, 25000], risk: 35, returnRate: 10 },
+        { name: 'Index fund allocation', type: 'financial', valueRange: [10000, 60000], risk: 20, returnRate: 8 }
+      ]
+    };
+
+    const pool = assetTypes[persona] || assetTypes.businessman;
+    const scenarios = [
+      // Investment opportunity
+      () => {
+        const asset = this.pick(pool);
+        const value = this.randMoney(asset.valueRange[0], asset.valueRange[1], 1000);
+        const riskLabel = asset.risk > 60 ? 'high-risk' : asset.risk > 30 ? 'moderate-risk' : 'low-risk';
+        return {
+          title: `Investment Opportunity: ${asset.name}`,
+          description: `A ${riskLabel} ${asset.name.toLowerCase()} opportunity is available for ${this.dollar(value)}. Projected annual return: ${asset.returnRate}%. ${this.pick([
+            'Market conditions favor this asset class right now.',
+            'Your advisors are split on the timing.',
+            'Similar investments have performed well in your region.',
+            'There\'s significant competition for this asset — act fast or lose it.',
+            'Due diligence reveals both upside potential and structural risks.'
+          ])} This would diversify your portfolio ${state.money > value * 2 ? 'and you have adequate cash reserves.' : 'but it would stretch your cash position.'}`,
+          isInvestment: true,
+          options: [
+            {
+              label: `Acquire at ${this.dollar(value)}`,
+              detail: `Full investment. Add ${asset.name.toLowerCase()} to your portfolio. ${riskLabel} with ${asset.returnRate}% projected return. ${state.money < value ? 'WARNING: This exceeds your cash reserves — you\'ll need financing.' : ''}`,
+              effect: { score: 12, money: -value, knowledge: 5, financialRisk: Math.round(asset.risk / 10) },
+              assetPurchase: { name: asset.name, type: asset.type, value, risk: asset.risk, returnRate: asset.returnRate }
+            },
+            {
+              label: `Partial position — ${this.dollar(Math.round(value * 0.4))}`,
+              detail: `Invest 40%. Lower exposure, lower return. You keep cash flexibility but capture some of the upside.`,
+              effect: { score: 8, money: -Math.round(value * 0.4), knowledge: 5, financialRisk: Math.round(asset.risk / 20) },
+              assetPurchase: { name: asset.name + ' (partial)', type: asset.type, value: Math.round(value * 0.4), risk: asset.risk - 10, returnRate: asset.returnRate * 0.7 }
+            },
+            {
+              label: 'Pass — not the right time',
+              detail: `Preserve capital. The opportunity may come back or something better may emerge. No risk, no return.`,
+              effect: { score: 4, knowledge: 3, satisfaction: 3 }
+            },
+            {
+              label: 'Counter-offer at a discount',
+              detail: `Offer ${this.dollar(Math.round(value * 0.75))} — test if there's flexibility. ${this.pick(['Seller may accept if they\'re motivated.', 'Risk: they sell to someone else.', 'Shows market sophistication but could burn the relationship.'])}`,
+              effect: { score: 10, money: -Math.round(value * 0.75), knowledge: 8, financialRisk: Math.round(asset.risk / 12) },
+              assetPurchase: { name: asset.name, type: asset.type, value: Math.round(value * 0.75), risk: asset.risk, returnRate: asset.returnRate + 2 }
+            }
+          ]
+        };
+      },
+      // Portfolio rebalancing
+      () => {
+        return {
+          title: 'Portfolio Risk Assessment',
+          description: `Your financial advisor recommends a portfolio review. Current risk profile is trending ${state.money > 20000 ? 'conservative — you may be leaving returns on the table' : 'aggressive relative to your cash position'}. ${this.pick([
+            'Interest rate changes are affecting your fixed-income holdings.',
+            'Market volatility has increased across asset classes.',
+            'Your industry peers are repositioning into growth assets.',
+            'Economic indicators suggest a shift in the cycle ahead.'
+          ])}`,
+          options: [
+            {
+              label: 'Shift aggressive — growth-oriented',
+              detail: `Move into higher-return, higher-risk positions. Maximize growth potential. Increases volatility and drawdown risk.`,
+              effect: { score: 8, financialRisk: 12, knowledge: 5 }
+            },
+            {
+              label: 'Rebalance to moderate risk',
+              detail: `Trim high-risk positions, add stable income assets. Balanced approach. Reduces extreme outcomes in either direction.`,
+              effect: { score: 10, financialRisk: -5, knowledge: 8 }
+            },
+            {
+              label: 'Go defensive — preserve capital',
+              detail: `Move to safe-haven assets. Protect what you have. Lower returns but sleep better at night. May miss the upswing.`,
+              effect: { score: 6, financialRisk: -15, knowledge: 3, satisfaction: 5 }
+            },
+            {
+              label: 'Liquidate non-core assets',
+              detail: `Sell peripheral holdings and consolidate. Raises cash for operations or opportunistic acquisitions. Transaction costs apply.`,
+              effect: { score: 8, money: this.randMoney(2000, 10000, 1000), financialRisk: -8, knowledge: 5 }
+            }
+          ]
+        };
+      }
+    ];
+    return this.pick(scenarios)();
   }
 
   // ============================================================
