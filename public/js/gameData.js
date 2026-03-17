@@ -34,7 +34,7 @@ const GAME_DATA = {
   },
 
   startingState: {
-    farmer: { money: 5000, inventory: { seeds: 0, fertilizer: 0 }, crops: [], land: 10, equipment: 'basic', revenue: 0, costs: 0, assets: 5000, debt: 0, equity: 5000, employees: 2 },
+    farmer: { money: 10000, inventory: { seeds: 0, fertilizer: 0 }, crops: [], land: 10, equipment: 'basic', revenue: 0, costs: 0, assets: 10000, debt: 0, equity: 10000, employees: 2 },
     banker: { money: 100000, capital: 100000, portfolio: [], investors: 1, reserves: 10000, revenue: 0, costs: 0, assets: 100000, debt: 0, equity: 100000, employees: 3 },
     businessman: { money: 2000, clients: 0, ventures: [], partnerships: [], advisoryFees: 0, revenue: 0, costs: 0, assets: 2000, debt: 0, equity: 2000, employees: 0 }
   },

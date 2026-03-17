@@ -10,6 +10,7 @@ let currentScenario = null;
 let playerProfile = null;
 let fingerprint = null;
 let marketDataMode = 'simulated'; // 'simulated' or 'live'
+let difficultyMode = 'easy'; // 'easy' or 'hard'
 let advisorEnabled = false;
 let advisorReasoningLevel = 50; // 0-100 slider
 let adminSettings = null; // loaded from server
@@ -236,6 +237,7 @@ async function loadSavedGamesMenu() {
 
 function loadSavedGame(persona, saveData) {
   engine.loadGame(saveData);
+  difficultyMode = engine.difficulty || 'easy';
   enterGameScreen();
 }
 
@@ -245,9 +247,11 @@ function loadSavedGame(persona, saveData) {
 function startNewGame(persona) {
   const scoreSat = els.toggleSatisfaction.checked;
   const mdToggle = document.getElementById('toggle-market-data');
+  const diffToggle = document.getElementById('toggle-difficulty');
   marketDataMode = (mdToggle && mdToggle.checked) ? 'live' : 'simulated';
-  engine.newGame(persona, { scoreSatisfaction: scoreSat, marketDataMode });
-  engine.addLog(`Started new career as a ${capitalize(persona)}.`);
+  difficultyMode = (diffToggle && diffToggle.checked) ? 'hard' : 'easy';
+  engine.newGame(persona, { scoreSatisfaction: scoreSat, marketDataMode, difficulty: difficultyMode });
+  engine.addLog(`Started new career as a ${capitalize(persona)} on ${difficultyMode} mode.`);
   enterGameScreen();
 }
 
@@ -412,6 +416,7 @@ function loadNextTask() {
   }
 
   currentScenario = result;
+  updateAdvisorButton(); // refresh advisor availability (hard mode: only during commentary)
 
   if (result.type === 'commentary') {
     showCommentaryTask(result.scenario);
@@ -1049,6 +1054,15 @@ async function askAdvisor() {
     showNotification('AI advisor not available. Check admin settings or set ANTHROPIC_API_KEY.');
     return;
   }
+
+  // Hard mode: advisor only available during quarterly reviews
+  const isHardMode = engine.difficulty === 'hard';
+  const isCommentary = currentScenario && currentScenario.type === 'commentary';
+  if (isHardMode && !isCommentary) {
+    showNotification('Hard mode: Advisor is only available during quarterly reviews.');
+    return;
+  }
+
   const input = document.getElementById('advisor-input');
   const question = input ? input.value.trim() : '';
   const output = document.getElementById('advisor-output');
@@ -1073,7 +1087,8 @@ async function askAdvisor() {
     } : null,
     recentLog: engine.log.slice(0, 5).map(l => l.message),
     question: question || 'Help me think through my current decision.',
-    reasoningLevel: advisorReasoningLevel
+    reasoningLevel: advisorReasoningLevel,
+    difficulty: engine.difficulty || 'easy'
   };
 
   try {
@@ -1096,7 +1111,18 @@ async function askAdvisor() {
 
 function updateAdvisorButton() {
   const btn = document.getElementById('btn-advisor');
-  if (btn) btn.style.display = advisorEnabled ? '' : 'none';
+  if (!btn) return;
+  if (!advisorEnabled) { btn.style.display = 'none'; return; }
+  btn.style.display = '';
+  // Hard mode: gray out button except during quarterly reviews
+  if (engine.difficulty === 'hard') {
+    const isCommentary = currentScenario && currentScenario.type === 'commentary';
+    btn.classList.toggle('btn-disabled', !isCommentary);
+    btn.title = isCommentary ? 'Reasoning support available for quarterly review' : 'Hard mode: Advisor only available during quarterly reviews';
+  } else {
+    btn.classList.remove('btn-disabled');
+    btn.title = '';
+  }
 }
 
 // ===============================

@@ -47,13 +47,17 @@ class ScenarioGenerator {
   }
 
   // ---- MAIN ENTRY ----
-  generate(persona, day, category, state) {
+  generate(persona, day, category, state, difficulty) {
     let attempts = 0;
     let scenario;
     do {
       scenario = this._generate(persona, day, category, state);
       attempts++;
     } while (!this.isUnique(scenario) && attempts < 20);
+    // Apply hard mode modifications
+    if (difficulty === 'hard') {
+      scenario = this._applyHardMode(scenario, day);
+    }
     return scenario;
   }
 
@@ -63,6 +67,66 @@ class ScenarioGenerator {
       case 'banker': return this.genBanker(category, day, state);
       case 'businessman': return this.genBusinessman(category, day, state);
     }
+  }
+
+  // ---- HARD MODE MODIFICATIONS ----
+  _applyHardMode(scenario, day) {
+    if (!scenario || !scenario.options) return scenario;
+
+    // Increase costs, add negative score traps, and add complication options
+    scenario.options = scenario.options.map((opt, idx) => {
+      const modified = { ...opt, effect: { ...opt.effect } };
+
+      // All money costs are 30% higher in hard mode
+      if (modified.effect.money && modified.effect.money < 0) {
+        modified.effect.money = Math.round(modified.effect.money * 1.3);
+      }
+      // Positive money gains are 20% lower
+      if (modified.effect.money && modified.effect.money > 0) {
+        modified.effect.money = Math.round(modified.effect.money * 0.8);
+      }
+
+      // Some options become score-negative traps (the "easy looking" choice)
+      // Typically the last option (the passive/wait choice) becomes risky
+      if (idx === scenario.options.length - 1 && Math.random() < 0.5) {
+        modified.effect.score = Math.min(modified.effect.score || 0, -this.randInt(2, 8));
+        modified.detail += ' [Market conditions make this riskier than usual.]';
+      }
+
+      // Satisfaction hits are bigger in hard mode
+      if (modified.effect.satisfaction && modified.effect.satisfaction < 0) {
+        modified.effect.satisfaction = Math.round(modified.effect.satisfaction * 1.5);
+      }
+
+      return modified;
+    });
+
+    // Add a hard-mode "compound decision" option — high risk / high reward with downside
+    if (scenario.options.length <= 3 && Math.random() < 0.4) {
+      scenario.options.push({
+        label: 'Aggressive play — go all in',
+        detail: `Combine multiple approaches for maximum impact. High potential upside but compounding downside risk if market conditions shift. ${this.pick(['Requires flawless execution.', 'One mistake cascades into larger problems.', 'Your reputation is on the line.', 'Stakeholders will judge harshly if this fails.'])}`,
+        effect: {
+          score: this.randInt(-5, 22),
+          money: -this.randMoney(500, 3000, 100),
+          knowledge: this.randInt(3, 8),
+          satisfaction: -this.randInt(2, 8)
+        }
+      });
+    }
+
+    // Hard mode: every scenario title gets a subtle pressure indicator
+    if (day > 10) {
+      scenario.description += ` ${this.pick([
+        'The board is watching this quarter\'s numbers closely.',
+        'Your competitors made aggressive moves last week.',
+        'Cash reserves are tighter than you\'d like for this decision.',
+        'A wrong move here compounds issues from earlier this week.',
+        'Stakeholder patience is wearing thin on indecisive management.'
+      ])}`;
+    }
+
+    return scenario;
   }
 
   // ---- LIFE BALANCE EVENTS ----

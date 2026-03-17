@@ -43,6 +43,7 @@ class GameEngine {
       overdueCount: 0
     };
     this.marketDataMode = 'simulated';
+    this.difficulty = 'easy';
   }
 
   // ---- NEW GAME ----
@@ -54,6 +55,7 @@ class GameEngine {
     this.satisfaction = 50; // start neutral
     this.satisfactionHistory = [50];
     this.scoreSatisfaction = options.scoreSatisfaction || false;
+    this.difficulty = options.difficulty || 'easy';
     this.log = [];
     this.periodActions = [];
     this.scenarioIndex = {};
@@ -70,7 +72,8 @@ class GameEngine {
     this.micromanagerLevel = 50;
     this.employeeSatisfaction = 70;
     this.cultureEvents = [];
-    this.debtStructure = { totalDebt: 0, debtRate: 6.0, equityInvestors: 0, equityGiven: 0 };
+    this.debtStructure = { totalDebt: 0, debtRate: this.difficulty === 'hard' ? 8.5 : 6.0, equityInvestors: 0, equityGiven: 0 };
+    this._hardModeHistory = [];
 
     // Market tracker
     this.marketTracker = new MarketTracker(persona);
@@ -133,6 +136,8 @@ class GameEngine {
       cultureEvents: saveData.cultureEvents || [],
       debtStructure: saveData.debtStructure || { totalDebt: 0, debtRate: 6.0, equityInvestors: 0, equityGiven: 0 },
       interpersonal: saveData.interpersonal || { activeRequests: [], relationships: [], completedRequests: 0, overdueCount: 0 },
+      difficulty: saveData.difficulty || 'easy',
+      _hardModeHistory: saveData._hardModeHistory || [],
       marketDataMode: saveData.marketDataMode || 'simulated',
       actionsToday: saveData.actionsToday || 0,
       maxActionsPerDay: 5,
@@ -173,6 +178,8 @@ class GameEngine {
       debtStructure: { ...this.debtStructure },
       marketData: this.marketTracker ? this.marketTracker.export() : null,
       interpersonal: JSON.parse(JSON.stringify(this.interpersonal)),
+      difficulty: this.difficulty,
+      _hardModeHistory: this._hardModeHistory || [],
       marketDataMode: this.marketDataMode,
       actionsToday: this.actionsToday,
       categoriesUsedToday: [...(this.categoriesUsedToday || [])],
@@ -250,6 +257,11 @@ class GameEngine {
       }
     }
 
+    // Hard mode: track action patterns for compounding penalties
+    if (this.difficulty === 'hard') {
+      this._applyHardModeCompounding(effect);
+    }
+
     // Micromanager culture effects
     this._applyCultureEffects();
   }
@@ -257,6 +269,38 @@ class GameEngine {
   applyCommentaryScore(scoreResult) {
     this.scores.commentary += scoreResult.score;
     this.totalScore += Math.round(scoreResult.score / 5);
+  }
+
+  // ---- HARD MODE COMPOUNDING ----
+  _applyHardModeCompounding(effect) {
+    if (!this._hardModeHistory) this._hardModeHistory = [];
+    // Track whether this action was cost-heavy, risky, or conservative
+    const tag = effect.money && effect.money < -500 ? 'spend' :
+                effect.money && effect.money > 500 ? 'earn' :
+                effect.score && effect.score < 5 ? 'conservative' :
+                effect.knowledge && effect.knowledge > 8 ? 'learn' : 'neutral';
+    this._hardModeHistory.push(tag);
+    if (this._hardModeHistory.length > 8) this._hardModeHistory.shift();
+
+    // Penalize repeated overspending (3+ spend actions in last 5)
+    const recent = this._hardModeHistory.slice(-5);
+    const spendCount = recent.filter(t => t === 'spend').length;
+    if (spendCount >= 3) {
+      const penalty = spendCount * 3;
+      this.totalScore = Math.max(0, this.totalScore - penalty);
+      this.scores.decisions = Math.max(0, this.scores.decisions - penalty);
+      this.addLog(`Cash burn rate unsustainable — management credibility hit. (-${penalty} pts)`);
+    }
+
+    // Penalize too many conservative/passive choices (4+ in last 6)
+    const conservCount = recent.filter(t => t === 'conservative' || t === 'neutral').length;
+    if (conservCount >= 4 && this._hardModeHistory.length >= 6) {
+      const penalty = 5;
+      this.totalScore = Math.max(0, this.totalScore - penalty);
+      this.scores.decisions = Math.max(0, this.scores.decisions - penalty);
+      this.satisfaction = Math.max(0, this.satisfaction - 3);
+      this.addLog(`Stakeholders questioning your decisiveness. (-${penalty} pts)`);
+    }
   }
 
   // ---- CULTURE EFFECTS ----
@@ -313,8 +357,9 @@ class GameEngine {
       this.state.money -= debtPayment;
       this.state.costs += debtPayment;
     }
-    // Random event
-    if (Math.random() < 0.3) {
+    // Random event — higher chance in hard mode
+    const eventChance = this.difficulty === 'hard' ? 0.45 : 0.3;
+    if (Math.random() < eventChance) {
       return this.generateRandomEvent();
     }
     return null;
@@ -360,7 +405,12 @@ class GameEngine {
       ]
     };
     const pool = events[this.persona];
-    const event = pool[Math.floor(Math.random() * pool.length)];
+    const event = { ...pool[Math.floor(Math.random() * pool.length)] };
+    // Hard mode: negative events hit harder, positive events are reduced
+    if (this.difficulty === 'hard') {
+      if (event.money < 0) event.money = Math.round(event.money * 1.5);
+      else event.money = Math.round(event.money * 0.7);
+    }
     this.state.money += event.money;
     if (event.money > 0) this.state.revenue += event.money;
     else this.state.costs += Math.abs(event.money);
@@ -414,7 +464,7 @@ class GameEngine {
 
     this.actionsToday++;
     this.categoriesUsedToday.add(category);
-    const scenario = this.generator.generate(this.persona, this.day, category, this.state);
+    const scenario = this.generator.generate(this.persona, this.day, category, this.state, this.difficulty);
     return { type: 'decision', scenario };
   }
 
@@ -759,8 +809,9 @@ class GameEngine {
         if (elapsed > req.deadline && !req.penaltyApplied) {
           req.penaltyApplied = true;
           this.interpersonal.overdueCount++;
-          // Score penalty for slow response — scaled by urgency
-          const penalty = req.urgency === 'high' ? 8 : req.urgency === 'medium' ? 4 : 2;
+          // Score penalty for slow response — scaled by urgency (heavier in hard mode)
+          const hardMult = this.difficulty === 'hard' ? 1.5 : 1;
+          const penalty = Math.round((req.urgency === 'high' ? 8 : req.urgency === 'medium' ? 4 : 2) * hardMult);
           this.totalScore = Math.max(0, this.totalScore - penalty);
           this.scores.decisions = Math.max(0, this.scores.decisions - penalty);
           // Trust hit on the person who asked

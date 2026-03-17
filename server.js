@@ -237,6 +237,17 @@ The banker must navigate between risk appetite and safety, client service and pr
 The businessman thrives on relationships and must navigate complex interpersonal dynamics around deals, partnerships, and competitive positioning.`
   };
 
+  const isHardMode = ctx.difficulty === 'hard';
+
+  const hardModeRules = isHardMode ? `
+
+CRITICAL CONSTRAINTS — HARD MODE:
+- You are in reasoning-support mode ONLY. You must NOT write full commentary, draft text, or compose responses for the player.
+- Instead, ask probing questions, highlight trade-offs, and point out what the player might be overlooking.
+- Do NOT recommend a specific option. Present the reasoning framework and let them decide.
+- Keep responses to 2-3 sentences of reasoning guidance only. No sample text, no draft paragraphs.
+- If the player asks you to write something for them, decline and redirect to reasoning support.` : '';
+
   return `${personaGuides[ctx.persona] || 'You are a business advisor in a simulation game.'}
 
 Your role: Help the player think through decisions using pure reasoning. Be concise and direct. Focus on:
@@ -245,7 +256,7 @@ Your role: Help the player think through decisions using pure reasoning. Be conc
 3. How this decision affects long-term sustainability
 4. Interpersonal dynamics — who depends on you, who you depend on
 
-Do NOT do extensive research or analysis. Keep it practical, specific, and grounded in the game context. Use 2-4 short paragraphs maximum. Speak as a knowledgeable mentor, not a textbook.`;
+Do NOT do extensive research or analysis. Keep it practical, specific, and grounded in the game context. Use 2-4 short paragraphs maximum. Speak as a knowledgeable mentor, not a textbook.${hardModeRules}`;
 }
 
 function buildAdvisorUserPrompt(ctx) {

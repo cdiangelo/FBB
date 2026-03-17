@@ -788,6 +788,8 @@ body {
   color: #64b5f6; cursor: pointer; font-size: .75rem; transition: all .2s;
 }
 .btn-advisor-toggle:hover { background: rgba(100,180,255,.1); }
+.btn-advisor-toggle.btn-disabled { opacity: .35; cursor: not-allowed; border-color: rgba(100,180,255,.1); }
+.btn-advisor-toggle.btn-disabled:hover { background: transparent; }
 
 .advisor-panel {
   position: fixed; right: -380px; top: 0; bottom: 0; width: 370px;
