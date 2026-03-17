@@ -46,6 +46,17 @@
             </label>
             <p class="toggle-hint">When off, satisfaction is tracked and visible but doesn't affect your grade.</p>
           </div>
+          <div class="option-toggle" style="margin-top:.75rem">
+            <label class="toggle-label">
+              <input type="checkbox" id="toggle-market-data">
+              <span class="toggle-switch"></span>
+              <span class="toggle-text">Live-Benchmarked Market Data</span>
+            </label>
+            <p class="toggle-hint">When off, markets use realistic simulations. When on, data is benchmarked to real-world sources.</p>
+          </div>
+        </div>
+        <div style="margin-bottom:.5rem">
+          <button class="btn-admin-link" id="btn-admin" onclick="showAdminPanel()">Admin</button>
         </div>
 
         <div class="persona-select">
@@ -102,6 +113,7 @@
             <span class="status-satisfaction" id="status-satisfaction" title="Personal / Family Satisfaction">&#9829; 50</span>
           </div>
           <div class="top-bar-actions">
+            <button class="btn-advisor-toggle" id="btn-advisor" onclick="toggleAdvisor()" style="display:none">Helper &amp; Decision Analysis</button>
             <button class="btn-sell" id="btn-sell" style="display:none">Sell-Off</button>
             <button class="btn-save" id="btn-save">Save</button>
           </div>
@@ -184,6 +196,9 @@
               </div>
               <div class="sat-label" id="sat-label">Balanced</div>
             </div>
+            <div class="interpersonal-display" id="interpersonal-display">
+              <!-- Populated by JS -->
+            </div>
             <div class="culture-display" id="culture-display">
               <h3>Workforce</h3>
               <div class="culture-micro" id="culture-micro">
@@ -196,6 +211,27 @@
             <div class="activity-log">
               <h3>Activity Log</h3>
               <div class="log-entries" id="log-entries"></div>
+            </div>
+          </div>
+
+          <!-- ADVISOR PANEL (slide-out) -->
+          <div class="advisor-panel" id="advisor-panel">
+            <div class="advisor-header">
+              <h3>Helper &amp; Decision Analysis</h3>
+              <button class="advisor-close" onclick="toggleAdvisor()">&#10005;</button>
+            </div>
+            <div class="advisor-body">
+              <div class="advisor-output" id="advisor-output">
+                <div class="advisor-placeholder">Ask for help analyzing your current decision, understanding your persona's priorities, or building sustainable strategy.</div>
+              </div>
+              <div class="advisor-input-area">
+                <input type="text" id="advisor-input" class="advisor-text-input" placeholder="Ask a question or click Analyze..." maxlength="300">
+                <button class="btn-primary btn-sm" onclick="askAdvisor()">Analyze</button>
+              </div>
+              <div class="advisor-settings">
+                <label class="advisor-depth-label">Reasoning Depth</label>
+                <input type="range" id="advisor-reasoning" min="10" max="100" value="50" oninput="advisorReasoningLevel=parseInt(this.value)">
+              </div>
             </div>
           </div>
         </div>

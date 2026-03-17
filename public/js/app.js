@@ -1,13 +1,18 @@
 /* ============================================
-   FBB - APP CONTROLLER v2
+   FBB - APP CONTROLLER v3
    Profiles, fixed-scroll task layout, celebrations,
-   satisfaction toggle, culture, sell-off, biz summary
+   satisfaction toggle, culture, sell-off, biz summary,
+   market data mode, AI advisor, admin, interpersonal
    ============================================ */
 
 const engine = new GameEngine();
 let currentScenario = null;
 let playerProfile = null;
 let fingerprint = null;
+let marketDataMode = 'simulated'; // 'simulated' or 'live'
+let advisorEnabled = false;
+let advisorReasoningLevel = 50; // 0-100 slider
+let adminSettings = null; // loaded from server
 
 // ---- DOM REFERENCES ----
 const screens = {
@@ -70,6 +75,7 @@ const els = {
 document.addEventListener('DOMContentLoaded', async () => {
   fingerprint = await generateFingerprint();
   await identifyProfile();
+  await loadAdminSettings();
   setupEventListeners();
 });
 
@@ -115,6 +121,14 @@ async function identifyProfile() {
     // Offline mode — proceed without server profile
     console.log('Profile API unavailable, using local storage.');
   }
+}
+
+async function loadAdminSettings() {
+  try {
+    const resp = await fetch('/api/admin/settings');
+    adminSettings = await resp.json();
+    advisorEnabled = adminSettings.advisorAvailable && !adminSettings.userDisabled;
+  } catch (e) { adminSettings = { advisorAvailable: false }; }
 }
 
 function goToTitle() {
@@ -230,7 +244,9 @@ function loadSavedGame(persona, saveData) {
 // ===============================
 function startNewGame(persona) {
   const scoreSat = els.toggleSatisfaction.checked;
-  engine.newGame(persona, { scoreSatisfaction: scoreSat });
+  const mdToggle = document.getElementById('toggle-market-data');
+  marketDataMode = (mdToggle && mdToggle.checked) ? 'live' : 'simulated';
+  engine.newGame(persona, { scoreSatisfaction: scoreSat, marketDataMode });
   engine.addLog(`Started new career as a ${capitalize(persona)}.`);
   enterGameScreen();
 }
@@ -245,6 +261,8 @@ function enterGameScreen() {
   updateCulturePanel();
   updateLogPanel();
   updateSellOffButton();
+  updateAdvisorButton();
+  updateInterpersonalPanel();
   setScene();
   setWorking(true);
   loadNextTask();
@@ -306,7 +324,7 @@ function setWorking(active) {
 function updateStatusBar() {
   els.statusPersona.textContent = capitalize(engine.persona);
   els.statusPersona.style.color = getComputedStyle(document.documentElement).getPropertyValue('--accent');
-  els.statusDay.textContent = `Day ${engine.day}`;
+  els.statusDay.textContent = `Day ${engine.day} (${engine.actionsToday || 0}/${engine.maxActionsPerDay})`;
   els.statusMoney.textContent = engine.getMoney();
   els.statusLevel.textContent = engine.getLevel().name;
   els.statusSatisfaction.innerHTML = `&#9829; ${engine.satisfaction}`;
@@ -536,88 +554,84 @@ function buildBizSummaryHTML(summary) {
 }
 
 // ===============================
-//  MARKET MATRIX & TREND LINES
+//  MARKET DATA — CONDENSED TABLE MATRIX
 // ===============================
 let currentMarketSort = 'pctChange';
 let currentMarketAsc = false;
 
+function fmtPrice(price, unit) {
+  if (unit === '%') return price.toFixed(2) + '%';
+  if (unit === '$/bu') return '$' + price.toFixed(2);
+  return price.toFixed(0);
+}
+
+function fmtChg(v) {
+  const s = v >= 0 ? '+' : '';
+  return `<span class="${v >= 0 ? 'chg-up' : 'chg-dn'}">${s}${v.toFixed(1)}%</span>`;
+}
+
 function renderMarketTicker() {
   const tracker = engine.marketTracker;
-  if (!tracker) {
-    // Fallback to legacy
-    const marketData = generateMarketData(engine.persona);
-    els.taskMarketTicker.innerHTML = `<div class="market-ticker">${marketData.map(d => {
-      const dir = parseFloat(d.change) >= 0 ? 'up' : 'down';
-      const sign = parseFloat(d.change) >= 0 ? '+' : '';
-      return `<div class="ticker-item"><span class="ticker-name">${d.name}</span><span class="ticker-price">${d.price}</span><span class="ticker-change ${dir}">${sign}${d.pct}%</span></div>`;
-    }).join('')}</div>`;
-    return;
-  }
+  if (!tracker) return;
 
   const snapshot = tracker.getSnapshot(currentMarketSort, currentMarketAsc);
-  // Compact ticker strip (top 6 movers)
-  const top = snapshot.slice(0, 6);
+  // Compact ticker strip (top 6 movers by absolute change)
+  const top = [...snapshot].sort((a, b) => Math.abs(b.pctChange) - Math.abs(a.pctChange)).slice(0, 6);
   els.taskMarketTicker.innerHTML = `<div class="market-ticker">${top.map(d => {
     const dir = d.pctChange >= 0 ? 'up' : 'down';
     const sign = d.pctChange >= 0 ? '+' : '';
-    const priceStr = d.unit === '%' ? d.price.toFixed(2) + '%' : d.unit === '$/bu' ? '$' + d.price.toFixed(2) : d.price.toFixed(0);
-    return `<div class="ticker-item"><span class="ticker-name">${d.name}</span><span class="ticker-price">${priceStr}</span><span class="ticker-change ${dir}">${sign}${d.pctChange.toFixed(1)}%</span></div>`;
+    return `<div class="ticker-item"><span class="ticker-name">${d.name}</span><span class="ticker-price">${fmtPrice(d.price, d.unit)}</span><span class="ticker-change ${dir}">${sign}${d.pctChange.toFixed(1)}%</span></div>`;
   }).join('')}</div>`;
 
-  // Full matrix in scroll area
-  const matrixHtml = buildMarketMatrix(snapshot);
+  // Condensed table matrix in scroll area
   const matrixContainer = document.getElementById('market-matrix-container');
-  if (matrixContainer) matrixContainer.innerHTML = matrixHtml;
+  if (matrixContainer) matrixContainer.innerHTML = buildMarketMatrix(snapshot);
 }
 
 function buildMarketMatrix(snapshot) {
-  // Preserve open state when re-rendering (e.g. sort changes)
   const existingDetails = document.querySelector('#market-matrix-container > details');
   const isOpen = existingDetails ? existingDetails.open : false;
-  let html = `<details class="collapsible-section" id="market-matrix-details"${isOpen ? ' open' : ''}><summary>Market Data (${snapshot.length} instruments)</summary><div class="collapsible-body">`;
-  html += buildMarketMatrixBody(snapshot);
+  let html = `<details class="collapsible-section" id="market-matrix-details"${isOpen ? ' open' : ''}><summary>Market Data (${snapshot.length})</summary><div class="collapsible-body">`;
+  html += buildMarketTable(snapshot);
   html += '</div></details>';
   return html;
 }
 
-function buildMarketMatrixBody(snapshot) {
+function buildMarketTable(snapshot) {
+  // Group by category
   const categories = {};
   snapshot.forEach(item => {
     if (!categories[item.category]) categories[item.category] = [];
     categories[item.category].push(item);
   });
 
-  let html = `<div class="market-sort-controls">
-    <span class="sort-label">Sort by:</span>
-    <button class="sort-btn ${currentMarketSort === 'pctChange' ? 'active' : ''}" onclick="sortMarket('pctChange')">Day Change</button>
-    <button class="sort-btn ${currentMarketSort === 'periodChange' ? 'active' : ''}" onclick="sortMarket('periodChange')">Period</button>
-    <button class="sort-btn ${currentMarketSort === 'totalReturn' ? 'active' : ''}" onclick="sortMarket('totalReturn')">Total Return</button>
-    <button class="sort-btn sort-dir" onclick="toggleMarketDir()">${currentMarketAsc ? '&#9650;' : '&#9660;'}</button>
-  </div>`;
+  const sortBtn = (field, label) => `<th class="mkt-sort ${currentMarketSort === field ? 'active' : ''}" onclick="sortMarket('${field}')">${label}${currentMarketSort === field ? (currentMarketAsc ? ' &#9650;' : ' &#9660;') : ''}</th>`;
+
+  let html = `<table class="mkt-table">
+    <thead><tr>
+      <th class="mkt-name">Instrument</th>
+      <th>Price</th>
+      ${sortBtn('pctChange', 'Day')}
+      ${sortBtn('periodChange', 'Period')}
+      ${sortBtn('totalReturn', 'Total')}
+      <th>Trend</th>
+    </tr></thead><tbody>`;
 
   Object.entries(categories).forEach(([cat, items]) => {
-    html += `<div class="market-category"><div class="market-cat-label">${cat}</div>`;
-    html += '<div class="market-grid">';
+    html += `<tr class="mkt-cat-row"><td colspan="6">${cat}</td></tr>`;
     items.forEach(item => {
-      const heatColor = getHeatColor(item.pctChange);
-      const periodHeat = getHeatColor(item.periodChange);
-      const priceStr = item.unit === '%' ? item.price.toFixed(2) + '%' : item.unit === '$/bu' ? '$' + item.price.toFixed(2) : item.price.toFixed(0);
-      const sign = item.pctChange >= 0 ? '+' : '';
-      const periodSign = item.periodChange >= 0 ? '+' : '';
-
-      html += `<div class="market-cell" style="border-left: 3px solid ${heatColor}" onclick="showTrendPopup('${item.name.replace(/'/g, "\\'")}')">
-        <div class="market-cell-name">${item.name}</div>
-        <div class="market-cell-price">${priceStr}</div>
-        <div class="market-cell-changes">
-          <span style="color:${heatColor}">${sign}${item.pctChange.toFixed(1)}%</span>
-          <span class="market-cell-period" style="color:${periodHeat}" title="Period change">${periodSign}${item.periodChange.toFixed(1)}%</span>
-        </div>
-        <div class="market-cell-sparkline">${buildMiniSparkline(engine.marketTracker.history[item.name] || [])}</div>
-      </div>`;
+      const spark = buildMiniSparkline(engine.marketTracker.history[item.name] || []);
+      html += `<tr class="mkt-row" onclick="showTrendPopup('${item.name.replace(/'/g, "\\'")}')">
+        <td class="mkt-name">${item.name}</td>
+        <td class="mkt-price">${fmtPrice(item.price, item.unit)}</td>
+        <td>${fmtChg(item.pctChange)}</td>
+        <td>${fmtChg(item.periodChange)}</td>
+        <td>${fmtChg(item.totalReturn)}</td>
+        <td class="mkt-spark">${spark}</td>
+      </tr>`;
     });
-    html += '</div></div>';
   });
-
+  html += '</tbody></table>';
   return html;
 }
 
@@ -636,7 +650,7 @@ function buildMiniSparkline(history) {
   const min = Math.min(...prices);
   const max = Math.max(...prices);
   const range = max - min || 1;
-  const w = 60, h = 16;
+  const w = 50, h = 14;
   const points = prices.map((p, i) => {
     const x = (i / (prices.length - 1)) * w;
     const y = h - ((p - min) / range) * h;
@@ -656,19 +670,12 @@ function sortMarket(field) {
   updateMarketMatrixOnly();
 }
 
-function toggleMarketDir() {
-  currentMarketAsc = !currentMarketAsc;
-  updateMarketMatrixOnly();
-}
-
 function updateMarketMatrixOnly() {
   const tracker = engine.marketTracker;
   if (!tracker) return;
   const snapshot = tracker.getSnapshot(currentMarketSort, currentMarketAsc);
   const body = document.querySelector('#market-matrix-details > .collapsible-body');
-  if (body) {
-    body.innerHTML = buildMarketMatrixBody(snapshot);
-  }
+  if (body) body.innerHTML = buildMarketTable(snapshot);
 }
 
 function showTrendPopup(name) {
@@ -781,6 +788,12 @@ function selectOption(index) {
   const option = scenario.options[index];
 
   engine.applyEffect(option.effect);
+
+  // Resolve dependency request if this is a dependency scenario
+  if (scenario.isDependencyEvent && scenario.requestIndex !== undefined) {
+    engine.resolveRequest(scenario.requestIndex, index === 0 ? 'thorough' : index === 1 ? 'quick' : 'delegated');
+  }
+
   engine.addLog(`${scenario.title}: chose "${option.label}"`);
   engine.addPeriodAction('decision', `${scenario.title}: chose "${option.label}"`);
 
@@ -864,6 +877,7 @@ function updateAll() {
   updateCulturePanel();
   updateJourneyPanel();
   updateLogPanel();
+  updateInterpersonalPanel();
 }
 
 // ===============================
@@ -1018,3 +1032,204 @@ function showNotification(text) {
 function capitalize(str) { return str.charAt(0).toUpperCase() + str.slice(1); }
 
 function formatKey(key) { return key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()); }
+
+// ===============================
+//  HELPER & DECISION ANALYSIS (AI ADVISOR)
+// ===============================
+let advisorOpen = false;
+
+function toggleAdvisor() {
+  advisorOpen = !advisorOpen;
+  const panel = document.getElementById('advisor-panel');
+  if (panel) panel.classList.toggle('open', advisorOpen);
+}
+
+async function askAdvisor() {
+  if (!advisorEnabled) {
+    showNotification('AI advisor not available. Check admin settings or set ANTHROPIC_API_KEY.');
+    return;
+  }
+  const input = document.getElementById('advisor-input');
+  const question = input ? input.value.trim() : '';
+  const output = document.getElementById('advisor-output');
+  if (!output) return;
+
+  output.innerHTML = '<div class="advisor-thinking">Analyzing...</div>';
+
+  // Build context for the AI
+  const context = {
+    persona: engine.persona,
+    day: engine.day,
+    level: engine.getLevel().name,
+    money: engine.state.money,
+    totalScore: engine.totalScore,
+    satisfaction: engine.satisfaction,
+    employeeSatisfaction: engine.employeeSatisfaction,
+    micromanagerLevel: engine.micromanagerLevel,
+    currentScenario: currentScenario ? {
+      title: currentScenario.scenario.title,
+      description: currentScenario.scenario.description,
+      options: (currentScenario.scenario.options || []).map(o => ({ label: o.label, detail: o.detail }))
+    } : null,
+    recentLog: engine.log.slice(0, 5).map(l => l.message),
+    question: question || 'Help me think through my current decision.',
+    reasoningLevel: advisorReasoningLevel
+  };
+
+  try {
+    const resp = await fetch('/api/advisor', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ context, fingerprint })
+    });
+    const data = await resp.json();
+    if (data.error) {
+      output.innerHTML = `<div class="advisor-error">${data.error}</div>`;
+    } else {
+      output.innerHTML = `<div class="advisor-response">${data.advice}</div>`;
+    }
+  } catch (e) {
+    output.innerHTML = '<div class="advisor-error">Unable to reach advisor. Check connection.</div>';
+  }
+  if (input) input.value = '';
+}
+
+function updateAdvisorButton() {
+  const btn = document.getElementById('btn-advisor');
+  if (btn) btn.style.display = advisorEnabled ? '' : 'none';
+}
+
+// ===============================
+//  INTERPERSONAL DYNAMICS DISPLAY
+// ===============================
+function updateInterpersonalPanel() {
+  const panel = document.getElementById('interpersonal-display');
+  if (!panel || !engine.interpersonal) return;
+  const ip = engine.interpersonal;
+
+  let html = '<h3>Team & Dependencies</h3>';
+
+  // Active requests from others
+  if (ip.activeRequests && ip.activeRequests.length > 0) {
+    html += '<div class="ip-requests">';
+    ip.activeRequests.forEach(req => {
+      const urgencyClass = req.urgency === 'high' ? 'ip-urgent' : req.urgency === 'medium' ? 'ip-medium' : 'ip-low';
+      const elapsed = engine.day - req.dayIssued;
+      const timerPenalty = elapsed > req.deadline ? ' (OVERDUE)' : ` (${req.deadline - elapsed}d left)`;
+      html += `<div class="ip-request ${urgencyClass}">
+        <span class="ip-from">${req.from}</span>
+        <span class="ip-task">${req.task}</span>
+        <span class="ip-timer">${timerPenalty}</span>
+      </div>`;
+    });
+    html += '</div>';
+  } else {
+    html += '<div class="ip-clear">No pending requests</div>';
+  }
+
+  // Relationship summary
+  if (ip.relationships && ip.relationships.length > 0) {
+    html += '<div class="ip-relationships">';
+    ip.relationships.slice(0, 4).forEach(r => {
+      const barWidth = Math.max(5, r.trust);
+      html += `<div class="ip-rel-row"><span class="ip-rel-name">${r.name}</span><div class="ip-rel-bar"><div class="ip-rel-fill" style="width:${barWidth}%"></div></div><span class="ip-rel-val">${r.trust}</span></div>`;
+    });
+    html += '</div>';
+  }
+
+  panel.innerHTML = html;
+}
+
+// ===============================
+//  ADMIN PANEL
+// ===============================
+function showAdminPanel() {
+  const overlay = document.getElementById('celebration-overlay');
+  const content = document.getElementById('celebration-content');
+  const pwd = prompt('Admin password:');
+  if (!pwd) return;
+
+  fetch('/api/admin/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pwd })
+  }).then(r => r.json()).then(data => {
+    if (!data.success) { showNotification('Invalid admin password.'); return; }
+    renderAdminPanel(data.settings, data.users);
+  }).catch(() => showNotification('Admin login failed.'));
+}
+
+function renderAdminPanel(settings, users) {
+  const overlay = document.getElementById('celebration-overlay');
+  const content = document.getElementById('celebration-content');
+
+  let userRows = (users || []).map(u => {
+    const disabled = (settings.disabledUsers || []).includes(u.id);
+    return `<tr>
+      <td>${u.name || u.id}</td>
+      <td>${u.lastSeen || 'Never'}</td>
+      <td><label class="toggle-label-sm"><input type="checkbox" ${disabled ? '' : 'checked'} onchange="adminToggleUser('${u.id}', this.checked)"><span class="toggle-switch-sm"></span></label></td>
+    </tr>`;
+  }).join('');
+
+  content.innerHTML = `
+    <div class="admin-panel">
+      <div class="admin-header">
+        <h3>Admin Settings</h3>
+        <button class="trend-close" onclick="closeAdminPanel()">&#10005;</button>
+      </div>
+      <div class="admin-section">
+        <h4>AI Advisor (Claude)</h4>
+        <div class="admin-row">
+          <label>Global Enable</label>
+          <label class="toggle-label-sm"><input type="checkbox" id="admin-advisor-toggle" ${settings.advisorEnabled !== false ? 'checked' : ''} onchange="adminToggleAdvisor(this.checked)"><span class="toggle-switch-sm"></span></label>
+        </div>
+        <div class="admin-row">
+          <label>Default Reasoning Level</label>
+          <input type="range" id="admin-reasoning-slider" min="10" max="100" value="${settings.reasoningLevel || 50}" onchange="adminSetReasoning(this.value)">
+          <span id="admin-reasoning-val">${settings.reasoningLevel || 50}</span>
+        </div>
+      </div>
+      <div class="admin-section">
+        <h4>Registered Users</h4>
+        <table class="admin-user-table">
+          <thead><tr><th>Name</th><th>Last Seen</th><th>AI Access</th></tr></thead>
+          <tbody>${userRows || '<tr><td colspan="3">No users yet</td></tr>'}</tbody>
+        </table>
+      </div>
+      <div class="admin-footer">
+        <button class="btn-secondary" onclick="closeAdminPanel()">Close</button>
+      </div>
+    </div>
+  `;
+  overlay.style.display = 'flex';
+}
+
+function closeAdminPanel() {
+  document.getElementById('celebration-overlay').style.display = 'none';
+}
+
+function adminToggleAdvisor(enabled) {
+  fetch('/api/admin/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ advisorEnabled: enabled })
+  }).then(() => loadAdminSettings());
+}
+
+function adminSetReasoning(val) {
+  document.getElementById('admin-reasoning-val').textContent = val;
+  fetch('/api/admin/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reasoningLevel: parseInt(val) })
+  });
+}
+
+function adminToggleUser(userId, enabled) {
+  fetch('/api/admin/user-access', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, enabled })
+  }).then(() => loadAdminSettings());
+}

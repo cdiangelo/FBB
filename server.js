@@ -5,12 +5,25 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
+const SETTINGS_PATH = path.join(DATA_DIR, '_admin_settings.json');
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ---- ADMIN SETTINGS HELPERS ----
+function loadAdminSettings() {
+  try {
+    if (fs.existsSync(SETTINGS_PATH)) return JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8'));
+  } catch (e) {}
+  return { advisorEnabled: true, reasoningLevel: 50, disabledUsers: [], adminPassword: process.env.ADMIN_PASSWORD || 'fbb2024' };
+}
+
+function saveAdminSettings(settings) {
+  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
+}
 
 // ---- PROFILE APIs ----
 
@@ -149,10 +162,195 @@ function generateFeedback(score, keywordHits, wordCount, context) {
   return tips;
 }
 
+// ---- AI ADVISOR (CLAUDE) ----
+let anthropicClient = null;
+
+function getAnthropicClient() {
+  if (anthropicClient) return anthropicClient;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    anthropicClient = new Anthropic({ apiKey });
+    return anthropicClient;
+  } catch (e) {
+    console.error('Failed to initialize Anthropic client:', e.message);
+    return null;
+  }
+}
+
+app.post('/api/advisor', async (req, res) => {
+  const { context, fingerprint } = req.body;
+  if (!context) return res.status(400).json({ error: 'Missing context' });
+
+  // Check admin settings
+  const settings = loadAdminSettings();
+  if (!settings.advisorEnabled) return res.json({ error: 'AI advisor is disabled by administrator.' });
+  if (settings.disabledUsers && settings.disabledUsers.includes(fingerprint)) {
+    return res.json({ error: 'AI advisor access has been restricted for your account.' });
+  }
+
+  const client = getAnthropicClient();
+  if (!client) return res.json({ error: 'AI advisor not configured. Set ANTHROPIC_API_KEY environment variable.' });
+
+  // Map reasoning level (10-100) to max_tokens (150-600) — keep it low-cost
+  const reasoningLevel = Math.min(100, Math.max(10, context.reasoningLevel || settings.reasoningLevel || 50));
+  const maxTokens = Math.round(150 + (reasoningLevel / 100) * 450);
+
+  // Build a focused system prompt for persona-aware reasoning
+  const systemPrompt = buildAdvisorSystemPrompt(context);
+
+  try {
+    const message = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: maxTokens,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: buildAdvisorUserPrompt(context) }]
+    });
+
+    const advice = message.content.map(c => c.text || '').join('');
+    res.json({ advice });
+  } catch (e) {
+    console.error('Advisor API error:', e.message);
+    res.json({ error: 'AI advisor temporarily unavailable. Try again later.' });
+  }
+});
+
+function buildAdvisorSystemPrompt(ctx) {
+  const personaGuides = {
+    farmer: `You are advising a farmer in a business simulation. Key sensitivities: commodity price volatility, weather risk, input costs, land management, equipment ROI, crop insurance. Priorities shift by career stage:
+- Early (Family Farm Hand/Junior): Focus on learning fundamentals — soil, basic crop selection, input cost control. Risk tolerance is low, cash is tight.
+- Mid (Farm Operator/Manager): Scaling operations, equipment investment decisions, diversification, marketing strategies. Balance growth with debt management.
+- Late (Agricultural Director/Owner): Portfolio management, land acquisition, succession, regulatory navigation, industry leadership.
+The farmer's family is integral — satisfaction often tied to work-life balance, proximity to community, and legacy.`,
+
+    banker: `You are advising a banker in a business simulation. Key sensitivities: credit risk assessment, interest rate environment, regulatory compliance, portfolio concentration, liquidity management. Priorities shift by career stage:
+- Early (Junior Analyst/Credit Analyst): Learning credit analysis, documentation, understanding risk ratings. Cautious, detail-oriented.
+- Mid (Loan Officer/Portfolio Manager): Making lending decisions, managing client relationships, balancing growth with risk. Understanding yield curves and market conditions.
+- Late (VP of Lending/Bank President): Strategic direction, regulatory relationships, capital planning, community impact, institutional reputation.
+The banker must navigate between risk appetite and safety, client service and prudent lending.`,
+
+    businessman: `You are advising a businessman/entrepreneur in a business simulation. Key sensitivities: deal flow, client relationships, market timing, partnership dynamics, advisory fee structures, venture portfolio management. Priorities shift by career stage:
+- Early (Junior Consultant/Business Analyst): Building network, first client wins, establishing credibility. Every relationship matters.
+- Mid (Senior Advisor/Managing Director): Scaling the practice, managing team, balancing advisory vs. principal investing. Reputation is currency.
+- Late (Partner/Founding Principal): Strategic portfolio decisions, succession, industry positioning, legacy building.
+The businessman thrives on relationships and must navigate complex interpersonal dynamics around deals, partnerships, and competitive positioning.`
+  };
+
+  return `${personaGuides[ctx.persona] || 'You are a business advisor in a simulation game.'}
+
+Your role: Help the player think through decisions using pure reasoning. Be concise and direct. Focus on:
+1. What matters most for this persona at this career stage
+2. Trade-offs between the available options
+3. How this decision affects long-term sustainability
+4. Interpersonal dynamics — who depends on you, who you depend on
+
+Do NOT do extensive research or analysis. Keep it practical, specific, and grounded in the game context. Use 2-4 short paragraphs maximum. Speak as a knowledgeable mentor, not a textbook.`;
+}
+
+function buildAdvisorUserPrompt(ctx) {
+  let prompt = `I'm playing as a ${ctx.persona}, Day ${ctx.day}, Level: ${ctx.level}.
+Cash: $${(ctx.money || 0).toLocaleString()}, Score: ${ctx.totalScore}, Satisfaction: ${ctx.satisfaction}/100.
+Employee morale: ${ctx.employeeSatisfaction}/100, Management style: ${ctx.micromanagerLevel > 65 ? 'hands-on' : ctx.micromanagerLevel < 35 ? 'hands-off' : 'balanced'}.`;
+
+  if (ctx.currentScenario) {
+    prompt += `\n\nCurrent decision: "${ctx.currentScenario.title}"
+${ctx.currentScenario.description}
+Options:\n`;
+    ctx.currentScenario.options.forEach((o, i) => {
+      prompt += `${String.fromCharCode(65 + i)}) ${o.label} — ${o.detail}\n`;
+    });
+  }
+
+  if (ctx.recentLog && ctx.recentLog.length > 0) {
+    prompt += `\nRecent actions: ${ctx.recentLog.join('; ')}`;
+  }
+
+  if (ctx.question && ctx.question !== 'Help me think through my current decision.') {
+    prompt += `\n\nMy specific question: ${ctx.question}`;
+  } else {
+    prompt += '\n\nHelp me think through this decision.';
+  }
+
+  return prompt;
+}
+
+// ---- ADMIN APIs ----
+
+// Get public settings (no password needed)
+app.get('/api/admin/settings', (req, res) => {
+  const settings = loadAdminSettings();
+  const hasApiKey = !!process.env.ANTHROPIC_API_KEY;
+  res.json({
+    advisorAvailable: hasApiKey && settings.advisorEnabled !== false,
+    reasoningLevel: settings.reasoningLevel || 50,
+    userDisabled: false // Client checks per-user in login
+  });
+});
+
+// Admin login
+app.post('/api/admin/login', (req, res) => {
+  const { password } = req.body;
+  const settings = loadAdminSettings();
+
+  if (password !== settings.adminPassword) {
+    return res.json({ success: false });
+  }
+
+  // List all registered users
+  const users = [];
+  try {
+    const files = fs.readdirSync(DATA_DIR);
+    files.forEach(f => {
+      if (f.startsWith('profile_') && f.endsWith('.json') && !f.startsWith('_')) {
+        try {
+          const profile = JSON.parse(fs.readFileSync(path.join(DATA_DIR, f), 'utf8'));
+          users.push({ id: profile.id, name: profile.name, lastSeen: profile.lastSeen });
+        } catch (e) {}
+      }
+    });
+  } catch (e) {}
+
+  res.json({ success: true, settings, users });
+});
+
+// Update admin settings
+app.put('/api/admin/settings', (req, res) => {
+  const settings = loadAdminSettings();
+  const updates = req.body;
+
+  if (updates.advisorEnabled !== undefined) settings.advisorEnabled = updates.advisorEnabled;
+  if (updates.reasoningLevel !== undefined) settings.reasoningLevel = parseInt(updates.reasoningLevel);
+
+  saveAdminSettings(settings);
+  res.json({ success: true });
+});
+
+// Toggle user AI access
+app.put('/api/admin/user-access', (req, res) => {
+  const { userId, enabled } = req.body;
+  const settings = loadAdminSettings();
+  settings.disabledUsers = settings.disabledUsers || [];
+
+  if (enabled) {
+    settings.disabledUsers = settings.disabledUsers.filter(id => id !== userId);
+  } else {
+    if (!settings.disabledUsers.includes(userId)) settings.disabledUsers.push(userId);
+  }
+
+  saveAdminSettings(settings);
+  res.json({ success: true });
+});
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.listen(PORT, () => {
   console.log(`FBB Game running on port ${PORT}`);
+  if (process.env.ANTHROPIC_API_KEY) {
+    console.log('AI Advisor: ENABLED (ANTHROPIC_API_KEY detected)');
+  } else {
+    console.log('AI Advisor: DISABLED (set ANTHROPIC_API_KEY to enable)');
+  }
 });

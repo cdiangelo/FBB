@@ -441,11 +441,13 @@ class MarketTracker {
         this.items.push({ name, category: 'Advisory', base: 50 + Math.random() * 50, volatility: 0.06, unit: 'idx' });
       });
     }
-    // Initialize current prices at base
+    // Initialize current prices at base with some initial movement
     this.items.forEach(item => {
       this.currentPrices[item.name] = item.base;
       this.history[item.name] = [{ day: 0, price: item.base }];
     });
+    // Tick a few times so there's initial price movement (no zero percentages)
+    for (let d = 1; d <= 3; d++) this.tick(d);
   }
 
   // Advance prices by one day using geometric Brownian motion
@@ -478,7 +480,10 @@ class MarketTracker {
         base: item.base, totalReturn: ((price - item.base) / item.base) * 100
       };
     });
-    snapshot.sort((a, b) => ascending ? a[sortBy] - b[sortBy] : b[sortBy] - a[sortBy]);
+    snapshot.sort((a, b) => {
+      const va = a[sortBy] ?? 0, vb = b[sortBy] ?? 0;
+      return ascending ? va - vb : vb - va;
+    });
     return snapshot;
   }
 

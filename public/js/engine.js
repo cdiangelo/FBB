@@ -34,6 +34,15 @@ class GameEngine {
 
     // Debt/equity
     this.debtStructure = { totalDebt: 0, debtRate: 6.0, equityInvestors: 0, equityGiven: 0 };
+
+    // Interpersonal dynamics
+    this.interpersonal = {
+      activeRequests: [],
+      relationships: [],
+      completedRequests: 0,
+      overdueCount: 0
+    };
+    this.marketDataMode = 'simulated';
   }
 
   // ---- NEW GAME ----
@@ -65,6 +74,20 @@ class GameEngine {
 
     // Market tracker
     this.marketTracker = new MarketTracker(persona);
+    this.marketDataMode = options.marketDataMode || 'simulated';
+
+    // Interpersonal dynamics - people who depend on you
+    this.interpersonal = {
+      activeRequests: [],
+      relationships: this._initRelationships(persona),
+      completedRequests: 0,
+      overdueCount: 0
+    };
+
+    // Daily action tracking
+    this.actionsToday = 0;
+    this.maxActionsPerDay = 5;
+    this.categoriesUsedToday = new Set();
 
     // Set categories per persona
     this._initCategories();
@@ -108,7 +131,12 @@ class GameEngine {
       micromanagerLevel: saveData.micromanagerLevel ?? 50,
       employeeSatisfaction: saveData.employeeSatisfaction ?? 70,
       cultureEvents: saveData.cultureEvents || [],
-      debtStructure: saveData.debtStructure || { totalDebt: 0, debtRate: 6.0, equityInvestors: 0, equityGiven: 0 }
+      debtStructure: saveData.debtStructure || { totalDebt: 0, debtRate: 6.0, equityInvestors: 0, equityGiven: 0 },
+      interpersonal: saveData.interpersonal || { activeRequests: [], relationships: [], completedRequests: 0, overdueCount: 0 },
+      marketDataMode: saveData.marketDataMode || 'simulated',
+      actionsToday: saveData.actionsToday || 0,
+      maxActionsPerDay: 5,
+      categoriesUsedToday: new Set(saveData.categoriesUsedToday || [])
     });
     this.generator = new ScenarioGenerator();
     this.generator.restore(saveData.generatorHashes || []);
@@ -144,6 +172,10 @@ class GameEngine {
       cultureEvents: this.cultureEvents,
       debtStructure: { ...this.debtStructure },
       marketData: this.marketTracker ? this.marketTracker.export() : null,
+      interpersonal: JSON.parse(JSON.stringify(this.interpersonal)),
+      marketDataMode: this.marketDataMode,
+      actionsToday: this.actionsToday,
+      categoriesUsedToday: [...(this.categoriesUsedToday || [])],
       savedAt: new Date().toISOString()
     };
   }
@@ -268,8 +300,13 @@ class GameEngine {
   // ---- DAY ADVANCE ----
   advanceDay() {
     this.day++;
+    // Reset daily tracking
+    this.actionsToday = 0;
+    this.categoriesUsedToday = new Set();
     // Advance market prices
     if (this.marketTracker) this.marketTracker.tick(this.day);
+    // Tick interpersonal dynamics
+    this._tickInterpersonal();
     // Debt service
     const debtPayment = this.getDebtService();
     if (debtPayment > 0) {
@@ -332,25 +369,51 @@ class GameEngine {
 
   // ---- SCENARIO GENERATION ----
   getNextScenario() {
+    // Check daily action limit — force day advance after 5 actions
+    if (this.actionsToday >= this.maxActionsPerDay) {
+      return null; // triggers "End of Day" in app.js
+    }
+
     // Every 5 days: commentary with business summary
-    if (this.day % 5 === 0) {
+    if (this.day % 5 === 0 && this.actionsToday === 0) {
+      this.actionsToday++;
       return { type: 'commentary', scenario: this._buildCommentary() };
     }
 
     // Life events
-    if (this.generator.shouldTriggerLifeEvent(this.day)) {
+    if (this.generator.shouldTriggerLifeEvent(this.day) && !this.categoriesUsedToday.has('life')) {
+      this.actionsToday++;
+      this.categoriesUsedToday.add('life');
       const lifeScenario = this.generator.generateLifeEvent(this.persona, this.day, this.state);
       return { type: 'decision', scenario: lifeScenario };
     }
 
     // Culture events (every 8 days after day 6)
-    if (this.day > 6 && this.day % 8 === 0) {
+    if (this.day > 6 && this.day % 8 === 0 && !this.categoriesUsedToday.has('culture')) {
+      this.actionsToday++;
+      this.categoriesUsedToday.add('culture');
       return { type: 'culture', scenario: this._buildCultureEvent() };
     }
 
-    // Regular scenario from procedural generator
-    const category = this.categories[this.catPointer % this.categories.length];
-    this.catPointer++;
+    // Interpersonal dependency events — show pending requests that need resolution
+    const urgentReqs = (this.interpersonal?.activeRequests || []).filter(r => !r.resolved);
+    if (urgentReqs.length > 0 && Math.random() < 0.35 && !this.categoriesUsedToday.has('dependency')) {
+      this.actionsToday++;
+      this.categoriesUsedToday.add('dependency');
+      return { type: 'decision', scenario: this._buildDependencyScenario(urgentReqs[0]) };
+    }
+
+    // Regular scenario — pick a category not yet used today
+    let category;
+    let attempts = 0;
+    do {
+      category = this.categories[this.catPointer % this.categories.length];
+      this.catPointer++;
+      attempts++;
+    } while (this.categoriesUsedToday.has(category) && attempts < this.categories.length * 2);
+
+    this.actionsToday++;
+    this.categoriesUsedToday.add(category);
     const scenario = this.generator.generate(this.persona, this.day, category, this.state);
     return { type: 'decision', scenario };
   }
@@ -528,6 +591,42 @@ class GameEngine {
     };
   }
 
+  // ---- DEPENDENCY SCENARIO ----
+  _buildDependencyScenario(req) {
+    const elapsed = this.day - req.dayIssued;
+    const overdue = elapsed > req.deadline;
+    const urgencyLabel = req.urgency === 'high' ? 'URGENT' : req.urgency === 'medium' ? 'Important' : 'Routine';
+
+    return {
+      title: `${urgencyLabel}: ${req.from} Needs You`,
+      description: `${req.task}. ${overdue ? 'This is overdue — they\'ve been waiting ' + elapsed + ' days.' : 'You have ' + (req.deadline - elapsed) + ' day(s) to respond.'}`,
+      isDependencyEvent: true,
+      requestIndex: this.interpersonal.activeRequests.indexOf(req),
+      options: [
+        {
+          label: 'Handle it now — thorough response',
+          detail: `Drop what you\'re doing and give ${req.from.split(' ')[0]} a complete answer. Shows respect and builds trust.`,
+          effect: { score: overdue ? 4 : 8, satisfaction: -3 }
+        },
+        {
+          label: 'Quick response — good enough',
+          detail: `Give a fast, adequate answer. Not your best work but they can move forward. Balances your time.`,
+          effect: { score: overdue ? 2 : 6, knowledge: 2 }
+        },
+        {
+          label: 'Delegate to someone else',
+          detail: `Ask a team member to handle it. Frees your time but ${req.from.split(' ')[0]} wanted YOUR input specifically.`,
+          effect: { score: 3, satisfaction: 2 }
+        },
+        {
+          label: 'Push back — not a priority right now',
+          detail: `${overdue ? 'They\'ve already waited too long for this.' : 'Tell them you\'ll get to it later.'} Risk: frustration and trust damage.`,
+          effect: { score: 1, satisfaction: 5 }
+        }
+      ]
+    };
+  }
+
   // ---- SELL-OFF ----
   canSellOff() {
     return this.getCareerProgress() >= 75 && !this.soldOff;
@@ -587,5 +686,113 @@ class GameEngine {
 
   getMoney() {
     return '$' + this.state.money.toLocaleString();
+  }
+
+  // ---- INTERPERSONAL DYNAMICS ----
+  _initRelationships(persona) {
+    const pools = {
+      farmer: [
+        { name: 'Dale (Ranch Hand)', role: 'direct report', trust: 65 },
+        { name: 'Maria (Bookkeeper)', role: 'support', trust: 70 },
+        { name: 'Earl (Neighbor)', role: 'peer', trust: 55 }
+      ],
+      banker: [
+        { name: 'Sarah (Analyst)', role: 'direct report', trust: 65 },
+        { name: 'Mike (Compliance)', role: 'peer', trust: 60 },
+        { name: 'Rachel (Teller Lead)', role: 'direct report', trust: 70 }
+      ],
+      businessman: [
+        { name: 'Alex (Associate)', role: 'direct report', trust: 65 },
+        { name: 'Priya (Contractor)', role: 'vendor', trust: 55 },
+        { name: 'Chris (Partner)', role: 'peer', trust: 60 }
+      ]
+    };
+    return pools[persona] || [];
+  }
+
+  _generateDependencyRequest() {
+    const requestPools = {
+      farmer: [
+        { from: 'Dale (Ranch Hand)', task: 'Needs approval on equipment repair estimate', urgency: 'high', deadline: 2 },
+        { from: 'Maria (Bookkeeper)', task: 'Waiting on invoice sign-off for supplier payment', urgency: 'medium', deadline: 3 },
+        { from: 'Earl (Neighbor)', task: 'Wants your input on shared irrigation schedule', urgency: 'low', deadline: 5 },
+        { from: 'Co-op Manager', task: 'Needs your vote on bulk seed order by end of week', urgency: 'medium', deadline: 3 },
+        { from: 'Dale (Ranch Hand)', task: 'Fence section down — livestock at risk, needs direction', urgency: 'high', deadline: 1 },
+        { from: 'Maria (Bookkeeper)', task: 'Tax filing needs your review before submission', urgency: 'high', deadline: 2 }
+      ],
+      banker: [
+        { from: 'Sarah (Analyst)', task: 'Loan package ready for your credit decision', urgency: 'high', deadline: 2 },
+        { from: 'Mike (Compliance)', task: 'BSA report needs supervisor sign-off', urgency: 'high', deadline: 1 },
+        { from: 'Rachel (Teller Lead)', task: 'Customer escalation waiting for your call-back', urgency: 'medium', deadline: 2 },
+        { from: 'Sarah (Analyst)', task: 'Needs guidance on covenant waiver request', urgency: 'medium', deadline: 3 },
+        { from: 'IT Department', task: 'System access approval pending for new hire', urgency: 'low', deadline: 4 },
+        { from: 'Mike (Compliance)', task: 'Audit response due — your section is outstanding', urgency: 'high', deadline: 2 }
+      ],
+      businessman: [
+        { from: 'Alex (Associate)', task: 'Client proposal deck needs your final review', urgency: 'high', deadline: 2 },
+        { from: 'Priya (Contractor)', task: 'Deliverable scope needs your clarification', urgency: 'medium', deadline: 3 },
+        { from: 'Chris (Partner)', task: 'Joint venture term sheet needs your comments', urgency: 'high', deadline: 2 },
+        { from: 'Alex (Associate)', task: 'Waiting on your intro to the prospect contact', urgency: 'medium', deadline: 3 },
+        { from: 'Accounting', task: 'Expense report approval holding up reimbursements', urgency: 'low', deadline: 5 },
+        { from: 'Chris (Partner)', task: 'Board meeting prep — needs your section by tomorrow', urgency: 'high', deadline: 1 }
+      ]
+    };
+    const pool = requestPools[this.persona] || [];
+    const template = pool[Math.floor(Math.random() * pool.length)];
+    return { ...template, dayIssued: this.day, resolved: false };
+  }
+
+  _tickInterpersonal() {
+    if (!this.interpersonal) return;
+
+    // Chance to generate new request (higher at lower levels)
+    const levelIdx = this.getLevelIndex();
+    const requestChance = levelIdx <= 1 ? 0.4 : levelIdx <= 3 ? 0.25 : 0.15;
+    if (this.interpersonal.activeRequests.length < 3 && Math.random() < requestChance) {
+      this.interpersonal.activeRequests.push(this._generateDependencyRequest());
+    }
+
+    // Check for overdue requests and apply penalties
+    this.interpersonal.activeRequests.forEach(req => {
+      if (!req.resolved) {
+        const elapsed = this.day - req.dayIssued;
+        if (elapsed > req.deadline && !req.penaltyApplied) {
+          req.penaltyApplied = true;
+          this.interpersonal.overdueCount++;
+          // Score penalty for slow response — scaled by urgency
+          const penalty = req.urgency === 'high' ? 8 : req.urgency === 'medium' ? 4 : 2;
+          this.totalScore = Math.max(0, this.totalScore - penalty);
+          this.scores.decisions = Math.max(0, this.scores.decisions - penalty);
+          // Trust hit on the person who asked
+          const rel = this.interpersonal.relationships.find(r => req.from.includes(r.name.split(' ')[0]));
+          if (rel) rel.trust = Math.max(10, rel.trust - 5);
+          this.addLog(`${req.from} is frustrated — you didn't respond in time. (-${penalty} pts)`);
+        }
+      }
+    });
+
+    // Clean up old resolved requests
+    this.interpersonal.activeRequests = this.interpersonal.activeRequests.filter(
+      r => !r.resolved || (this.day - r.dayIssued) < 10
+    );
+  }
+
+  resolveRequest(index, quality) {
+    const req = this.interpersonal.activeRequests[index];
+    if (!req) return;
+    req.resolved = true;
+    this.interpersonal.completedRequests++;
+
+    const elapsed = this.day - req.dayIssued;
+    const onTime = elapsed <= req.deadline;
+    const bonus = onTime ? (req.urgency === 'high' ? 6 : 4) : 1;
+    this.totalScore += bonus;
+    this.scores.decisions += bonus;
+
+    // Trust boost
+    const rel = this.interpersonal.relationships.find(r => req.from.includes(r.name.split(' ')[0]));
+    if (rel) rel.trust = Math.min(100, rel.trust + (onTime ? 5 : 2));
+
+    this.addLog(`Responded to ${req.from}${onTime ? ' on time' : ' (late)'}: +${bonus} pts`);
   }
 }
