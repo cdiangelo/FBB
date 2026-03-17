@@ -10,12 +10,44 @@
 </head>
 <body>
   <div id="app">
-    <!-- TITLE SCREEN -->
-    <div id="screen-title" class="screen active">
-      <div class="title-container">
+    <!-- PROFILE SCREEN -->
+    <div id="screen-profile" class="screen active">
+      <div class="profile-container">
         <h1 class="game-title">FBB</h1>
         <p class="game-subtitle">Farmer &bull; Banker &bull; Businessman</p>
         <p class="game-tagline">Three paths. One truth: business is business.</p>
+        <div class="profile-form" id="profile-form">
+          <input type="text" id="profile-name" class="profile-input" placeholder="Enter your name" maxlength="30" autocomplete="off">
+          <button class="btn-primary btn-lg" id="profile-submit">Start Playing</button>
+        </div>
+        <div class="profile-returning" id="profile-returning" style="display:none">
+          <p class="returning-msg" id="returning-msg"></p>
+          <button class="btn-primary btn-lg" id="profile-continue">Continue</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TITLE SCREEN -->
+    <div id="screen-title" class="screen">
+      <div class="title-container">
+        <div class="title-header">
+          <span class="player-name" id="player-name-display"></span>
+        </div>
+        <h1 class="game-title">FBB</h1>
+        <p class="game-subtitle">Farmer &bull; Banker &bull; Businessman</p>
+        <p class="game-tagline">Three paths. One truth: business is business.</p>
+
+        <div class="game-options" id="game-options">
+          <div class="option-toggle">
+            <label class="toggle-label">
+              <input type="checkbox" id="toggle-satisfaction">
+              <span class="toggle-switch"></span>
+              <span class="toggle-text">Include Personal Satisfaction in scoring</span>
+            </label>
+            <p class="toggle-hint">When off, satisfaction is tracked and visible but doesn't affect your grade.</p>
+          </div>
+        </div>
+
         <div class="persona-select">
           <div class="persona-card" data-persona="farmer">
             <div class="persona-icon">
@@ -60,14 +92,18 @@
       <div class="game-layout">
         <!-- TOP BAR -->
         <div class="top-bar">
-          <button class="btn-back" id="btn-back">← Menu</button>
+          <button class="btn-back" id="btn-back">&larr; Menu</button>
           <div class="status-bar">
             <span class="status-persona" id="status-persona"></span>
             <span class="status-day" id="status-day">Day 1</span>
             <span class="status-money" id="status-money">$0</span>
             <span class="status-level" id="status-level">Entry Level</span>
+            <span class="status-satisfaction" id="status-satisfaction" title="Personal / Family Satisfaction">&#9829; 50</span>
           </div>
-          <button class="btn-save" id="btn-save">Save</button>
+          <div class="top-bar-actions">
+            <button class="btn-sell" id="btn-sell" style="display:none">Sell-Off</button>
+            <button class="btn-save" id="btn-save">Save</button>
+          </div>
         </div>
 
         <!-- MAIN CONTENT AREA -->
@@ -86,7 +122,7 @@
             <div class="journey-stats" id="journey-stats"></div>
           </div>
 
-          <!-- TASK PANEL (center) -->
+          <!-- TASK PANEL (center) — fixed header, scrolling options -->
           <div class="task-panel">
             <div class="scene-display" id="scene-display">
               <div class="robot-bg" id="robot-bg"></div>
@@ -108,11 +144,19 @@
               </div>
             </div>
 
-            <div class="task-content" id="task-content">
-              <div class="task-header" id="task-header">
+            <!-- FIXED task header -->
+            <div class="task-header-fixed" id="task-header-fixed">
+              <div class="task-header">
                 <h2 id="task-title">Welcome</h2>
                 <p id="task-description">Select a task to begin your day.</p>
               </div>
+              <div class="task-market-ticker" id="task-market-ticker"></div>
+              <div class="task-data-table" id="task-data-table"></div>
+              <div class="task-biz-summary" id="task-biz-summary"></div>
+            </div>
+
+            <!-- SCROLLABLE task options/actions -->
+            <div class="task-scroll-area" id="task-scroll-area">
               <div class="task-body" id="task-body"></div>
               <div class="task-actions" id="task-actions"></div>
             </div>
@@ -130,6 +174,23 @@
               </div>
               <div class="score-breakdown" id="score-breakdown"></div>
             </div>
+            <div class="satisfaction-display" id="satisfaction-display">
+              <h3>Life Balance <span class="sat-toggle-indicator" id="sat-toggle-indicator"></span></h3>
+              <div class="sat-bar-container">
+                <div class="sat-bar" id="sat-bar"><div class="sat-bar-fill" id="sat-bar-fill"></div></div>
+                <span class="sat-value" id="sat-value">50</span>
+              </div>
+              <div class="sat-label" id="sat-label">Balanced</div>
+            </div>
+            <div class="culture-display" id="culture-display">
+              <h3>Workforce</h3>
+              <div class="culture-micro" id="culture-micro">
+                <span class="micro-label">Management Style</span>
+                <div class="micro-bar"><div class="micro-fill" id="micro-fill"></div></div>
+                <div class="micro-labels"><span>Hands-off</span><span>Hands-on</span></div>
+              </div>
+              <div class="emp-sat" id="emp-sat"></div>
+            </div>
             <div class="activity-log">
               <h3>Activity Log</h3>
               <div class="log-entries" id="log-entries"></div>
@@ -139,11 +200,17 @@
       </div>
     </div>
 
-    <!-- NOTIFICATION OVERLAY -->
+    <!-- CELEBRATION OVERLAY -->
+    <div class="celebration-overlay" id="celebration-overlay" style="display:none">
+      <div class="celebration-content" id="celebration-content"></div>
+    </div>
+
+    <!-- NOTIFICATION -->
     <div class="notification" id="notification"></div>
   </div>
 
   <script src="/js/gameData.js"></script>
+  <script src="/js/scenarioGenerator.js"></script>
   <script src="/js/engine.js"></script>
   <script src="/js/app.js"></script>
 </body>

@@ -1,5 +1,5 @@
 /* ============================================
-   FBB - ANIMATIONS (Robot Design System)
+   FBB - ANIMATIONS v2
    ============================================ */
 
 @keyframes titlePulse {
@@ -32,17 +32,6 @@
   50% { opacity: .7; }
 }
 
-@keyframes desertShimmer {
-  0% { opacity: .4; transform: translateX(0) scaleY(1); }
-  50% { opacity: .65; transform: translateX(2px) scaleY(1.01); }
-  100% { opacity: .4; transform: translateX(-1px) scaleY(.99); }
-}
-
-@keyframes genieFloat {
-  0%, 100% { transform: translateX(-50%) translateY(0); }
-  50% { transform: translateX(-50%) translateY(-8px); }
-}
-
 @keyframes typingArm {
   0%, 100% { transform: rotate(0deg) translateY(0); }
   25% { transform: rotate(-8deg) translateY(2px); }
@@ -67,7 +56,7 @@
 .robot-working .desk-light { animation: deskLightPulse 3s ease-in-out infinite; }
 
 /* Task content animations */
-.task-content { animation: fadeInUp .4s ease; }
+.task-scroll-area { animation: fadeInUp .4s ease; }
 .option-btn { animation: fadeInUp .3s ease backwards; }
 .option-btn:nth-child(1) { animation-delay: .05s; }
 .option-btn:nth-child(2) { animation-delay: .1s; }
@@ -75,10 +64,68 @@
 .option-btn:nth-child(4) { animation-delay: .2s; }
 
 /* Progress bar animation */
-@keyframes progressFill {
-  from { width: 0; }
-}
+@keyframes progressFill { from { width: 0; } }
 .score-bar-fill { animation: progressFill .8s ease; }
 
-/* Card hover ripple */
+/* Card hover */
 .persona-card { transition: all .3s cubic-bezier(.4, 0, .2, 1); }
+
+/* ===============================
+   CELEBRATION ANIMATIONS
+   =============================== */
+@keyframes celebrationEntry {
+  0% { opacity: 0; transform: scale(.3) rotate(-10deg); }
+  50% { transform: scale(1.05) rotate(2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+@keyframes confettiFall {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+
+@keyframes celebrationGlow {
+  0%, 100% { text-shadow: 0 0 20px currentColor, 0 0 40px currentColor; }
+  50% { text-shadow: 0 0 40px currentColor, 0 0 80px currentColor, 0 0 120px currentColor; }
+}
+
+@keyframes starBurst {
+  0% { transform: scale(0) rotate(0deg); opacity: 0; }
+  50% { transform: scale(1.2) rotate(180deg); opacity: 1; }
+  100% { transform: scale(1) rotate(360deg); opacity: 1; }
+}
+
+/* 75% celebration — moderate */
+.celebration-75 .celebration-icon {
+  animation: starBurst 1s ease forwards;
+}
+.celebration-75 .celebration-title {
+  animation: celebrationGlow 2s ease-in-out infinite;
+}
+
+/* 100% celebration — grand finale */
+.celebration-100 .celebration-icon {
+  animation: starBurst 1.2s ease forwards;
+  font-size: 8rem !important;
+}
+.celebration-100 .celebration-title {
+  animation: celebrationGlow 1.5s ease-in-out infinite;
+  font-size: 3.5rem !important;
+}
+
+/* Confetti colors per persona */
+.confetti.farmer { background: #4CAF50; }
+.confetti.farmer:nth-child(2n) { background: #8BC34A; }
+.confetti.farmer:nth-child(3n) { background: #CDDC39; }
+.confetti.farmer:nth-child(5n) { background: #FDD835; }
+
+.confetti.banker { background: #1565C0; }
+.confetti.banker:nth-child(2n) { background: #42A5F5; }
+.confetti.banker:nth-child(3n) { background: #90CAF9; }
+.confetti.banker:nth-child(5n) { background: #FFD54F; }
+
+.confetti.businessman { background: #FF8F00; }
+.confetti.businessman:nth-child(2n) { background: #FFA726; }
+.confetti.businessman:nth-child(3n) { background: #FFD54F; }
+.confetti.businessman:nth-child(5n) { background: #E65100; }
