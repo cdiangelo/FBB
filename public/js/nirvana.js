@@ -252,6 +252,17 @@ function nirvanaDraw() {
 function nirvanaClick() {
   // Universal back button check for ALL game states (not hub)
   if (_nirvanaState !== 'hub' && _nirvanaMouse.x < 70 && _nirvanaMouse.y > 455) {
+    // If theater split is active and we're in a sub-game, go back to theater hub
+    if (_movies && _movies._theaterSplit && _nirvanaState !== 'movies') {
+      _nirvanaState = 'movies';
+      _saveClubBalance();
+      return;
+    }
+    // If in movies state with theater split active, close theater via Exit button (not back)
+    if (_movies && _movies._theaterSplit && _nirvanaState === 'movies') {
+      _exitTheaterSplitScreen();
+      return;
+    }
     _removeYoutubeEmbed();
     _nirvanaState = 'hub';
     _saveClubBalance();
@@ -1100,42 +1111,97 @@ function _extractYoutubeId(url) {
 
 function _showYoutubeEmbed(videoId) {
   _removeYoutubeEmbed();
+  _enterTheaterSplitScreen(videoId);
+}
+
+// ---- THEATER SPLIT-SCREEN LAYOUT ----
+// Left half: theater pane (video + popcorn persona below)
+// Right half: hub canvas (with Movie Theater greyed out)
+function _enterTheaterSplitScreen(videoId) {
   const wrapper = document.querySelector('.nirvana-wrapper');
   if (!wrapper) return;
-  // Split-screen container: video on left, canvas (hub) on right
+  // Hide the controls row during split
+  const controls = wrapper.querySelector('.nirvana-controls');
+  if (controls) controls.style.display = 'none';
+  // Create split container
   const splitDiv = document.createElement('div');
   splitDiv.id = 'nirvana-theater-split';
-  splitDiv.style.cssText = 'display:flex;gap:8px;width:100%;max-width:850px;align-items:flex-start;';
-  // Video column (left)
-  const videoCol = document.createElement('div');
-  videoCol.style.cssText = 'flex:1;display:flex;flex-direction:column;gap:6px;';
-  const iframe = document.createElement('iframe');
-  iframe.id = 'nirvana-youtube';
-  iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
-  iframe.allow = 'autoplay; encrypted-media';
-  iframe.allowFullscreen = true;
-  iframe.style.cssText = 'width:100%;aspect-ratio:16/9;border:2px solid rgba(255,213,79,.4);border-radius:6px;background:#000;';
-  videoCol.appendChild(iframe);
-  // Popcorn persona canvas (below video)
+  splitDiv.style.cssText = 'display:flex;gap:8px;width:100%;max-width:1100px;align-items:stretch;padding:0 .5rem;';
+  // ---- LEFT: Theater column ----
+  const theaterCol = document.createElement('div');
+  theaterCol.style.cssText = 'flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;';
+  // Video iframe (or classic movie canvas)
+  if (videoId) {
+    const iframe = document.createElement('iframe');
+    iframe.id = 'nirvana-youtube';
+    iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+    iframe.allow = 'autoplay; encrypted-media';
+    iframe.allowFullscreen = true;
+    iframe.style.cssText = 'width:100%;flex:1;min-height:200px;aspect-ratio:16/9;border:2px solid rgba(255,213,79,.3);border-radius:6px;background:#000;';
+    theaterCol.appendChild(iframe);
+  }
+  // Popcorn persona canvas (small, below video, never clipped)
   const popcornCanvas = document.createElement('canvas');
   popcornCanvas.id = 'nirvana-popcorn-canvas';
-  popcornCanvas.width = 400;
-  popcornCanvas.height = 120;
-  popcornCanvas.style.cssText = 'width:100%;border-radius:6px;background:#0a0a14;';
-  videoCol.appendChild(popcornCanvas);
+  popcornCanvas.width = 300;
+  popcornCanvas.height = 80;
+  popcornCanvas.style.cssText = 'width:100%;max-height:80px;border-radius:4px;background:#0a0a14;flex-shrink:0;';
+  theaterCol.appendChild(popcornCanvas);
+  // Opacity slider for theater pane
+  const sliderRow = document.createElement('div');
+  sliderRow.style.cssText = 'display:flex;align-items:center;gap:6px;padding:0 4px;flex-shrink:0;';
+  const sliderLabel = document.createElement('span');
+  sliderLabel.textContent = 'Opacity';
+  sliderLabel.style.cssText = 'color:#888;font-size:10px;white-space:nowrap;';
+  const slider = document.createElement('input');
+  slider.type = 'range'; slider.min = '0.3'; slider.max = '1'; slider.step = '0.05'; slider.value = '1';
+  slider.style.cssText = 'flex:1;accent-color:#FFD54F;height:14px;';
+  slider.oninput = () => {
+    const v = parseFloat(slider.value);
+    const yt = document.getElementById('nirvana-youtube');
+    if (yt) yt.style.opacity = v;
+    const pc = document.getElementById('nirvana-popcorn-canvas');
+    if (pc) pc.style.opacity = v;
+  };
+  sliderRow.appendChild(sliderLabel);
+  sliderRow.appendChild(slider);
+  theaterCol.appendChild(sliderRow);
   // Close button
   const closeBtn = document.createElement('button');
-  closeBtn.textContent = 'Close Video';
-  closeBtn.style.cssText = 'background:#e53935;color:#fff;border:none;padding:6px 16px;border-radius:6px;cursor:pointer;font-weight:bold;font-size:12px;align-self:center;';
-  closeBtn.onclick = () => { _movies.youtubeActive = false; _popcornAnim.eating = false; _removeYoutubeEmbed(); };
-  videoCol.appendChild(closeBtn);
-  splitDiv.appendChild(videoCol);
-  // Insert before the canvas to share space
-  wrapper.style.position = 'relative';
-  wrapper.insertBefore(splitDiv, wrapper.firstChild);
+  closeBtn.textContent = 'Exit Theater';
+  closeBtn.style.cssText = 'background:#e53935;color:#fff;border:none;padding:5px 14px;border-radius:5px;cursor:pointer;font-weight:bold;font-size:11px;align-self:center;flex-shrink:0;';
+  closeBtn.onclick = () => { _exitTheaterSplitScreen(); };
+  theaterCol.appendChild(closeBtn);
+  splitDiv.appendChild(theaterCol);
+  // ---- RIGHT: Canvas (hub with movie greyed) ----
+  // The existing canvas stays, we just shrink it to 50%
+  const canvas = document.getElementById('nirvana-canvas');
+  if (canvas) canvas.style.maxWidth = '50%';
+  // Insert split before canvas
+  wrapper.insertBefore(splitDiv, canvas);
+  // Mark theater active and flag for hub drawing
+  _movies.youtubeActive = true;
+  _movies._theaterSplit = true;
   // Start popcorn animation
   _popcornAnim = { reclined: false, timer: 0, munchTimer: 0, eating: true };
   _animatePopcornCanvas();
+}
+
+function _exitTheaterSplitScreen() {
+  _movies.youtubeActive = false;
+  _movies._theaterSplit = false;
+  _popcornAnim.eating = false;
+  _removeYoutubeEmbed();
+  // Restore canvas and controls
+  const canvas = document.getElementById('nirvana-canvas');
+  if (canvas) canvas.style.maxWidth = '800px';
+  const wrapper = document.querySelector('.nirvana-wrapper');
+  if (wrapper) {
+    const controls = wrapper.querySelector('.nirvana-controls');
+    if (controls) controls.style.display = '';
+  }
+  // Return to hub
+  _nirvanaState = 'hub';
 }
 
 function _removeYoutubeEmbed() {
@@ -1144,112 +1210,103 @@ function _removeYoutubeEmbed() {
   const split = document.getElementById('nirvana-theater-split');
   if (split) split.remove();
   _popcornAnim.eating = false;
+  // Restore canvas width
+  const canvas = document.getElementById('nirvana-canvas');
+  if (canvas) canvas.style.maxWidth = '800px';
+  // Restore controls
+  const wrapper = document.querySelector('.nirvana-wrapper');
+  if (wrapper) {
+    const controls = wrapper.querySelector('.nirvana-controls');
+    if (controls) controls.style.display = '';
+  }
 }
 
-// ---- POPCORN PERSONA ANIMATION (below video pane) ----
+// ---- POPCORN PERSONA ANIMATION (small, below video pane) ----
 let _popcornRAF = null;
 function _animatePopcornCanvas() {
   const canvas = document.getElementById('nirvana-popcorn-canvas');
   if (!canvas || !_popcornAnim.eating) { _popcornRAF = null; return; }
   const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
+  const W = canvas.width, H = canvas.height; // 300x80
   ctx.clearRect(0, 0, W, H);
-  // Dark theater background
   ctx.fillStyle = '#0a0a14';
   ctx.fillRect(0, 0, W, H);
 
   _popcornAnim.timer++;
   const t = _popcornAnim.timer;
-  // Reclining transition
   const reclineProgress = Math.min(1, t / 40);
-  const tiltAngle = reclineProgress * 0.25; // slight backward tilt
+  const tiltAngle = reclineProgress * 0.15;
 
-  const cx = W / 2, baseY = H - 10;
+  const cx = W / 2, baseY = H - 2;
   const colors = { farmer: '#4CAF50', banker: '#1565C0', businessman: '#FF8F00' };
   const accent = colors[_nirvanaPersona] || '#FF8F00';
+  // Scale everything to fit 80px tall
+  const sc = 0.55;
 
   ctx.save();
   ctx.translate(cx, baseY);
+  ctx.scale(sc, sc);
   ctx.rotate(-tiltAngle);
 
-  // ---- Recliner chair (from behind) ----
-  // Chair base
+  // Recliner chair
   ctx.fillStyle = '#3a1a1a';
   roundRect(ctx, -35, -50, 70, 55, 8); ctx.fill();
-  // Chair back (tall, padded)
   ctx.fillStyle = '#4a2020';
   roundRect(ctx, -30, -95, 60, 50, 6); ctx.fill();
-  // Armrests
   ctx.fillStyle = '#3a1a1a';
   ctx.fillRect(-38, -70, 8, 40);
   ctx.fillRect(30, -70, 8, 40);
-  // Cushion stitching
   ctx.strokeStyle = '#5a3030'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(-10, -90); ctx.lineTo(-10, -50); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(10, -90); ctx.lineTo(10, -50); ctx.stroke();
 
-  // ---- Persona body (from behind) ----
-  // Torso/shoulders
+  // Persona (from behind)
   ctx.fillStyle = accent;
   roundRect(ctx, -22, -105, 44, 30, 4); ctx.fill();
-  // Head (from behind — hair/back of head)
   ctx.fillStyle = _nirvanaSkin;
   ctx.beginPath(); ctx.arc(0, -120, 16, 0, Math.PI * 2); ctx.fill();
-  // Back of hair
   ctx.fillStyle = darkenColor(_nirvanaSkin, 0.7);
   ctx.beginPath(); ctx.arc(0, -123, 14, Math.PI * 1.1, Math.PI * 1.9); ctx.fill();
-  // Ears (tiny from behind view)
   ctx.fillStyle = _nirvanaSkin;
   ctx.beginPath(); ctx.arc(-15, -118, 4, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.arc(15, -118, 4, 0, Math.PI * 2); ctx.fill();
 
-  // ---- Popcorn bucket (right hand on armrest) ----
+  // Popcorn bucket
   const munchCycle = Math.sin(t * 0.15) * 3;
-  // Bucket
   ctx.fillStyle = '#e53935';
   ctx.beginPath();
   ctx.moveTo(28, -85); ctx.lineTo(22, -60);
   ctx.lineTo(42, -60); ctx.lineTo(38, -85);
   ctx.closePath(); ctx.fill();
-  // Stripes on bucket
   ctx.fillStyle = '#fff';
-  ctx.fillRect(27, -80, 2, 18);
-  ctx.fillRect(32, -80, 2, 18);
-  ctx.fillRect(37, -80, 2, 18);
-  // Popcorn kernels on top
+  ctx.fillRect(27, -80, 2, 18); ctx.fillRect(32, -80, 2, 18); ctx.fillRect(37, -80, 2, 18);
   const kernelY = -87 + munchCycle * 0.3;
   ctx.fillStyle = '#FFF9C4';
   ctx.beginPath(); ctx.arc(29, kernelY, 3, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.arc(33, kernelY - 2, 3.5, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.arc(37, kernelY, 2.5, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(31, kernelY - 4, 2, 0, Math.PI * 2); ctx.fill();
 
-  // Hand reaching into popcorn (animated munching)
+  // Munching hand
   if (t > 30) {
     _popcornAnim.munchTimer++;
-    const mt = _popcornAnim.munchTimer;
-    const handUp = Math.sin(mt * 0.08) > 0.3;
+    const handUp = Math.sin(_popcornAnim.munchTimer * 0.08) > 0.3;
+    ctx.fillStyle = _nirvanaSkin;
     if (handUp) {
-      // Hand up near mouth
-      ctx.fillStyle = _nirvanaSkin;
       ctx.beginPath(); ctx.arc(-5, -110 + munchCycle, 5, 0, Math.PI * 2); ctx.fill();
     } else {
-      // Hand at popcorn bucket
-      ctx.fillStyle = _nirvanaSkin;
       ctx.beginPath(); ctx.arc(30, -82 + munchCycle, 5, 0, Math.PI * 2); ctx.fill();
     }
   }
-
   ctx.restore();
 
-  // Ambient glow from screen onto persona
+  // Screen glow
   ctx.save();
-  ctx.globalAlpha = 0.15 + Math.sin(t * 0.05) * 0.05;
-  const screenGlow = ctx.createLinearGradient(0, 0, 0, H);
-  screenGlow.addColorStop(0, 'rgba(100,150,255,.3)');
-  screenGlow.addColorStop(1, 'transparent');
-  ctx.fillStyle = screenGlow;
-  ctx.fillRect(0, 0, W, H * 0.4);
+  ctx.globalAlpha = 0.12 + Math.sin(t * 0.05) * 0.04;
+  const glow = ctx.createLinearGradient(0, 0, 0, H);
+  glow.addColorStop(0, 'rgba(100,150,255,.25)');
+  glow.addColorStop(1, 'transparent');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H * 0.3);
   ctx.restore();
 
   _popcornRAF = requestAnimationFrame(_animatePopcornCanvas);
@@ -1258,7 +1315,8 @@ function _animatePopcornCanvas() {
 function moviesClick() {
   const m = _movies;
   if (m.youtubeActive) {
-    // Close handled by DOM button; canvas click does nothing while youtube active
+    // In theater split: canvas shows hub — forward clicks to hub logic
+    _theaterHubClick();
     return;
   }
   if (m.watching) {
@@ -1275,6 +1333,8 @@ function moviesClick() {
       if (vid) {
         m.youtubeActive = true;
         _showYoutubeEmbed(vid);
+        // Switch to hub so canvas draws the club
+        _nirvanaState = 'movies'; // stay in movies state but draw hub
       }
     }
     m.inputFocused = false;
@@ -1292,6 +1352,117 @@ function moviesClick() {
     m.watching = true;
     m.watchTimer = 0;
   }
+}
+
+// When in theater split-screen, the canvas shows a fully functional hub
+// where you can walk around and enter other games (except Movie Theater which is greyed)
+function _theaterHubClick() {
+  // Light toggle
+  const toggleX = 620, toggleY = 460, toggleW = 50, toggleH = 18;
+  if (_nirvanaMouse.x >= toggleX && _nirvanaMouse.x <= toggleX + toggleW &&
+      _nirvanaMouse.y >= toggleY && _nirvanaMouse.y <= toggleY + toggleH) {
+    _clubLightsOn = !_clubLightsOn;
+    return;
+  }
+  // Opacity slider
+  if (_clubLightsOn && _nirvanaMouse.x >= 680 && _nirvanaMouse.x <= 760 &&
+      _nirvanaMouse.y >= 455 && _nirvanaMouse.y <= 480) {
+    _clubLightOpacity = Math.max(0.03, Math.min(0.6, ((_nirvanaMouse.x - 680) / 80) * 0.6));
+    return;
+  }
+  // Click a hub location (except movies which is greyed out)
+  for (const loc of HUB_LOCATIONS) {
+    if (loc.id === 'movies') continue; // greyed out
+    if (_nirvanaMouse.x >= loc.x && _nirvanaMouse.x <= loc.x + loc.w && _nirvanaMouse.y >= loc.y && _nirvanaMouse.y <= loc.y + loc.h) {
+      // Launch game but keep theater split active
+      _nirvanaState = loc.id;
+      if (loc.id === 'pool') initPool();
+      else if (loc.id === 'blackjack') initBlackjack();
+      else if (loc.id === 'horses') initHorses();
+      else if (loc.id === 'putt') initPutt();
+      else if (loc.id === 'skeeball') initSkeeball();
+      return;
+    }
+  }
+}
+
+// Draw the hub during theater split-screen with Movie Theater greyed out
+function _drawTheaterHub(ctx) {
+  // Update hub player movement
+  updateHub();
+  // Floor
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 28, 800, 472);
+  for (let i = 0; i < 800; i += 40) {
+    for (let j = 28; j < 500; j += 40) {
+      ctx.fillStyle = (Math.floor(i / 40) + Math.floor(j / 40)) % 2 === 0 ? '#1e1e36' : '#1a1a2e';
+      ctx.fillRect(i, j, 40, 40);
+    }
+  }
+  ctx.fillStyle = '#22223a'; ctx.fillRect(0, 28, 800, 50);
+  ctx.fillStyle = '#2a2a48'; ctx.fillRect(0, 28, 800, 4);
+
+  // Locations — movies greyed out
+  for (const loc of HUB_LOCATIONS) {
+    const isMovies = loc.id === 'movies';
+    const hovered = !isMovies && _hubPrompt === loc;
+    ctx.fillStyle = isMovies ? 'rgba(80,80,80,.3)' : (hovered ? loc.color : darkenColor(loc.color, 0.6));
+    ctx.strokeStyle = isMovies ? '#333' : (hovered ? '#FFD54F' : '#555');
+    ctx.lineWidth = hovered ? 3 : 1;
+    roundRect(ctx, loc.x, loc.y, loc.w, loc.h, 10);
+    ctx.fill(); ctx.stroke();
+    ctx.font = '28px sans-serif'; ctx.textAlign = 'center';
+    ctx.globalAlpha = isMovies ? 0.3 : 1;
+    ctx.fillText(loc.icon, loc.x + loc.w / 2, loc.y + loc.h / 2 + 2);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = isMovies ? '#666' : '#fff';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillText(isMovies ? 'Theater (Active)' : loc.label, loc.x + loc.w / 2, loc.y + loc.h + 16);
+  }
+
+  // Player
+  const pColors = { farmer: '#4CAF50', banker: '#1565C0', businessman: '#FF8F00' };
+  drawMiniPerson(ctx, _hubPlayer.x, _hubPlayer.y, 30, _nirvanaSkin, pColors[_nirvanaPersona], null);
+
+  // Prompt
+  if (_hubPrompt && _hubPrompt.id !== 'movies') {
+    ctx.fillStyle = 'rgba(0,0,0,.7)';
+    roundRect(ctx, 250, 450, 300, 35, 8); ctx.fill();
+    ctx.fillStyle = '#FFD54F'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(`Press ENTER or Click to enter ${_hubPrompt.label}`, 400, 472);
+  }
+
+  // Light toggle + slider (same as hub)
+  const toggleX = 620, toggleY = 460, toggleW = 50, toggleH = 18;
+  ctx.fillStyle = _clubLightsOn ? 'rgba(180,60,220,.6)' : 'rgba(255,255,255,.1)';
+  roundRect(ctx, toggleX, toggleY, toggleW, toggleH, 9); ctx.fill();
+  const knobX = _clubLightsOn ? toggleX + toggleW - 11 : toggleX + 11;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(knobX, toggleY + 9, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#aaa'; ctx.font = '9px sans-serif'; ctx.textAlign = 'right';
+  ctx.fillText('Lights', toggleX - 6, toggleY + 13);
+  if (_clubLightsOn) {
+    const sliderX = 680, sliderY = toggleY + 5, sliderW = 80, sliderH = 8;
+    ctx.fillStyle = 'rgba(255,255,255,.1)';
+    roundRect(ctx, sliderX, sliderY, sliderW, sliderH, 4); ctx.fill();
+    const fillW = (_clubLightOpacity / 0.6) * sliderW;
+    const sliderGrad = ctx.createLinearGradient(sliderX, 0, sliderX + sliderW, 0);
+    sliderGrad.addColorStop(0, 'rgba(100,60,180,.4)');
+    sliderGrad.addColorStop(1, 'rgba(255,120,220,.8)');
+    ctx.fillStyle = sliderGrad;
+    roundRect(ctx, sliderX, sliderY, fillW, sliderH, 4); ctx.fill();
+    const thumbX = sliderX + fillW;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(thumbX, sliderY + 4, 6, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Theater mode label
+  ctx.fillStyle = 'rgba(255,213,79,.7)'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('THEATER MODE', 400, 58);
+  ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.font = '10px sans-serif';
+  ctx.fillText('Video playing \u2014 explore the club or enter other games', 400, 72);
+
+  drawBackButton(ctx);
 }
 
 function drawMovies(ctx) {
@@ -1338,15 +1509,9 @@ function drawMovies(ctx) {
     return;
   }
 
-  // YouTube active: show split-screen hub mini-view on canvas
+  // YouTube active: draw full functional hub with movies greyed out
   if (m.youtubeActive) {
-    // Draw a mini hub on the canvas side while video plays in DOM split
-    drawHub(ctx);
-    ctx.fillStyle = 'rgba(0,0,0,.5)';
-    roundRect(ctx, 200, 440, 400, 30, 6); ctx.fill();
-    ctx.fillStyle = '#FFD54F'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText('THEATER MODE \u2014 Video playing to the left', 400, 460);
-    drawBackButton(ctx);
+    _drawTheaterHub(ctx);
     return;
   }
 
