@@ -16,32 +16,44 @@ let _nirvanaMouse = { x: 0, y: 0, down: false, startX: 0, startY: 0 };
 let _nirvanaTouch = false;
 
 // ---- CLUB LIGHTING (DOM overlay — follows into all games) ----
-// Layered canvas architecture: separate overlay canvas composited on top
-// with proper save/restore isolation and globalAlpha management.
+// Fluid color blobs with transparent geometry patterns.
+// Uses floating orbs that drift/bounce + geometric wireframes that react to colors.
 let _clubLightsOn = true;
 let _clubLightOpacity = 0.25;
 let _clubLightTime = 0;
 let _clubLightOverlay = null; // DOM canvas element
-const CLUB_GRID_COLS = 4;
-const CLUB_GRID_ROWS = 3;
 const CLUB_LIGHT_COLORS = [
   [180, 60, 220], [60, 180, 255], [255, 120, 60],
   [100, 255, 140], [255, 200, 60], [220, 50, 120],
   [50, 220, 200], [255, 80, 180], [120, 80, 255],
   [255, 50, 50], [50, 255, 200], [200, 100, 255]
 ];
-// 4x3 grid cells, each with independent color transition state
-const CLUB_GRID = [];
-for (let row = 0; row < CLUB_GRID_ROWS; row++) {
-  for (let col = 0; col < CLUB_GRID_COLS; col++) {
-    CLUB_GRID.push({
-      col, row,
-      colorIdx: (row * CLUB_GRID_COLS + col) % CLUB_LIGHT_COLORS.length,
-      nextColorIdx: (row * CLUB_GRID_COLS + col + 5) % CLUB_LIGHT_COLORS.length,
-      blend: Math.random() * 0.5, // stagger start
-      speed: 0.003 + Math.random() * 0.005
-    });
-  }
+// Floating color orbs — each drifts around with gentle bouncy movement
+const CLUB_ORBS = [];
+for (let i = 0; i < 7; i++) {
+  CLUB_ORBS.push({
+    x: Math.random(), y: Math.random(), // normalized 0-1
+    vx: (Math.random() - 0.5) * 0.002,
+    vy: (Math.random() - 0.5) * 0.002,
+    r: 0.15 + Math.random() * 0.25, // radius as fraction of canvas
+    colorIdx: i % CLUB_LIGHT_COLORS.length,
+    nextColorIdx: (i + 4) % CLUB_LIGHT_COLORS.length,
+    blend: Math.random(),
+    speed: 0.003 + Math.random() * 0.004,
+    phase: Math.random() * Math.PI * 2 // for wobble
+  });
+}
+// Geometry pattern nodes — triangles/hexagons that respond to nearby orb colors
+const CLUB_GEO = [];
+for (let i = 0; i < 18; i++) {
+  CLUB_GEO.push({
+    x: Math.random(), y: Math.random(),
+    rot: Math.random() * Math.PI * 2,
+    rotSpeed: (Math.random() - 0.5) * 0.008,
+    size: 0.04 + Math.random() * 0.06,
+    sides: Math.random() > 0.5 ? 3 : 6, // triangles and hexagons
+    phase: Math.random() * Math.PI * 2
+  });
 }
 
 // ---- CPU OPPONENTS ----
@@ -76,9 +88,8 @@ function drawMiniPerson(ctx, x, y, size, skin, accent, label) {
 }
 
 // ---- CLUB LIGHT DOM OVERLAY ----
-// Layered canvas overlay stacked on top of everything (like a grid overlay canvas
-// in the reference arch). Renders at proper resolution with save/restore isolation,
-// globalAlpha management, grid lines for cubular definition, and screen blend.
+// Fluid color blobs that drift and merge + transparent geometry wireframes
+// that pick up nearby colors. No rigid grid — organic and bouncy.
 let _clubLightCanvas = null;
 const _OVERLAY_W = 480;
 const _OVERLAY_H = 320;
@@ -108,78 +119,103 @@ function _updateClubLightOverlay() {
 
   const ctx = _clubLightCanvas;
   const W = _OVERLAY_W, H = _OVERLAY_H;
-  const cellW = W / CLUB_GRID_COLS;
-  const cellH = H / CLUB_GRID_ROWS;
-
-  // Clear to transparent
   ctx.clearRect(0, 0, W, H);
 
-  // --- Render each grid cell with save/restore isolation ---
-  for (const cell of CLUB_GRID) {
-    // Advance color transition
-    cell.blend += cell.speed;
-    if (cell.blend >= 1) {
-      cell.blend = 0;
-      cell.colorIdx = cell.nextColorIdx;
+  // --- Pass 1: Fluid color orbs ---
+  for (const orb of CLUB_ORBS) {
+    // Advance color
+    orb.blend += orb.speed;
+    if (orb.blend >= 1) {
+      orb.blend = 0;
+      orb.colorIdx = orb.nextColorIdx;
       let next;
-      do { next = Math.floor(Math.random() * CLUB_LIGHT_COLORS.length); } while (next === cell.colorIdx);
-      cell.nextColorIdx = next;
+      do { next = Math.floor(Math.random() * CLUB_LIGHT_COLORS.length); } while (next === orb.colorIdx);
+      orb.nextColorIdx = next;
     }
+    // Bouncy drift with sine wobble
+    orb.phase += 0.012;
+    orb.x += orb.vx + Math.sin(orb.phase) * 0.0008;
+    orb.y += orb.vy + Math.cos(orb.phase * 0.7) * 0.0006;
+    // Bounce off edges (soft)
+    if (orb.x < -0.1) { orb.x = -0.1; orb.vx = Math.abs(orb.vx) * 0.8 + 0.0005; }
+    if (orb.x > 1.1) { orb.x = 1.1; orb.vx = -Math.abs(orb.vx) * 0.8 - 0.0005; }
+    if (orb.y < -0.1) { orb.y = -0.1; orb.vy = Math.abs(orb.vy) * 0.8 + 0.0005; }
+    if (orb.y > 1.1) { orb.y = 1.1; orb.vy = -Math.abs(orb.vy) * 0.8 - 0.0005; }
 
-    // Interpolate colors (smooth hermite ease)
-    const c1 = CLUB_LIGHT_COLORS[cell.colorIdx];
-    const c2 = CLUB_LIGHT_COLORS[cell.nextColorIdx];
-    const ease = cell.blend * cell.blend * (3 - 2 * cell.blend);
-    const r = Math.round(c1[0] + (c2[0] - c1[0]) * ease);
-    const g = Math.round(c1[1] + (c2[1] - c1[1]) * ease);
-    const b = Math.round(c1[2] + (c2[2] - c1[2]) * ease);
+    // Interpolate color
+    const c1 = CLUB_LIGHT_COLORS[orb.colorIdx];
+    const c2 = CLUB_LIGHT_COLORS[orb.nextColorIdx];
+    const ease = orb.blend * orb.blend * (3 - 2 * orb.blend);
+    const cr = Math.round(c1[0] + (c2[0] - c1[0]) * ease);
+    const cg = Math.round(c1[1] + (c2[1] - c1[1]) * ease);
+    const cb = Math.round(c1[2] + (c2[2] - c1[2]) * ease);
 
-    // Per-cell pulse for organic movement
-    const pulse = 0.8 + Math.sin(_clubLightTime * 0.02 + cell.col * 1.7 + cell.row * 2.5) * 0.2;
-    // Depth variation: center cells slightly brighter than edges
-    const cx = (cell.col + 0.5) / CLUB_GRID_COLS;
-    const cy = (cell.row + 0.5) / CLUB_GRID_ROWS;
-    const centerDist = Math.sqrt((cx - 0.5) ** 2 + (cy - 0.5) ** 2);
-    const depthFactor = 1 - centerDist * 0.25;
-
-    const x = cell.col * cellW;
-    const y = cell.row * cellH;
+    // Pulsing radius
+    const pulse = 0.85 + Math.sin(_clubLightTime * 0.018 + orb.phase) * 0.15;
+    const px = orb.x * W, py = orb.y * H;
+    const pr = orb.r * Math.max(W, H) * pulse;
 
     ctx.save();
-    // Set globalAlpha before drawing, will be reset by restore
-    ctx.globalAlpha = _clubLightOpacity * pulse * depthFactor;
-    ctx.globalCompositeOperation = 'source-over';
-
-    // Fill cell with radial gradient for soft inner glow
-    const grd = ctx.createRadialGradient(
-      x + cellW / 2, y + cellH / 2, 0,
-      x + cellW / 2, y + cellH / 2, Math.max(cellW, cellH) * 0.7
-    );
-    grd.addColorStop(0, `rgb(${r},${g},${b})`);
-    grd.addColorStop(0.6, `rgba(${r},${g},${b},0.7)`);
-    grd.addColorStop(1, `rgba(${r},${g},${b},0.15)`);
+    ctx.globalAlpha = _clubLightOpacity * pulse;
+    const grd = ctx.createRadialGradient(px, py, 0, px, py, pr);
+    grd.addColorStop(0, `rgba(${cr},${cg},${cb},1)`);
+    grd.addColorStop(0.4, `rgba(${cr},${cg},${cb},0.5)`);
+    grd.addColorStop(0.75, `rgba(${cr},${cg},${cb},0.12)`);
+    grd.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
     ctx.fillStyle = grd;
-    ctx.fillRect(x, y, cellW, cellH);
-
-    ctx.restore(); // globalAlpha reset to 1
+    ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
   }
 
-  // --- Grid lines between cells for cubular definition ---
-  ctx.save();
-  ctx.globalAlpha = 0.08;
-  ctx.strokeStyle = 'rgba(255,255,255,1)';
-  ctx.lineWidth = 1;
-  // Vertical grid lines
-  for (let c = 1; c < CLUB_GRID_COLS; c++) {
-    const lx = c * cellW;
-    ctx.beginPath(); ctx.moveTo(lx, 0); ctx.lineTo(lx, H); ctx.stroke();
+  // --- Pass 2: Transparent geometry patterns ---
+  for (const geo of CLUB_GEO) {
+    geo.rot += geo.rotSpeed;
+    // Find nearest orb to pick up its color
+    let nearOrb = CLUB_ORBS[0], nearDist = 999;
+    for (const orb of CLUB_ORBS) {
+      const d = Math.hypot(geo.x - orb.x, geo.y - orb.y);
+      if (d < nearDist) { nearDist = d; nearOrb = orb; }
+    }
+    // Interpolate nearest orb color
+    const c1 = CLUB_LIGHT_COLORS[nearOrb.colorIdx];
+    const c2 = CLUB_LIGHT_COLORS[nearOrb.nextColorIdx];
+    const ease = nearOrb.blend * nearOrb.blend * (3 - 2 * nearOrb.blend);
+    const cr = Math.round(c1[0] + (c2[0] - c1[0]) * ease);
+    const cg = Math.round(c1[1] + (c2[1] - c1[1]) * ease);
+    const cb = Math.round(c1[2] + (c2[2] - c1[2]) * ease);
+
+    // Geometry responds: closer to orb = brighter, pulsing
+    const proximity = Math.max(0, 1 - nearDist * 2.5);
+    const breathe = 0.5 + Math.sin(_clubLightTime * 0.025 + geo.phase) * 0.5;
+    const alpha = _clubLightOpacity * (0.08 + proximity * 0.35) * breathe;
+    if (alpha < 0.01) continue;
+
+    const gx = geo.x * W, gy = geo.y * H;
+    const gs = geo.size * Math.min(W, H) * (0.9 + proximity * 0.4);
+    const sides = geo.sides;
+
+    ctx.save();
+    ctx.translate(gx, gy);
+    ctx.rotate(geo.rot);
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = `rgb(${cr},${cg},${cb})`;
+    ctx.lineWidth = 1 + proximity;
+    ctx.beginPath();
+    for (let i = 0; i <= sides; i++) {
+      const a = (i / sides) * Math.PI * 2;
+      const px = Math.cos(a) * gs, py = Math.sin(a) * gs;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.stroke();
+    // Faint fill when close to orb
+    if (proximity > 0.3) {
+      ctx.globalAlpha = alpha * 0.2;
+      ctx.fillStyle = `rgb(${cr},${cg},${cb})`;
+      ctx.fill();
+    }
+    ctx.restore();
   }
-  // Horizontal grid lines
-  for (let r = 1; r < CLUB_GRID_ROWS; r++) {
-    const ly = r * cellH;
-    ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(W, ly); ctx.stroke();
-  }
-  ctx.restore(); // globalAlpha reset to 1
 }
 
 // ---- HUB WORLD ----
@@ -1348,25 +1384,42 @@ function _animatePopcornCanvas() {
 
   _popcornAnim.timer++;
   const t = _popcornAnim.timer;
-  const reclineProgress = Math.min(1, t / 40);
-  const tiltAngle = reclineProgress * 0.15;
+
+  // Pronounced recline: starts upright, tilts back over ~60 frames with a spring overshoot
+  let reclineProgress;
+  if (t < 60) {
+    const raw = t / 60;
+    // Spring overshoot: goes past target then settles
+    reclineProgress = 1 - Math.pow(1 - raw, 2) * Math.cos(raw * Math.PI * 1.5);
+    reclineProgress = Math.max(0, Math.min(1.15, reclineProgress));
+  } else {
+    // Gentle breathing sway once settled
+    reclineProgress = 1.0 + Math.sin(t * 0.02) * 0.03;
+  }
+  const tiltAngle = reclineProgress * 0.35; // much more pronounced tilt (was 0.15)
+  // Chair also slides down slightly as it reclines
+  const slideDown = reclineProgress * 8;
 
   const cx = W / 2, baseY = H - 2;
   const colors = { farmer: '#4CAF50', banker: '#1565C0', businessman: '#FF8F00' };
   const accent = colors[_nirvanaPersona] || '#FF8F00';
-  // Scale everything to fit 80px tall
   const sc = 0.55;
 
   ctx.save();
-  ctx.translate(cx, baseY);
+  ctx.translate(cx, baseY + slideDown);
   ctx.scale(sc, sc);
   ctx.rotate(-tiltAngle);
 
-  // Recliner chair
+  // Recliner chair — back tilts with the persona
+  const backTilt = Math.min(1, reclineProgress) * 0.12;
   ctx.fillStyle = '#3a1a1a';
   roundRect(ctx, -35, -50, 70, 55, 8); ctx.fill();
+  // Chair back (tilts further than seat)
+  ctx.save();
+  ctx.rotate(-backTilt);
   ctx.fillStyle = '#4a2020';
   roundRect(ctx, -30, -95, 60, 50, 6); ctx.fill();
+  // Armrests
   ctx.fillStyle = '#3a1a1a';
   ctx.fillRect(-38, -70, 8, 40);
   ctx.fillRect(30, -70, 8, 40);
@@ -1374,18 +1427,32 @@ function _animatePopcornCanvas() {
   ctx.beginPath(); ctx.moveTo(-10, -90); ctx.lineTo(-10, -50); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(10, -90); ctx.lineTo(10, -50); ctx.stroke();
 
-  // Persona (from behind)
+  // Footrest extends out as recline progresses
+  const footExtend = Math.min(1, reclineProgress) * 25;
+  if (footExtend > 2) {
+    ctx.fillStyle = '#3a1a1a';
+    roundRect(ctx, -30, -2, 60, 8, 3); ctx.fill();
+    ctx.fillStyle = '#4a2020';
+    ctx.fillRect(-25, 4, 50, footExtend);
+  }
+
+  // Persona body (from behind) — leans into chair
   ctx.fillStyle = accent;
   roundRect(ctx, -22, -105, 44, 30, 4); ctx.fill();
+  // Head — slight nod back during recline
+  const headNod = Math.min(1, reclineProgress) * 4;
   ctx.fillStyle = _nirvanaSkin;
-  ctx.beginPath(); ctx.arc(0, -120, 16, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(0, -120 + headNod, 16, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = darkenColor(_nirvanaSkin, 0.7);
-  ctx.beginPath(); ctx.arc(0, -123, 14, Math.PI * 1.1, Math.PI * 1.9); ctx.fill();
+  ctx.beginPath(); ctx.arc(0, -123 + headNod, 14, Math.PI * 1.1, Math.PI * 1.9); ctx.fill();
+  // Ears
   ctx.fillStyle = _nirvanaSkin;
-  ctx.beginPath(); ctx.arc(-15, -118, 4, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(15, -118, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(-15, -118 + headNod, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(15, -118 + headNod, 4, 0, Math.PI * 2); ctx.fill();
 
-  // Popcorn bucket
+  ctx.restore(); // end chair back tilt
+
+  // Popcorn bucket (held at side, bounces with munching)
   const munchCycle = Math.sin(t * 0.15) * 3;
   ctx.fillStyle = '#e53935';
   ctx.beginPath();
@@ -1400,13 +1467,13 @@ function _animatePopcornCanvas() {
   ctx.beginPath(); ctx.arc(33, kernelY - 2, 3.5, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.arc(37, kernelY, 2.5, 0, Math.PI * 2); ctx.fill();
 
-  // Munching hand
-  if (t > 30) {
+  // Munching hand — starts after recline settles
+  if (t > 50) {
     _popcornAnim.munchTimer++;
     const handUp = Math.sin(_popcornAnim.munchTimer * 0.08) > 0.3;
     ctx.fillStyle = _nirvanaSkin;
     if (handUp) {
-      ctx.beginPath(); ctx.arc(-5, -110 + munchCycle, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(-5, -110 + munchCycle + headNod, 5, 0, Math.PI * 2); ctx.fill();
     } else {
       ctx.beginPath(); ctx.arc(30, -82 + munchCycle, 5, 0, Math.PI * 2); ctx.fill();
     }
@@ -2268,16 +2335,16 @@ let _skeeballCelebLights = []; // { timer, color, x, y }
 
 function initSkeeball() {
   _skeeball = {
-    ball: { x: 400, y: 430, vx: 0, vy: 0, r: 12, active: false, rolling: false },
+    ball: { x: 400, y: 430, vx: 0, vy: 0, r: 12, rolling: false, airborne: false },
     holes: [
-      { x: 400, y: 80, r: 22, points: 100, label: '100', color: '#FFD700' },
-      { x: 340, y: 120, r: 20, points: 50, label: '50', color: '#E53935' },
-      { x: 460, y: 120, r: 20, points: 50, label: '50', color: '#E53935' },
-      { x: 300, y: 165, r: 22, points: 30, label: '30', color: '#1565C0' },
-      { x: 500, y: 165, r: 22, points: 30, label: '30', color: '#1565C0' },
-      { x: 340, y: 210, r: 24, points: 20, label: '20', color: '#4CAF50' },
-      { x: 460, y: 210, r: 24, points: 20, label: '20', color: '#4CAF50' },
-      { x: 400, y: 260, r: 28, points: 10, label: '10', color: '#FF8F00' }
+      { x: 400, y: 75, r: 18, points: 100, label: '100', color: '#FFD700' },
+      { x: 340, y: 110, r: 18, points: 50, label: '50', color: '#E53935' },
+      { x: 460, y: 110, r: 18, points: 50, label: '50', color: '#E53935' },
+      { x: 300, y: 150, r: 20, points: 30, label: '30', color: '#1565C0' },
+      { x: 500, y: 150, r: 20, points: 30, label: '30', color: '#1565C0' },
+      { x: 340, y: 195, r: 22, points: 20, label: '20', color: '#4CAF50' },
+      { x: 460, y: 195, r: 22, points: 20, label: '20', color: '#4CAF50' },
+      { x: 400, y: 245, r: 26, points: 10, label: '10', color: '#FF8F00' }
     ],
     score: 0,
     ballsLeft: 9,
@@ -2285,9 +2352,12 @@ function initSkeeball() {
     bet: 200,
     cpu: makeCPU(),
     cpuScore: 0,
-    state: 'aiming', // aiming | rolling | done
+    state: 'aiming', // aiming | rolling | rimBounce | gutterRoll | scored | done
     message: 'Drag backward from ball to roll!',
-    rampTop: 270,
+    rampTop: 260,   // where ramp lip is — ball launches into air here
+    gutterY: 265,   // gutter catch zone (between ramp lip and backboard bottom)
+    rimBounce: null, // { hole, angle, bounces, timer } when ball hits a rim
+    scoredAnim: null, // { hole, timer } when ball sinks
     celebTimer: 0
   };
   // Pre-compute CPU score
@@ -2320,11 +2390,13 @@ function skeeballRelease() {
   const dx = b.x - _nirvanaMouse.x, dy = b.y - _nirvanaMouse.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
   if (dist < 5) return;
-  const power = Math.min(10, dist * 0.07);
-  // Bias toward upward (negative y)
-  b.vx = (dx / dist) * power * 0.4;
-  b.vy = -Math.abs(dy / dist) * power;
+  const power = Math.min(12, dist * 0.08);
+  // Direction determines horizontal aim; power determines how high the ball launches
+  const angle = Math.atan2(dy, dx);
+  b.vx = Math.cos(angle) * power * 0.35;
+  b.vy = -power; // strong upward launch
   b.rolling = true;
+  b.airborne = false;
   s.state = 'rolling';
 }
 
@@ -2333,52 +2405,169 @@ function updateSkeeball() {
   // Decay celebration lights
   _skeeballCelebLights = _skeeballCelebLights.filter(l => { l.timer--; return l.timer > 0; });
 
+  // Scored animation
+  if (s.state === 'scored') {
+    if (s.scoredAnim) {
+      s.scoredAnim.timer--;
+      if (s.scoredAnim.timer <= 0) {
+        s.scoredAnim = null;
+        _skeeballResetBall();
+      }
+    }
+    return;
+  }
+
+  // Rim bounce animation
+  if (s.state === 'rimBounce' && s.rimBounce) {
+    const rb = s.rimBounce;
+    rb.timer--;
+    rb.angle += rb.speed;
+    // Ball orbits the rim
+    const orbitR = rb.hole.r + 2;
+    s.ball.x = rb.hole.x + Math.cos(rb.angle) * orbitR * (rb.timer / rb.maxTimer);
+    s.ball.y = rb.hole.y + Math.sin(rb.angle) * orbitR * (rb.timer / rb.maxTimer);
+    if (rb.timer <= 0) {
+      if (rb.sinks) {
+        // Ball drops in
+        _skeeballScoreHole(rb.hole);
+      } else {
+        // Bounces out — ball falls to gutter
+        s.ball.vx = (s.ball.x - rb.hole.x) * 0.15;
+        s.ball.vy = 2;
+        s.state = 'gutterRoll';
+        s.message = 'Bounced out!';
+      }
+      s.rimBounce = null;
+    }
+    return;
+  }
+
+  // Gutter roll — ball slides down to lowest hole value
+  if (s.state === 'gutterRoll') {
+    const b = s.ball;
+    b.vy += 0.15; // gravity pulls down
+    b.vx *= 0.95; // friction
+    b.x += b.vx; b.y += b.vy;
+    // Side walls
+    if (b.x < 210) { b.x = 210; b.vx = Math.abs(b.vx) * 0.3; }
+    if (b.x > 590) { b.x = 590; b.vx = -Math.abs(b.vx) * 0.3; }
+    // Reached gutter bottom — award 10 points
+    if (b.y > s.rampTop - 5) {
+      _skeeballScoreHole(s.holes[s.holes.length - 1]); // lowest value hole
+    }
+    return;
+  }
+
   if (s.state !== 'rolling') return;
   const b = s.ball;
-  b.x += b.vx; b.y += b.vy;
-  // Slight friction and gravity pull
-  b.vx *= 0.99;
-  b.vy *= 0.995;
-  b.vy += 0.02; // slight gravity
-  // Wall bounces
-  if (b.x < 200) { b.x = 200; b.vx = -b.vx * 0.5; }
-  if (b.x > 600) { b.x = 600; b.vx = -b.vx * 0.5; }
-  if (b.y < 50) { b.y = 50; b.vy = -b.vy * 0.3; }
 
-  // Check holes
+  // Phase 1: Rolling up the ramp (y > rampTop)
+  if (!b.airborne && b.y > s.rampTop) {
+    b.x += b.vx; b.y += b.vy;
+    b.vx *= 0.99;
+    b.vy *= 0.98; // ramp friction slows upward
+    b.vy += 0.04; // gravity on ramp
+    // Side walls on ramp
+    if (b.x < 210) { b.x = 210; b.vx = Math.abs(b.vx) * 0.3; }
+    if (b.x > 590) { b.x = 590; b.vx = -Math.abs(b.vx) * 0.3; }
+    // Ball reaches ramp lip — launch into air!
+    if (b.y <= s.rampTop && b.vy < 0) {
+      b.airborne = true;
+      // Boost: the faster it hits the lip, the higher it flies
+      b.vy *= 1.15;
+    }
+    // Ball ran out of steam on ramp
+    if (b.vy >= 0 && b.y > s.rampTop + 20) {
+      s.message = 'Too weak! Gutter ball.';
+      s.state = 'gutterRoll';
+      b.vy = 1;
+    }
+    return;
+  }
+
+  // Phase 2: Airborne over scoring area
+  b.airborne = true;
+  b.x += b.vx; b.y += b.vy;
+  b.vx *= 0.995;
+  b.vy += 0.06; // arc gravity — ball follows parabolic trajectory
+  // Side walls in scoring area
+  if (b.x < 210) { b.x = 210; b.vx = Math.abs(b.vx) * 0.3; }
+  if (b.x > 590) { b.x = 590; b.vx = -Math.abs(b.vx) * 0.3; }
+  // Backboard ceiling
+  if (b.y < 45) { b.y = 45; b.vy = Math.abs(b.vy) * 0.3; }
+
+  // Check holes — determine if ball enters cleanly or catches the rim
+  const speed = Math.hypot(b.vx, b.vy);
   for (const hole of s.holes) {
     const hd = Math.hypot(b.x - hole.x, b.y - hole.y);
-    if (hd < hole.r && b.y < s.rampTop) {
-      s.score += hole.points;
-      s.message = `+${hole.points} points!`;
-      // Celebration lights - more for higher value
-      const numLights = Math.floor(hole.points / 10);
-      for (let i = 0; i < numLights; i++) {
-        _skeeballCelebLights.push({
-          timer: 40 + Math.random() * 30,
-          color: hole.color,
-          x: hole.x + (Math.random() - 0.5) * 200,
-          y: hole.y + (Math.random() - 0.5) * 100,
-          r: 20 + Math.random() * 40,
-          dx: (Math.random() - 0.5) * 3,
-          dy: (Math.random() - 0.5) * 2
-        });
+    if (hd < hole.r + b.r) {
+      // How centered is the approach?
+      const centeredness = 1 - (hd / (hole.r + b.r));
+      if (centeredness > 0.55 && speed < 8) {
+        // Clean entry — ball drops right in
+        _skeeballScoreHole(hole);
+        return;
+      } else if (centeredness > 0.2) {
+        // Rim hit — might go in or bounce out
+        const sinkChance = centeredness * 0.8 + (speed < 4 ? 0.2 : 0);
+        const sinks = Math.random() < sinkChance;
+        const bounceTime = 15 + Math.floor(Math.random() * 15);
+        s.rimBounce = {
+          hole, sinks,
+          angle: Math.atan2(b.y - hole.y, b.x - hole.x),
+          speed: (Math.random() > 0.5 ? 0.15 : -0.15),
+          timer: bounceTime,
+          maxTimer: bounceTime
+        };
+        s.state = 'rimBounce';
+        s.message = sinks ? 'Rattling in...' : 'On the rim!';
+        return;
       }
-      // Reset ball
-      _skeeballResetBall();
-      return;
+      // Glancing hit — deflect
+      const nx = (b.x - hole.x) / hd, ny = (b.y - hole.y) / hd;
+      b.vx += nx * 1.5; b.vy += ny * 1.5;
     }
   }
 
-  // Ball missed all holes and rolled past or stopped
-  if (b.y > 460 || (Math.abs(b.vx) < 0.05 && Math.abs(b.vy) < 0.05 && b.y > s.rampTop)) {
-    s.message = 'Miss!';
-    _skeeballResetBall();
+  // Ball fell past all holes into gutter zone
+  if (b.y > s.rampTop - 10 && b.vy > 0) {
+    s.state = 'gutterRoll';
+    s.message = 'Gutter catch — 10 pts';
+  }
+  // Ball stopped in scoring area (rare)
+  if (speed < 0.3 && b.y < s.rampTop) {
+    s.state = 'gutterRoll';
+    b.vy = 1;
+    s.message = 'Gutter catch — 10 pts';
+  }
+}
+
+function _skeeballScoreHole(hole) {
+  const s = _skeeball;
+  s.score += hole.points;
+  s.message = `+${hole.points} points!`;
+  s.state = 'scored';
+  s.scoredAnim = { hole, timer: 30 };
+  s.ball.x = hole.x; s.ball.y = hole.y;
+  // Celebration lights scaled by value
+  const numLights = Math.floor(hole.points / 10);
+  for (let i = 0; i < numLights; i++) {
+    _skeeballCelebLights.push({
+      timer: 40 + Math.random() * 30,
+      color: hole.color,
+      x: hole.x + (Math.random() - 0.5) * 200,
+      y: hole.y + (Math.random() - 0.5) * 100,
+      r: 20 + Math.random() * 40,
+      dx: (Math.random() - 0.5) * 3,
+      dy: (Math.random() - 0.5) * 2
+    });
   }
 }
 
 function _skeeballResetBall() {
   const s = _skeeball;
+  s.rimBounce = null;
+  s.scoredAnim = null;
   s.ballsLeft--;
   if (s.ballsLeft <= 0) {
     s.state = 'done';
@@ -2405,7 +2594,7 @@ function _skeeballResetBall() {
     }
   } else {
     s.state = 'aiming';
-    s.ball.x = 400; s.ball.y = 430; s.ball.vx = 0; s.ball.vy = 0; s.ball.rolling = false;
+    s.ball = { x: 400, y: 430, vx: 0, vy: 0, r: 12, rolling: false, airborne: false };
   }
 }
 
@@ -2429,6 +2618,11 @@ function drawSkeeball(ctx) {
   ctx.moveTo(200, 480); ctx.lineTo(210, s.rampTop);
   ctx.lineTo(590, s.rampTop); ctx.lineTo(600, 480);
   ctx.closePath(); ctx.fill();
+  // Ramp lip (curved launch edge)
+  ctx.strokeStyle = '#6D4C41'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(210, s.rampTop); ctx.lineTo(590, s.rampTop); ctx.stroke();
+  ctx.strokeStyle = '#8D6E63'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(210, s.rampTop - 2); ctx.lineTo(590, s.rampTop - 2); ctx.stroke();
   // Lane lines
   ctx.strokeStyle = 'rgba(255,255,255,.06)'; ctx.lineWidth = 1;
   for (let x = 220; x < 600; x += 40) {
@@ -2443,21 +2637,48 @@ function drawSkeeball(ctx) {
   ctx.closePath(); ctx.fill();
   // Backboard
   ctx.fillStyle = '#22223a';
-  ctx.fillRect(200, 40, 400, 30);
+  ctx.fillRect(200, 40, 400, 20);
+
+  // Gutter trough at bottom of scoring area
+  ctx.fillStyle = 'rgba(30,20,50,.6)';
+  ctx.fillRect(200, s.rampTop - 15, 400, 15);
+  ctx.strokeStyle = 'rgba(255,255,255,.08)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(200, s.rampTop - 15); ctx.lineTo(600, s.rampTop - 15); ctx.stroke();
+  // Gutter arrows pointing to center (10pt hole)
+  ctx.fillStyle = 'rgba(255,140,0,.25)'; ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('\u25B6 GUTTER \u2192 10pts \u25C0', 400, s.rampTop - 4);
 
   // Holes
   for (const hole of s.holes) {
-    // Glow ring
+    // Scored animation: flash the hole
+    const isScoring = s.scoredAnim && s.scoredAnim.hole === hole;
+    const flashAlpha = isScoring ? 0.5 + Math.sin(s.scoredAnim.timer * 0.5) * 0.5 : 0;
+
+    // Outer glow ring
     ctx.strokeStyle = hole.color; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(hole.x, hole.y, hole.r + 4, 0, Math.PI * 2); ctx.stroke();
-    // Hole
-    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.arc(hole.x, hole.y, hole.r + 5, 0, Math.PI * 2); ctx.stroke();
+    // Hole depression
+    const holeGrad = ctx.createRadialGradient(hole.x, hole.y, 0, hole.x, hole.y, hole.r);
+    holeGrad.addColorStop(0, '#050510');
+    holeGrad.addColorStop(0.7, '#0a0a1e');
+    holeGrad.addColorStop(1, '#111');
+    ctx.fillStyle = holeGrad;
     ctx.beginPath(); ctx.arc(hole.x, hole.y, hole.r, 0, Math.PI * 2); ctx.fill();
-    // Inner ring
-    ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(hole.x, hole.y, hole.r - 3, 0, Math.PI * 2); ctx.stroke();
+    // Rim (physical edge)
+    ctx.strokeStyle = 'rgba(200,200,200,.2)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(hole.x, hole.y, hole.r, 0, Math.PI * 2); ctx.stroke();
+    // Inner catchment ring
+    ctx.strokeStyle = 'rgba(255,255,255,.08)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(hole.x, hole.y, hole.r * 0.6, 0, Math.PI * 2); ctx.stroke();
+    // Score flash
+    if (isScoring) {
+      ctx.save(); ctx.globalAlpha = flashAlpha;
+      ctx.fillStyle = hole.color;
+      ctx.beginPath(); ctx.arc(hole.x, hole.y, hole.r + 8, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
     // Label
-    ctx.fillStyle = hole.color; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = hole.color; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
     ctx.fillText(hole.label, hole.x, hole.y + 4);
   }
 
@@ -2478,15 +2699,33 @@ function drawSkeeball(ctx) {
     ctx.restore();
   }
 
-  // Ball
-  if (s.state !== 'done' || s.ballsLeft > 0) {
+  // Ball — draw with shadow when airborne for depth cue
+  const showBall = s.state !== 'done' || s.ballsLeft > 0;
+  if (showBall && s.state !== 'scored') {
+    const b = s.ball;
+    // Shadow on surface when airborne
+    if (b.airborne && s.state === 'rolling') {
+      ctx.save(); ctx.globalAlpha = 0.2;
+      ctx.fillStyle = '#000';
+      ctx.beginPath(); ctx.ellipse(b.x, s.rampTop - 5, b.r * 1.2, b.r * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
     ctx.fillStyle = '#DDD';
-    ctx.beginPath(); ctx.arc(s.ball.x, s.ball.y, s.ball.r, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(s.ball.x, s.ball.y, s.ball.r, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.stroke();
     // Shine
     ctx.fillStyle = 'rgba(255,255,255,.35)';
-    ctx.beginPath(); ctx.arc(s.ball.x - 3, s.ball.y - 3, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(b.x - 3, b.y - 3, 4, 0, Math.PI * 2); ctx.fill();
+  }
+  // Scored: ball shrinks into hole
+  if (s.state === 'scored' && s.scoredAnim) {
+    const sa = s.scoredAnim;
+    const shrink = sa.timer / 30;
+    ctx.save(); ctx.globalAlpha = shrink;
+    ctx.fillStyle = '#DDD';
+    ctx.beginPath(); ctx.arc(sa.hole.x, sa.hole.y, s.ball.r * shrink, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
   }
 
   // Aiming line
@@ -2497,16 +2736,31 @@ function drawSkeeball(ctx) {
     const dx = b.x - _nirvanaMouse.x, dy = b.y - _nirvanaMouse.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist > 0) {
+      // Show predicted arc
+      const power = Math.min(12, dist * 0.08);
+      const angle = Math.atan2(dy, dx);
+      const pvx = Math.cos(angle) * power * 0.35;
+      const pvy = -power;
       ctx.beginPath(); ctx.moveTo(b.x, b.y);
-      ctx.lineTo(b.x + (dx / dist) * 100, b.y + Math.min(-20, (dy / dist) * 100));
+      let px = b.x, py = b.y, tvx = pvx, tvy = pvy;
+      for (let i = 0; i < 30; i++) {
+        px += tvx; py += tvy;
+        tvy += (py > s.rampTop) ? 0.04 : 0.06;
+        tvx *= 0.995;
+        if (py < 40) break;
+        ctx.lineTo(px, py);
+      }
       ctx.stroke();
     }
     ctx.setLineDash([]);
     // Power bar
-    const pw = Math.min(100, dist * 0.7);
+    const pw = Math.min(100, dist * 0.65);
     ctx.fillStyle = '#333'; ctx.fillRect(350, 475, 100, 8);
     ctx.fillStyle = pw > 70 ? '#e53935' : pw > 40 ? '#FFB74D' : '#4CAF50';
     ctx.fillRect(350, 475, pw, 8);
+    // Power label
+    ctx.fillStyle = '#888'; ctx.font = '8px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('POWER', 400, 472);
   }
 
   // Score panel
