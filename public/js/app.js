@@ -795,21 +795,19 @@ function showDecisionTask(scenario, badge) {
     </details>`;
   }
 
-  // Options in scrollable area — compact cards with strategy tags
+  // Options as compact panes with color-coded implication borders and info expand
   const optionsHtml = `${badgeHtml}<div class="option-group">${scenario.options.map((opt, i) => {
     const cost = engine.getOptionCost(opt);
     const affordable = engine.canAfford(opt);
-    const costHtml = cost > 0 ? `<span class="option-cost ${affordable ? '' : 'option-cost-blocked'}">${affordable ? '' : '\u26A0 '}$${cost.toLocaleString()}${affordable ? '' : ' \u2014 not enough $'}</span>` : '';
-    // Strategy implication tags
-    const tags = (opt._strategyTags || []).map(t => `<span class="strat-tag ${t.cls}" title="${t.label}">${t.icon}</span>`).join('');
-    const tagsRow = tags ? `<span class="strat-tags">${tags}</span>` : '';
-    return `<button class="option-btn${affordable ? '' : ' option-unaffordable'}" onclick="selectOption(${i})">
+    const costHtml = cost > 0 ? `<span class="option-cost ${affordable ? '' : 'option-cost-blocked'}">$${cost.toLocaleString()}</span>` : '';
+    // Classify implication for color border
+    const impClass = _getImplicationClass(opt);
+    return `<div class="option-pane ${impClass}${affordable ? '' : ' option-unaffordable'}" onclick="selectOption(${i})">
       <span class="option-key">${String.fromCharCode(65 + i)}</span>
-      <span class="option-text">
-        <span class="option-label">${opt.label}${costHtml ? ' ' + costHtml : ''}${tagsRow}</span>
-        <span class="option-detail">${opt.detail}</span>
-      </span>
-    </button>`;
+      <span class="option-label">${opt.label}</span>${costHtml}
+      <button class="option-info-btn" onclick="event.stopPropagation();toggleOptionExpand(this)" title="More info">i</button>
+      <div class="option-expand">${opt.detail}</div>
+    </div>`;
   }).join('')}</div>`;
 
   els.taskBody.innerHTML = optionsHtml;
@@ -1720,6 +1718,27 @@ function showNotification(text) {
 }
 
 function capitalize(str) { return str.charAt(0).toUpperCase() + str.slice(1); }
+
+// Classify option implication for color-coded border
+function _getImplicationClass(opt) {
+  const e = opt.effect || {};
+  const tags = opt._strategyTags || [];
+  const hasTag = (type) => tags.some(t => t.type === type);
+  // Costly = big negative money or unaffordable feel
+  if (e.money && e.money < -5000) return 'imp-costly';
+  if (hasTag('risk') || (e.financialRisk && e.financialRisk > 0)) return 'imp-risky';
+  if (e.satisfaction && e.satisfaction < -5) return 'imp-life';
+  if (hasTag('growth') || (e.scalability && e.scalability > 0)) return 'imp-growth';
+  if (e.money && e.money < -1000) return 'imp-balanced';
+  if (e.satisfaction && e.satisfaction > 0) return 'imp-safe';
+  if (e.score && e.score > 0 && (!e.money || e.money >= 0)) return 'imp-safe';
+  return 'imp-balanced';
+}
+
+function toggleOptionExpand(btn) {
+  const pane = btn.closest('.option-pane');
+  if (pane) pane.classList.toggle('expanded');
+}
 
 function formatKey(key) { return key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()); }
 
