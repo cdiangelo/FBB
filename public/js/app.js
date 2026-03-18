@@ -3498,7 +3498,7 @@ function buildMobileStatsContent() {
 //  US MAP OVERLAY — Weather, Advisory, Operations
 // ===============================
 let _mapOpen = false;
-let _mapLayers = { weather: true, operations: true };
+let _mapLayers = { weather: true, operations: true, scale: false };
 
 function toggleMapOverlay() {
   _mapOpen = !_mapOpen;
@@ -3521,10 +3521,11 @@ function renderMap() {
 
   const persona = engine.persona;
 
-  // Toggle buttons
+  // Toggle buttons — include Scale as a layer
   const layerDefs = [
     { id: 'weather', label: 'Weather' },
-    { id: 'operations', label: persona === 'farmer' ? 'Crop Zones' : persona === 'banker' ? 'Lending Regions' : 'Market Hubs' }
+    { id: 'operations', label: persona === 'farmer' ? 'Crop Zones' : persona === 'banker' ? 'Lending Regions' : 'Market Hubs' },
+    { id: 'scale', label: 'Org Scale' }
   ];
   if (persona === 'farmer') layerDefs.push({ id: 'prices', label: 'Prices' });
   if (persona === 'banker') layerDefs.push({ id: 'risk', label: 'Risk Zones' });
@@ -3534,30 +3535,39 @@ function renderMap() {
     `<button class="map-toggle-btn${_mapLayers[l.id] ? ' active' : ''}" onclick="toggleMapLayer('${l.id}')">${l.label}</button>`
   ).join('');
 
-  // Simplified US states with approximate center coordinates (0-100 range)
+  // State data: center coords + approximate widths/heights for tile rectangles
   const states = [
-    { id:'WA', x:12, y:10 }, { id:'OR', x:11, y:18 }, { id:'CA', x:9, y:35 },
-    { id:'NV', x:15, y:30 }, { id:'ID', x:18, y:16 }, { id:'MT', x:24, y:11 },
-    { id:'WY', x:26, y:21 }, { id:'UT', x:19, y:28 }, { id:'CO', x:27, y:30 },
-    { id:'AZ', x:18, y:40 }, { id:'NM', x:24, y:40 }, { id:'ND', x:36, y:11 },
-    { id:'SD', x:36, y:18 }, { id:'NE', x:36, y:25 }, { id:'KS', x:37, y:32 },
-    { id:'OK', x:38, y:38 }, { id:'TX', x:36, y:48 }, { id:'MN', x:42, y:13 },
-    { id:'IA', x:44, y:22 }, { id:'MO', x:46, y:30 }, { id:'AR', x:46, y:38 },
-    { id:'LA', x:46, y:48 }, { id:'WI', x:48, y:14 }, { id:'IL', x:50, y:24 },
-    { id:'MS', x:50, y:42 }, { id:'MI', x:55, y:16 }, { id:'IN', x:55, y:25 },
-    { id:'OH', x:60, y:23 }, { id:'KY', x:58, y:30 }, { id:'TN', x:57, y:35 },
-    { id:'AL', x:55, y:42 }, { id:'GA', x:60, y:42 }, { id:'FL', x:63, y:52 },
-    { id:'SC', x:65, y:38 }, { id:'NC', x:67, y:33 }, { id:'VA', x:68, y:28 },
-    { id:'WV', x:64, y:27 }, { id:'PA', x:68, y:20 }, { id:'NY', x:72, y:15 },
-    { id:'NJ', x:73, y:22 }, { id:'DE', x:72, y:25 }, { id:'MD', x:70, y:26 },
-    { id:'CT', x:76, y:17 }, { id:'RI', x:78, y:17 }, { id:'MA', x:77, y:14 },
-    { id:'VT', x:74, y:10 }, { id:'NH', x:76, y:10 }, { id:'ME', x:79, y:7 }
+    { id:'WA', x:12,y:8, w:6,h:5 },{ id:'OR', x:11,y:15, w:6,h:5 },{ id:'CA', x:8,y:30, w:5,h:12 },
+    { id:'NV', x:14,y:28, w:4,h:7 },{ id:'ID', x:18,y:14, w:4,h:7 },{ id:'MT', x:23,y:9, w:7,h:4 },
+    { id:'WY', x:25,y:19, w:6,h:4 },{ id:'UT', x:18,y:26, w:4,h:5 },{ id:'CO', x:26,y:28, w:6,h:4 },
+    { id:'AZ', x:17,y:38, w:5,h:6 },{ id:'NM', x:23,y:38, w:5,h:6 },{ id:'ND', x:35,y:9, w:6,h:4 },
+    { id:'SD', x:35,y:16, w:6,h:4 },{ id:'NE', x:35,y:23, w:7,h:4 },{ id:'KS', x:36,y:30, w:7,h:4 },
+    { id:'OK', x:37,y:36, w:7,h:4 },{ id:'TX', x:35,y:44, w:8,h:10 },{ id:'MN', x:42,y:10, w:5,h:6 },
+    { id:'IA', x:43,y:20, w:5,h:4 },{ id:'MO', x:45,y:28, w:5,h:5 },{ id:'AR', x:45,y:36, w:5,h:4 },
+    { id:'LA', x:45,y:46, w:5,h:5 },{ id:'WI', x:48,y:12, w:4,h:5 },{ id:'IL', x:50,y:22, w:4,h:6 },
+    { id:'MS', x:50,y:39, w:3,h:6 },{ id:'MI', x:55,y:13, w:5,h:6 },{ id:'IN', x:55,y:23, w:3,h:5 },
+    { id:'OH', x:60,y:21, w:4,h:5 },{ id:'KY', x:58,y:29, w:5,h:3 },{ id:'TN', x:57,y:34, w:6,h:3 },
+    { id:'AL', x:54,y:40, w:3,h:5 },{ id:'GA', x:59,y:40, w:4,h:5 },{ id:'FL', x:62,y:48, w:5,h:8 },
+    { id:'SC', x:64,y:36, w:4,h:3 },{ id:'NC', x:66,y:31, w:6,h:3 },{ id:'VA', x:67,y:26, w:6,h:3 },
+    { id:'WV', x:63,y:25, w:3,h:4 },{ id:'PA', x:68,y:18, w:5,h:3 },{ id:'NY', x:72,y:12, w:5,h:5 },
+    { id:'NJ', x:73,y:21, w:2,h:3 },{ id:'DE', x:72,y:24, w:2,h:2 },{ id:'MD', x:69,y:25, w:3,h:2 },
+    { id:'CT', x:76,y:16, w:2,h:2 },{ id:'RI', x:78,y:16, w:1.5,h:2 },{ id:'MA', x:77,y:13, w:3,h:2 },
+    { id:'VT', x:74,y:8, w:2,h:3 },{ id:'NH', x:76,y:8, w:2,h:3 },{ id:'ME', x:79,y:5, w:3,h:5 },
+    { id:'AK', x:4,y:54, w:7,h:6 },{ id:'HI', x:15,y:56, w:4,h:3 }
   ];
 
-  // Weather (simulated from game day)
+  // Persona icons for scale layer
+  const personaIcon = { farmer: '\u{1F33E}', banker: '\u{1F3E6}', businessman: '\u{1F4BC}' };
+
+  // Weather
   const season = ['Winter','Spring','Summer','Fall'][Math.floor((engine.day % 50) / 12.5)];
   const weatherPool = { Winter:['Snow','Cold','Frost','Clear'], Spring:['Rain','Storms','Clear','Warm'], Summer:['Hot','Drought','Clear','Humid'], Fall:['Cool','Rain','Clear','Frost'] };
-  const weatherColors = { Snow:'#90CAF9', Cold:'#64B5F6', Frost:'#CE93D8', Clear:'#81C784', Rain:'#78909C', Storms:'#FF8A65', Hot:'#EF5350', Drought:'#FFAB91', Warm:'#FFD54F', Humid:'#FFB74D', Cool:'#80CBC4' };
+  const weatherColors = { Snow:'#90CAF9',Cold:'#64B5F6',Frost:'#CE93D8',Clear:'#81C784',Rain:'#78909C',Storms:'#FF8A65',Hot:'#EF5350',Drought:'#FFAB91',Warm:'#FFD54F',Humid:'#FFB74D',Cool:'#80CBC4' };
+
+  // Scale data
+  const money = engine.state.money || 0;
+  const scaleTier = money < 20000 ? 'local' : money < 100000 ? 'regional' : money < 500000 ? 'multi-state' : money < 2000000 ? 'national' : 'empire';
+  const scaleRegions = _getScaleRegionStates(scaleTier);
 
   const stateData = states.map(s => {
     const wPool = weatherPool[season];
@@ -3567,8 +3577,7 @@ function renderMap() {
       const cropIdx = Math.floor((s.x + s.y + engine.day) % 5);
       const cropNames = ['Corn','Wheat','Soybeans','Cotton','Rice'];
       const cropUnits = ['bu','bu','bu','lb','cwt'];
-      roleData.crop = cropNames[cropIdx];
-      roleData.cropUnit = cropUnits[cropIdx];
+      roleData.crop = cropNames[cropIdx]; roleData.cropUnit = cropUnits[cropIdx];
       roleData.yield = Math.round(75 + (s.x + s.y) % 30);
       roleData.price = (4 + ((s.x * 3 + engine.day) % 80) / 10).toFixed(2);
     } else if (persona === 'banker') {
@@ -3580,69 +3589,122 @@ function renderMap() {
       roleData.revenue = Math.round(10 + (s.y * 2 + engine.day) % 90) + 'K';
       roleData.sector = ['Tech','Services','Retail','Healthcare','Manufacturing'][Math.floor((s.x + s.y) % 5)];
     }
-    return { ...s, weather, roleData };
+    const scaleActive = scaleRegions.includes(s.id);
+    return { ...s, weather, roleData, scaleActive };
   });
 
-  const W = 600, H = 400;
-  let svg = `<svg viewBox="-10 -5 120 80" class="map-svg" xmlns="http://www.w3.org/2000/svg">`;
-  // Ocean + landmass background
-  svg += `<rect x="-10" y="-5" width="120" height="80" fill="#1a2744" rx="4"/>`;
-  svg += `<path d="M5,5 Q15,3 25,8 Q40,5 55,8 Q65,5 80,10 Q82,15 80,25 Q78,30 75,35 Q72,45 70,55 Q65,60 55,55 Q45,58 35,55 Q25,52 20,48 Q15,42 12,35 Q8,25 5,15 Z" fill="#2a3a5a" stroke="#3a4a6a" stroke-width="0.5" opacity="0.4"/>`;
+  let svg = `<svg viewBox="-2 -2 96 72" class="map-svg" xmlns="http://www.w3.org/2000/svg">`;
+  // Dark ocean bg
+  svg += `<rect x="-2" y="-2" width="96" height="72" fill="#0f172a" rx="3"/>`;
+  // Faint continental outline
+  svg += `<path d="M5,5 Q18,2 30,6 Q45,3 60,7 Q72,4 82,8 L84,15 L82,28 L78,35 Q74,42 70,50 Q65,56 55,52 Q45,56 35,52 Q28,48 22,42 Q16,35 13,28 Q9,20 6,12 Z" fill="#1e293b" stroke="#334155" stroke-width="0.3"/>`;
 
+  // Draw states as tiles
   stateData.forEach(s => {
-    const baseR = 2.2;
+    const sx = s.x - s.w / 2, sy = s.y - s.h / 2;
+
+    // State tile fill color
+    let fillColor = '#1e293b';
+    let fillOpacity = 0.85;
     if (_mapLayers.weather) {
-      svg += `<circle cx="${s.x}" cy="${s.y}" r="${baseR + 0.8}" fill="${weatherColors[s.weather] || '#888'}" opacity="0.25"/>`;
+      fillColor = weatherColors[s.weather] || '#555';
+      fillOpacity = 0.2;
     }
     if (_mapLayers.operations) {
-      let opColor = '#4CAF50';
-      if (persona === 'farmer') opColor = s.roleData.yield > 90 ? '#4CAF50' : s.roleData.yield > 80 ? '#FFB74D' : '#EF5350';
-      else if (persona === 'banker') opColor = s.roleData.risk === 'Low' ? '#4CAF50' : s.roleData.risk === 'Moderate' ? '#FFB74D' : '#EF5350';
-      else opColor = s.roleData.deals > 5 ? '#4CAF50' : s.roleData.deals > 2 ? '#FFB74D' : '#78909C';
-      svg += `<circle cx="${s.x}" cy="${s.y}" r="${baseR}" fill="${opColor}" opacity="0.7" stroke="#fff" stroke-width="0.3"/>`;
+      if (persona === 'farmer') fillColor = s.roleData.yield > 90 ? '#2E7D32' : s.roleData.yield > 80 ? '#F9A825' : '#C62828';
+      else if (persona === 'banker') fillColor = s.roleData.risk === 'Low' ? '#1B5E20' : s.roleData.risk === 'Moderate' ? '#E65100' : '#B71C1C';
+      else fillColor = s.roleData.deals > 5 ? '#1B5E20' : s.roleData.deals > 2 ? '#E65100' : '#37474F';
+      fillOpacity = 0.55;
     }
-    if (_mapLayers.prices && persona === 'farmer') {
-      svg += `<text x="${s.x}" y="${s.y + 3.5}" text-anchor="middle" fill="#FFD54F" font-size="1.8">$${s.roleData.price}/${s.roleData.cropUnit}</text>`;
-      svg += `<text x="${s.x}" y="${s.y + 5.5}" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="1.3">${s.roleData.crop}</text>`;
+
+    // State rectangle with clear border
+    svg += `<rect x="${sx}" y="${sy}" width="${s.w}" height="${s.h}" rx="0.5" fill="${fillColor}" fill-opacity="${fillOpacity}" stroke="#4a5568" stroke-width="0.35"/>`;
+
+    // Weather underlay tint
+    if (_mapLayers.weather && _mapLayers.operations) {
+      svg += `<rect x="${sx}" y="${sy}" width="${s.w}" height="${s.h}" rx="0.5" fill="${weatherColors[s.weather] || '#555'}" fill-opacity="0.12"/>`;
     }
-    if (_mapLayers.risk && persona === 'banker') {
-      const rc = { Low:'#4CAF50', Moderate:'#FFB74D', Elevated:'#FF9800', High:'#EF5350' }[s.roleData.risk] || '#888';
-      svg += `<circle cx="${s.x}" cy="${s.y}" r="${baseR + 1.2}" fill="none" stroke="${rc}" stroke-width="0.4" stroke-dasharray="1,0.5"/>`;
-      svg += `<text x="${s.x}" y="${s.y + 4}" text-anchor="middle" fill="${rc}" font-size="1.5">${s.roleData.defaultRate}% def</text>`;
+
+    // State label — always visible, high contrast
+    svg += `<text x="${s.x}" y="${s.y + 0.5}" text-anchor="middle" dominant-baseline="middle" fill="#e2e8f0" font-size="1.6" font-weight="700" font-family="monospace" style="text-shadow:0 0 2px rgba(0,0,0,0.8)">${s.id}</text>`;
+
+    // Prices text (farmer)
+    if (_mapLayers.prices && persona === 'farmer' && s.w >= 4) {
+      svg += `<text x="${s.x}" y="${sy + s.h + 1.8}" text-anchor="middle" fill="#FFD54F" font-size="1.5" font-weight="600" style="text-shadow:0 0 3px #000">$${s.roleData.price}</text>`;
     }
-    if (_mapLayers.pipeline && persona === 'businessman') {
-      if (s.roleData.deals > 4) {
-        svg += `<text x="${s.x}" y="${s.y + 3.5}" text-anchor="middle" fill="#69f0ae" font-size="1.8">$${s.roleData.revenue}</text>`;
-        svg += `<text x="${s.x}" y="${s.y + 5.5}" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="1.3">${s.roleData.sector}</text>`;
-      }
+    // Risk text (banker)
+    if (_mapLayers.risk && persona === 'banker' && s.w >= 3) {
+      const rc = { Low:'#4CAF50',Moderate:'#FFB74D',Elevated:'#FF9800',High:'#EF5350' }[s.roleData.risk];
+      svg += `<text x="${s.x}" y="${sy + s.h + 1.8}" text-anchor="middle" fill="${rc}" font-size="1.3" font-weight="600" style="text-shadow:0 0 3px #000">${s.roleData.defaultRate}%</text>`;
     }
-    svg += `<text x="${s.x}" y="${s.y - 2.5}" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="1.8" font-weight="600">${s.id}</text>`;
+    // Pipeline text (businessman)
+    if (_mapLayers.pipeline && persona === 'businessman' && s.roleData.deals > 3 && s.w >= 4) {
+      svg += `<text x="${s.x}" y="${sy + s.h + 1.8}" text-anchor="middle" fill="#69f0ae" font-size="1.3" font-weight="600" style="text-shadow:0 0 3px #000">$${s.roleData.revenue}</text>`;
+    }
+
+    // Scale layer — 3D blocks + persona icons on active states
+    if (_mapLayers.scale && s.scaleActive) {
+      // Highlight border
+      svg += `<rect x="${sx}" y="${sy}" width="${s.w}" height="${s.h}" rx="0.5" fill="none" stroke="${{farmer:'#4CAF50',banker:'#1565C0',businessman:'#FF8F00'}[persona]}" stroke-width="0.7"/>`;
+      // 3D block (isometric rectangle rising up)
+      const bh = Math.min(3, 1 + (money / 500000) * 2); // block height scales with money
+      const bx = s.x - 1.5, by = sy - bh;
+      // Block top face
+      svg += `<polygon points="${bx},${by} ${bx+3},${by-1} ${bx+6},${by} ${bx+3},${by+1}" fill="${{farmer:'#66BB6A',banker:'#42A5F5',businessman:'#FFA726'}[persona]}" fill-opacity="0.7"/>`;
+      // Block front face
+      svg += `<polygon points="${bx},${by} ${bx+3},${by+1} ${bx+3},${by+1+bh} ${bx},${by+bh}" fill="${{farmer:'#388E3C',banker:'#1565C0',businessman:'#EF6C00'}[persona]}" fill-opacity="0.7"/>`;
+      // Block right face
+      svg += `<polygon points="${bx+3},${by+1} ${bx+6},${by} ${bx+6},${by+bh} ${bx+3},${by+1+bh}" fill="${{farmer:'#2E7D32',banker:'#0D47A1',businessman:'#E65100'}[persona]}" fill-opacity="0.5"/>`;
+      // Persona icon on top
+      svg += `<text x="${bx+3}" y="${by - 0.5}" text-anchor="middle" font-size="2.5">${personaIcon[persona]}</text>`;
+    }
   });
 
-  svg += `<text x="55" y="72" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="3" font-weight="600">${season} — Day ${engine.day}</text>`;
-  svg += `<text x="-3" y="40" text-anchor="middle" fill="rgba(255,255,255,0.15)" font-size="4" transform="rotate(-90,-3,40)">Pacific</text>`;
-  svg += `<text x="95" y="35" text-anchor="middle" fill="rgba(255,255,255,0.15)" font-size="4" transform="rotate(90,95,35)">Atlantic</text>`;
+  // Season + day label
+  const tierLabel = { local:'Local',regional:'Regional','multi-state':'Multi-State',national:'National',empire:'Empire' }[scaleTier];
+  svg += `<text x="47" y="67" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="2.5" font-weight="600">${season} — Day ${engine.day}</text>`;
+  if (_mapLayers.scale) {
+    svg += `<text x="47" y="70" text-anchor="middle" fill="${{farmer:'#4CAF50',banker:'#1565C0',businessman:'#FF8F00'}[persona]}" font-size="1.8" font-weight="600">${tierLabel} Operations — $${_formatCompact(money)}</text>`;
+  }
   svg += `</svg>`;
   container.innerHTML = svg;
 
-  // Legend — clearly label what each layer represents
+  // Legend
   let legendHtml = '';
-  if (_mapLayers.weather) legendHtml += `<span class="map-leg-group"><strong>${season} Weather:</strong> ${Object.entries(weatherColors).slice(0, 5).map(([k, c]) => `<span style="color:${c}">${k}</span>`).join(' ')}</span>`;
+  if (_mapLayers.weather) legendHtml += `<span class="map-leg-group"><strong>${season}:</strong> ${Object.entries(weatherColors).slice(0, 5).map(([k, c]) => `<span style="color:${c}">\u25A0 ${k}</span>`).join(' ')}</span>`;
   if (_mapLayers.operations) {
-    if (persona === 'farmer') legendHtml += '<span class="map-leg-group"><strong>Crop Yield (bu/acre):</strong> <span style="color:#4CAF50">&gt;90 High</span> <span style="color:#FFB74D">80-90 Med</span> <span style="color:#EF5350">&lt;80 Low</span></span>';
-    if (persona === 'banker') legendHtml += '<span class="map-leg-group"><strong>Lending Risk (default probability):</strong> <span style="color:#4CAF50">Low</span> <span style="color:#FFB74D">Moderate</span> <span style="color:#EF5350">Elevated/High</span></span>';
-    if (persona === 'businessman') legendHtml += '<span class="map-leg-group"><strong>Active Deals (pipeline count):</strong> <span style="color:#4CAF50">5+ Active</span> <span style="color:#FFB74D">2-4 Growing</span> <span style="color:#78909C">&lt;2 Quiet</span></span>';
+    if (persona === 'farmer') legendHtml += '<span class="map-leg-group"><strong>Yield:</strong> <span style="color:#4CAF50">\u25A0 &gt;90</span> <span style="color:#FFB74D">\u25A0 80-90</span> <span style="color:#EF5350">\u25A0 &lt;80</span></span>';
+    if (persona === 'banker') legendHtml += '<span class="map-leg-group"><strong>Risk:</strong> <span style="color:#4CAF50">\u25A0 Low</span> <span style="color:#FFB74D">\u25A0 Mod</span> <span style="color:#EF5350">\u25A0 High</span></span>';
+    if (persona === 'businessman') legendHtml += '<span class="map-leg-group"><strong>Deals:</strong> <span style="color:#4CAF50">\u25A0 5+</span> <span style="color:#FFB74D">\u25A0 2-4</span> <span style="color:#78909C">\u25A0 &lt;2</span></span>';
   }
-  if (_mapLayers.prices && persona === 'farmer') {
-    legendHtml += '<span class="map-leg-group"><strong>Spot Prices:</strong> <span style="color:#FFD54F">$/unit by dominant crop per region</span></span>';
-  }
-  if (_mapLayers.risk && persona === 'banker') {
-    legendHtml += '<span class="map-leg-group"><strong>Default Rate:</strong> <span style="color:#FFB74D">Annualized default % by region</span></span>';
-  }
-  if (_mapLayers.pipeline && persona === 'businessman') {
-    legendHtml += '<span class="map-leg-group"><strong>Pipeline Revenue:</strong> <span style="color:#69f0ae">Quarterly revenue by sector (active markets only)</span></span>';
-  }
+  if (_mapLayers.scale) legendHtml += `<span class="map-leg-group"><strong>Scale:</strong> <span style="color:${({farmer:'#4CAF50',banker:'#1565C0',businessman:'#FF8F00'})[persona]}">\u25A0 Active regions with org blocks</span></span>`;
+  if (_mapLayers.prices && persona === 'farmer') legendHtml += '<span class="map-leg-group"><strong>Prices:</strong> <span style="color:#FFD54F">$/unit spot</span></span>';
+  if (_mapLayers.risk && persona === 'banker') legendHtml += '<span class="map-leg-group"><strong>Default %:</strong> <span style="color:#FFB74D">Annualized</span></span>';
+  if (_mapLayers.pipeline && persona === 'businessman') legendHtml += '<span class="map-leg-group"><strong>Pipeline:</strong> <span style="color:#69f0ae">Revenue (active)</span></span>';
   legend.innerHTML = legendHtml;
+}
+
+// Map which states belong to active regions at each scale tier
+function _getScaleRegionStates(scaleTier) {
+  const regionStates = {
+    'Northeast': ['ME','NH','VT','MA','CT','RI','NY'],
+    'Mid-Atlantic': ['PA','NJ','DE','MD','VA','WV'],
+    'Southeast': ['NC','SC','GA','FL','AL','MS','TN'],
+    'Great Lakes': ['OH','MI','IN','IL','WI'],
+    'Midwest': ['MN','IA','MO','AR','LA'],
+    'Plains': ['ND','SD','NE','KS','OK'],
+    'Mountain West': ['MT','WY','CO','ID','UT','NV'],
+    'Southwest': ['TX','NM','AZ'],
+    'Pacific Northwest': ['WA','OR'],
+    'California': ['CA']
+  };
+  const regionOrder = Object.keys(regionStates);
+  const activeCount = { local:1, regional:2, 'multi-state':4, national:7, empire:10 }[scaleTier] || 1;
+  let active = [];
+  for (let i = 0; i < Math.min(activeCount, regionOrder.length); i++) {
+    active = active.concat(regionStates[regionOrder[i]]);
+  }
+  return active;
 }
 
 // ===============================
@@ -3651,11 +3713,13 @@ function renderMap() {
 let _scaleMapOpen = false;
 
 function toggleScaleMap() {
-  _scaleMapOpen = !_scaleMapOpen;
-  const overlay = document.getElementById('scale-map-overlay');
-  if (!overlay) return;
-  overlay.classList.toggle('active', _scaleMapOpen);
-  if (_scaleMapOpen) renderScaleMap();
+  // Open the map overlay with scale layer enabled
+  _mapLayers.scale = true;
+  if (!_mapOpen) {
+    toggleMapOverlay();
+  } else {
+    renderMap();
+  }
 }
 
 function renderScaleMap() {
