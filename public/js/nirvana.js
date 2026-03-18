@@ -1224,7 +1224,7 @@ function _enterTheaterSplitScreen(videoId) {
   // ---- LEFT: Theater column (inserted before canvas) ----
   const theaterCol = document.createElement('div');
   theaterCol.id = 'nirvana-theater-split';
-  theaterCol.style.cssText = 'flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;max-width:50%;';
+  theaterCol.style.cssText = 'flex:0 0 40%;display:flex;flex-direction:column;gap:4px;min-width:0;max-width:45%;';
   // Video iframe
   if (videoId) {
     const iframe = document.createElement('iframe');
@@ -1268,12 +1268,14 @@ function _enterTheaterSplitScreen(videoId) {
   closeBtn.onclick = () => { _exitTheaterSplitScreen(); };
   theaterCol.appendChild(closeBtn);
 
-  // ---- RIGHT: Canvas takes the other half ----
+  // ---- RIGHT: Canvas fills the other half of the pane ----
   const canvas = document.getElementById('nirvana-canvas');
   if (canvas) {
     canvas.style.flex = '1';
-    canvas.style.maxWidth = '50%';
-    canvas.style.width = '50%';
+    canvas.style.maxWidth = '55%';
+    canvas.style.width = '55%';
+    canvas.style.height = 'auto';
+    canvas.style.minHeight = '0';
   }
   // Insert theater column before canvas
   wrapper.insertBefore(theaterCol, canvas);
@@ -1307,6 +1309,8 @@ function _exitTheaterSplitScreen() {
     canvas.style.flex = '';
     canvas.style.maxWidth = '800px';
     canvas.style.width = '';
+    canvas.style.height = '';
+    canvas.style.minHeight = '';
   }
   _nirvanaState = 'hub';
 }
@@ -1319,7 +1323,7 @@ function _removeYoutubeEmbed() {
   _popcornAnim.eating = false;
   // Restore canvas and wrapper to default column layout
   const canvas = document.getElementById('nirvana-canvas');
-  if (canvas) { canvas.style.maxWidth = '800px'; canvas.style.flex = ''; canvas.style.width = ''; }
+  if (canvas) { canvas.style.maxWidth = '800px'; canvas.style.flex = ''; canvas.style.width = ''; canvas.style.height = ''; canvas.style.minHeight = ''; }
   const wrapper = document.querySelector('.nirvana-wrapper');
   if (wrapper) {
     wrapper.style.flexDirection = '';
