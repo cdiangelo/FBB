@@ -80,7 +80,8 @@ function buildPersonaVisual(persona, scale = 1) {
 const screens = {
   profile: document.getElementById('screen-profile'),
   title: document.getElementById('screen-title'),
-  game: document.getElementById('screen-game')
+  game: document.getElementById('screen-game'),
+  nirvana: document.getElementById('screen-nirvana')
 };
 
 const els = {
@@ -304,6 +305,27 @@ function setupEventListeners() {
 function showScreen(name) {
   Object.values(screens).forEach(s => s.classList.remove('active'));
   screens[name].classList.add('active');
+  // Auto-focus canvas for keyboard input
+  if (name === 'nirvana') {
+    const c = document.getElementById('nirvana-canvas');
+    if (c) setTimeout(() => c.focus(), 100);
+  }
+}
+
+function enterNirvanaFromTitle() {
+  // Use saved profile skin tone
+  const skinMap = ['#FDDBB4','#D2A679','#C4946B','#A57551','#7B5138','#4A2E1A','#C5B8E8','#FFD1B8','#B8E8D0','#B8D8F0','#F0C8D8','#F0DCA0'];
+  const skinIdx = parseInt(localStorage.getItem('fbb_skin') || '0');
+  const skin = skinMap[skinIdx] || '#c68642';
+  enterNirvana('businessman', skin);
+}
+
+function enterNirvanaFromGame() {
+  dismissCelebration();
+  const skinMap = ['#FDDBB4','#D2A679','#C4946B','#A57551','#7B5138','#4A2E1A','#C5B8E8','#FFD1B8','#B8E8D0','#B8D8F0','#F0C8D8','#F0DCA0'];
+  const skinIdx = engine.skinTone || 0;
+  const skin = skinMap[skinIdx] || '#c68642';
+  enterNirvana(engine.persona, skin);
 }
 
 // ===============================
@@ -2362,7 +2384,7 @@ function showCelebration(type) {
     icon = icons[persona]['empire'];
     title = titlesEmpire[persona];
     detail = detailsEmpire[persona];
-    subtitle = 'Empire tier unlocked.';
+    subtitle = 'Empire tier unlocked. The Nirvana Club awaits.';
   } else {
     icon = is100 ? icons[persona]['100'] : icons[persona]['75'];
     title = is100 ? titles100[persona] : titles75[persona];
@@ -2376,6 +2398,7 @@ function showCelebration(type) {
     <div class="celebration-title">${title}</div>
     <div class="celebration-subtitle">${subtitle}</div>
     <div class="celebration-detail">${detail}</div>
+    ${(type === 'empire' || type === 'monopoly' || type === 'complete') ? '<button class="btn-nirvana-enter" onclick="enterNirvanaFromGame()">Enter the Nirvana Club</button>' : ''}
     <div class="celebration-dismiss">Click anywhere to continue</div>
   `;
   els.celebrationOverlay.style.display = 'flex';

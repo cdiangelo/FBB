@@ -114,8 +114,9 @@
             <p class="toggle-hint">Reads scenario prompts aloud with a double-ding on each decision.</p>
           </div>
         </div>
-        <div style="margin-bottom:.5rem">
+        <div style="margin-bottom:.5rem;display:flex;gap:.75rem;justify-content:center;align-items:center">
           <button class="btn-admin-link" id="btn-admin" onclick="showAdminPanel()">Admin</button>
+          <button class="btn-nirvana-link" onclick="enterNirvanaFromTitle()">Nirvana Club</button>
         </div>
 
         <div class="persona-select">
@@ -378,6 +379,16 @@
       <div class="scale-map-body" id="scale-map-body"></div>
     </div>
 
+    <!-- NIRVANA SCREEN -->
+    <div id="screen-nirvana" class="screen">
+      <div class="nirvana-wrapper">
+        <canvas id="nirvana-canvas" width="800" height="500" tabindex="1"></canvas>
+        <div class="nirvana-controls">
+          <button class="btn-nirvana-exit" onclick="exitNirvana()">Exit to Menu</button>
+        </div>
+      </div>
+    </div>
+
     <!-- CELEBRATION OVERLAY -->
     <div class="celebration-overlay" id="celebration-overlay" style="display:none">
       <div class="celebration-content" id="celebration-content"></div>
@@ -391,6 +402,7 @@
   <script src="/js/scenarioGenerator.js"></script>
   <script src="/js/engine.js"></script>
   <script src="/js/audio.js"></script>
+  <script src="/js/nirvana.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>
