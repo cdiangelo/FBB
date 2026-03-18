@@ -12,6 +12,8 @@ let fingerprint = null;
 let marketDataMode = 'simulated'; // 'simulated' or 'live'
 let difficultyMode = 'easy'; // 'easy' or 'hard'
 let advisorEnabled = false;
+let _openExhibits = []; // track open exhibit panes
+let _exhibitZCounter = 9000; // z-index counter for exhibit stacking
 let advisorReasoningLevel = 50; // 0-100 slider
 let adminSettings = null; // loaded from server
 let _adminSessionAuth = false; // true once admin authenticates this session
@@ -570,10 +572,10 @@ function updateSceneForLevel() {
   sceneDisplay.classList.remove('scene-expanded', 'scene-has-floor2');
   if (levelIndex >= 6) {
     sceneDisplay.classList.add('scene-has-floor2');
-    sceneDisplay.style.height = '260px';
+    sceneDisplay.style.height = '320px';
   } else if (levelIndex >= 4) {
     sceneDisplay.classList.add('scene-expanded');
-    sceneDisplay.style.height = '200px';
+    sceneDisplay.style.height = '220px';
   } else {
     sceneDisplay.style.height = '';
   }
@@ -999,9 +1001,22 @@ function showCommentaryTask(scenario) {
 
   // Commentary input in scrollable area — highlight defined terms in prompt
   const highlightedPrompt = highlightGlossaryTerms(scenario.prompt);
+
+  // Exhibit reference buttons — appended with prompt
+  let exhibitBtns = '';
+  if (scenario.exhibits && scenario.exhibits.length > 0) {
+    exhibitBtns = `<div class="exhibit-buttons">
+      <span class="exhibit-label">Reference Exhibits:</span>
+      ${scenario.exhibits.map((ex, i) => `<button class="btn-exhibit" onclick="openExhibit(${i})" title="${ex.title}">${ex.icon} ${ex.title.replace(/^Exhibit [A-Z] — /, '')}</button>`).join('')}
+    </div>`;
+    // Store exhibits on the scenario for later access
+    window._currentExhibits = scenario.exhibits;
+  }
+
   els.taskBody.innerHTML = `
     ${actionsHtml}
     <div class="commentary-prompt" style="color:var(--text-secondary);margin-bottom:1rem;font-size:.85rem">${highlightedPrompt}</div>
+    ${exhibitBtns}
     <textarea class="commentary-input" id="commentary-text" placeholder="Write your performance commentary here..."></textarea>
   `;
   els.taskActions.innerHTML = '<button class="btn-primary" onclick="submitCommentary()">Submit Commentary</button>';
@@ -1297,6 +1312,9 @@ function selectOption(index) {
     return;
   }
 
+  // Save undo snapshot before applying
+  engine.createUndoSnapshot();
+
   engine.applyEffect(option.effect);
   playDing();
 
@@ -1342,6 +1360,7 @@ function selectOption(index) {
   els.taskActions.innerHTML = `
     <button class="btn-primary" onclick="advanceAndContinue()">Next Day &rarr;</button>
     <button class="btn-secondary" onclick="loadNextTask()">Stay on Day ${engine.day}</button>
+    ${engine.hasUndo() ? '<button class="btn-undo" onclick="undoLastAction()">Undo</button>' : ''}
   `;
 
   updateAll();
@@ -1392,7 +1411,141 @@ function handleCommentaryResult(result) {
   }
 }
 
+// ===============================
+//  EXHIBIT VIEWER — draggable reference panes
+// ===============================
+function openExhibit(index) {
+  const exhibits = window._currentExhibits;
+  if (!exhibits || !exhibits[index]) return;
+  const ex = exhibits[index];
+
+  // Don't open duplicates
+  if (_openExhibits.includes(ex.id)) {
+    // Focus existing
+    const existing = document.getElementById('exhibit-' + ex.id);
+    if (existing) { existing.style.zIndex = ++_exhibitZCounter; }
+    return;
+  }
+  _openExhibits.push(ex.id);
+
+  const pane = document.createElement('div');
+  pane.id = 'exhibit-' + ex.id;
+  pane.className = 'exhibit-pane';
+  pane.style.zIndex = ++_exhibitZCounter;
+
+  // Stagger position based on how many are open
+  const offset = (_openExhibits.length - 1) * 30;
+  pane.style.left = (80 + offset) + 'px';
+  pane.style.top = (60 + offset) + 'px';
+
+  // Build content
+  let bodyHtml = '';
+  if (ex.type === 'table') {
+    bodyHtml = `<table class="exhibit-table">
+      <thead><tr>${ex.headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
+      <tbody>${ex.rows.map(row => `<tr>${row.map((cell, ci) => {
+        let cls = '';
+        if (typeof cell === 'string') {
+          if (cell === 'fail' || cell === 'Critical' || cell === 'High' || cell === 'Over Limit') cls = ' class="exhibit-cell-bad"';
+          else if (cell === 'watch' || cell === 'Caution' || cell === 'Elevated' || cell === 'Stressed' || cell === 'Near Limit' || cell === 'Worsening') cls = ' class="exhibit-cell-warn"';
+          else if (cell === 'pass' || cell === 'Adequate' || cell === 'Normal' || cell === 'Within Limit') cls = ' class="exhibit-cell-good"';
+        }
+        return `<td${cls}>${cell}</td>`;
+      }).join('')}</tr>`).join('')}</tbody>
+    </table>`;
+  } else if (ex.type === 'metrics') {
+    bodyHtml = `<div class="exhibit-metrics">${ex.metrics.map(m =>
+      `<div class="exhibit-metric ${m.cls}"><span class="exhibit-metric-label">${m.label}</span><span class="exhibit-metric-value">${m.value}</span></div>`
+    ).join('')}</div>`;
+  }
+
+  pane.innerHTML = `
+    <div class="exhibit-header" onmousedown="startDragExhibit(event, '${ex.id}')" ontouchstart="startDragExhibitTouch(event, '${ex.id}')">
+      <span class="exhibit-title">${ex.icon} ${ex.title}</span>
+      <button class="exhibit-close" onclick="closeExhibit('${ex.id}')">&times;</button>
+    </div><!-- touch drag handled via ontouchstart below -->
+    <div class="exhibit-body">${bodyHtml}</div>
+    ${ex.footnote ? `<div class="exhibit-footnote">${ex.footnote}</div>` : ''}
+  `;
+
+  // Bring to front on click
+  pane.addEventListener('mousedown', () => { pane.style.zIndex = ++_exhibitZCounter; });
+
+  document.body.appendChild(pane);
+}
+
+function closeExhibit(id) {
+  const pane = document.getElementById('exhibit-' + id);
+  if (pane) pane.remove();
+  _openExhibits = _openExhibits.filter(x => x !== id);
+}
+
+function closeAllExhibits() {
+  _openExhibits.forEach(id => {
+    const pane = document.getElementById('exhibit-' + id);
+    if (pane) pane.remove();
+  });
+  _openExhibits = [];
+}
+
+// Dragging
+let _dragState = null;
+function startDragExhibit(e, id) {
+  const pane = document.getElementById('exhibit-' + id);
+  if (!pane) return;
+  pane.style.zIndex = ++_exhibitZCounter;
+  const rect = pane.getBoundingClientRect();
+  _dragState = { pane, offsetX: e.clientX - rect.left, offsetY: e.clientY - rect.top };
+  e.preventDefault();
+}
+
+document.addEventListener('mousemove', (e) => {
+  if (!_dragState) return;
+  const x = Math.max(0, e.clientX - _dragState.offsetX);
+  const y = Math.max(0, e.clientY - _dragState.offsetY);
+  _dragState.pane.style.left = x + 'px';
+  _dragState.pane.style.top = y + 'px';
+});
+document.addEventListener('mouseup', () => { _dragState = null; });
+
+// Touch support for mobile drag
+function startDragExhibitTouch(e, id) {
+  const pane = document.getElementById('exhibit-' + id);
+  if (!pane) return;
+  pane.style.zIndex = ++_exhibitZCounter;
+  const rect = pane.getBoundingClientRect();
+  const t = e.touches[0];
+  _dragState = { pane, offsetX: t.clientX - rect.left, offsetY: t.clientY - rect.top };
+}
+
+document.addEventListener('touchmove', (e) => {
+  if (!_dragState) return;
+  const t = e.touches[0];
+  const x = Math.max(0, t.clientX - _dragState.offsetX);
+  const y = Math.max(0, t.clientY - _dragState.offsetY);
+  _dragState.pane.style.left = x + 'px';
+  _dragState.pane.style.top = y + 'px';
+  e.preventDefault();
+}, { passive: false });
+document.addEventListener('touchend', () => { _dragState = null; });
+
+// ===============================
+//  UNDO ACTION
+// ===============================
+function undoLastAction() {
+  if (!engine.hasUndo()) {
+    showNotification('Nothing to undo.');
+    return;
+  }
+  engine.applyUndo();
+  showNotification('Last action undone.');
+  updateAll();
+  // Re-show the scenario as if player hasn't answered yet
+  loadNextTask();
+}
+
 function advanceAndContinue() {
+  closeAllExhibits();
   const event = engine.advanceDay();
   if (event && event.isGameOver) {
     showGameOver(event);

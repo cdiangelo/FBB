@@ -1747,3 +1747,140 @@ body {
   padding-top: .3rem;
   border-top: 1px solid var(--border);
 }
+
+/* ============================================
+   EXHIBIT VIEWER PANES — draggable reference docs
+   ============================================ */
+.exhibit-pane {
+  position: fixed;
+  width: 420px; max-width: 90vw;
+  max-height: 70vh;
+  background: var(--card-bg, #1a1a2e);
+  border: 1.5px solid var(--accent, #64ffda);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5), 0 0 0 1px rgba(100,255,218,.1);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  font-size: .8rem;
+}
+.exhibit-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .5rem .75rem;
+  background: rgba(100,255,218,.08);
+  border-bottom: 1px solid var(--border, #333);
+  cursor: grab; user-select: none;
+}
+.exhibit-header:active { cursor: grabbing; }
+.exhibit-title {
+  font-weight: 700; font-size: .85rem;
+  color: var(--accent, #64ffda);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.exhibit-close {
+  background: none; border: none; color: var(--text-secondary, #aaa);
+  font-size: 1.3rem; cursor: pointer; padding: 0 .25rem;
+  line-height: 1; transition: color .15s;
+}
+.exhibit-close:hover { color: #ef5350; }
+.exhibit-body {
+  padding: .75rem;
+  overflow-y: auto; flex: 1;
+}
+.exhibit-footnote {
+  padding: .4rem .75rem;
+  font-size: .7rem; color: var(--text-dim, #888);
+  border-top: 1px solid var(--border, #333);
+  font-style: italic;
+}
+
+/* Exhibit tables */
+.exhibit-table {
+  width: 100%; border-collapse: collapse; font-size: .75rem;
+}
+.exhibit-table th {
+  text-align: left; padding: .35rem .5rem;
+  background: rgba(255,255,255,.04);
+  border-bottom: 1px solid var(--border, #333);
+  color: var(--text-secondary, #ccc); font-weight: 600;
+  white-space: nowrap;
+}
+.exhibit-table td {
+  padding: .3rem .5rem;
+  border-bottom: 1px solid rgba(255,255,255,.03);
+}
+.exhibit-table tr:hover td { background: rgba(255,255,255,.03); }
+
+/* Status cell coloring */
+.exhibit-cell-bad { color: #ef5350; font-weight: 600; }
+.exhibit-cell-warn { color: #ffa726; font-weight: 600; }
+.exhibit-cell-good { color: #66bb6a; }
+
+/* Metric cards */
+.exhibit-metrics {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: .5rem;
+}
+.exhibit-metric {
+  padding: .5rem;
+  border-radius: 4px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.06);
+  text-align: center;
+}
+.exhibit-metric-label {
+  display: block; font-size: .65rem;
+  color: var(--text-dim, #888); margin-bottom: .2rem;
+}
+.exhibit-metric-value {
+  display: block; font-size: .9rem; font-weight: 700;
+}
+.metric-good .exhibit-metric-value { color: #66bb6a; }
+.metric-warn .exhibit-metric-value { color: #ffa726; }
+.metric-bad .exhibit-metric-value { color: #ef5350; }
+.metric-neutral .exhibit-metric-value { color: var(--text-primary, #eee); }
+
+/* Exhibit open buttons — inline with commentary prompt */
+.exhibit-buttons {
+  display: flex; flex-wrap: wrap; gap: .4rem;
+  align-items: center; margin-bottom: 1rem;
+  padding: .5rem .6rem;
+  background: rgba(100,255,218,.04);
+  border: 1px solid rgba(100,255,218,.12);
+  border-radius: 6px;
+}
+.exhibit-label {
+  font-size: .7rem; color: var(--text-dim, #888);
+  margin-right: .3rem; white-space: nowrap;
+}
+.btn-exhibit {
+  background: rgba(100,255,218,.08);
+  border: 1px solid rgba(100,255,218,.2);
+  color: var(--accent, #64ffda);
+  padding: .25rem .6rem; border-radius: 4px;
+  font-size: .7rem; cursor: pointer;
+  transition: all .15s;
+}
+.btn-exhibit:hover {
+  background: rgba(100,255,218,.18);
+  border-color: var(--accent, #64ffda);
+}
+
+/* Undo button */
+.btn-undo {
+  background: rgba(239,83,80,.08);
+  border: 1px solid rgba(239,83,80,.3);
+  color: #ef5350;
+  padding: .5rem 1rem; border-radius: 6px;
+  font-size: .8rem; cursor: pointer;
+  transition: all .15s;
+}
+.btn-undo:hover {
+  background: rgba(239,83,80,.18);
+  border-color: #ef5350;
+}
+
+/* Mobile: full-width exhibit panes */
+@media (max-width: 600px) {
+  .exhibit-pane { width: 95vw; left: 2.5vw !important; }
+  .exhibit-metrics { grid-template-columns: repeat(2, 1fr); }
+}

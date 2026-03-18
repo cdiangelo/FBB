@@ -1146,8 +1146,155 @@ class GameEngine {
       context: this.persona,
       prompt: prompt,
       businessSummary: summary,
-      periodActions: this.periodActions.slice()
+      periodActions: this.periodActions.slice(),
+      exhibits: this._generateExhibits()
     };
+  }
+
+  // ---- EXHIBIT GENERATION — reference reports for commentary ----
+  _generateExhibits() {
+    const exhibits = [];
+    const g = this.generator;
+    const money = this.state.money;
+    const debt = this.debtStructure.totalDebt;
+    const assets = this.portfolio.totalAssetValue;
+    const risk = this.financialRisk;
+    const rating = this.creditRating;
+
+    // Exhibit A: Stress Test Results — always included
+    const baseRevenue = Math.max(1000, this.previousPeriod?.revenue || money * 0.1);
+    const scenarios = [
+      { name: 'Base Case', revImpact: '0%', lossRate: '1.2%', capitalAdequacy: risk < 40 ? 'Adequate' : 'Marginal', status: 'pass' },
+      { name: 'Moderate Downturn', revImpact: '-15%', lossRate: risk < 30 ? '3.5%' : '5.8%', capitalAdequacy: risk < 50 ? 'Adequate' : 'Stressed', status: risk < 50 ? 'pass' : 'watch' },
+      { name: 'Severe Recession', revImpact: '-30%', lossRate: risk < 30 ? '7.2%' : '12.4%', capitalAdequacy: risk < 40 ? 'Marginal' : 'Insufficient', status: risk < 40 ? 'watch' : 'fail' },
+      { name: 'Market Shock + Liquidity Crisis', revImpact: '-45%', lossRate: risk < 25 ? '10.5%' : '18.7%', capitalAdequacy: risk < 30 ? 'Stressed' : 'Critical', status: risk < 30 ? 'watch' : 'fail' }
+    ];
+    exhibits.push({
+      id: 'stress-test',
+      title: 'Exhibit A — Stress Test Results',
+      icon: '\u26A0',
+      type: 'table',
+      headers: ['Scenario', 'Revenue Impact', 'Projected Loss Rate', 'Capital Adequacy', 'Status'],
+      rows: scenarios.map(s => [s.name, s.revImpact, s.lossRate, s.capitalAdequacy, s.status]),
+      footnote: `Based on current financial risk score of ${risk}/100 and ${rating} credit rating. Stress scenarios use regulatory-standard shock factors.`
+    });
+
+    // Exhibit B: Watch List / Risk Register
+    const watchItems = [];
+    if (risk > 50) watchItems.push({ item: 'Overall Financial Risk', rating: 'Elevated', trend: 'Worsening', action: 'De-risk portfolio, build reserves' });
+    if (debt > money * 0.5) watchItems.push({ item: 'Debt-to-Cash Ratio', rating: 'Caution', trend: debt > money ? 'Critical' : 'Stable', action: 'Reduce leverage or increase cash generation' });
+    if (this.auditRisk > 30) watchItems.push({ item: 'Audit / Regulatory Exposure', rating: this.auditRisk > 60 ? 'High' : 'Moderate', trend: 'Monitor', action: 'Review compliance posture, engage counsel' });
+    if (this.satisfaction < 35) watchItems.push({ item: 'Employee / Stakeholder Satisfaction', rating: 'Low', trend: 'Declining', action: 'Address work-life balance, review culture' });
+    if ((this.debtStructure.equityGiven || 0) > 25) watchItems.push({ item: 'Equity Dilution', rating: 'Elevated', trend: 'Increasing', action: 'Limit further equity raises, focus on organic growth' });
+    // Always add a few standard items
+    watchItems.push({ item: 'Market Concentration Risk', rating: risk > 40 ? 'Elevated' : 'Normal', trend: 'Stable', action: 'Diversify revenue sources' });
+    watchItems.push({ item: 'Interest Rate Sensitivity', rating: this.debtStructure.debtRate > 8 ? 'High' : 'Moderate', trend: this.debtStructure.debtRate > 7 ? 'Rising' : 'Stable', action: 'Consider fixed-rate hedging' });
+
+    exhibits.push({
+      id: 'watch-list',
+      title: 'Exhibit B — Watch List & Risk Register',
+      icon: '\u{1F50D}',
+      type: 'table',
+      headers: ['Item', 'Risk Rating', 'Trend', 'Recommended Action'],
+      rows: watchItems.map(w => [w.item, w.rating, w.trend, w.action]),
+      footnote: `${watchItems.filter(w => w.rating === 'High' || w.rating === 'Elevated' || w.rating === 'Critical').length} items flagged for immediate attention.`
+    });
+
+    // Exhibit C: Portfolio / Balance Sheet Summary
+    const netWorth = money + assets - debt;
+    const debtRatio = debt / Math.max(1, money + assets);
+    const capitalRatio = money / Math.max(1, money + assets + debt);
+    exhibits.push({
+      id: 'portfolio-summary',
+      title: 'Exhibit C — Portfolio & Capital Summary',
+      icon: '\u{1F4CA}',
+      type: 'metrics',
+      metrics: [
+        { label: 'Cash on Hand', value: '$' + money.toLocaleString(), cls: money > 5000 ? 'metric-good' : 'metric-warn' },
+        { label: 'Total Assets', value: '$' + assets.toLocaleString(), cls: 'metric-neutral' },
+        { label: 'Total Debt', value: '$' + debt.toLocaleString(), cls: debt > money ? 'metric-bad' : 'metric-neutral' },
+        { label: 'Net Worth', value: '$' + netWorth.toLocaleString(), cls: netWorth > 0 ? 'metric-good' : 'metric-bad' },
+        { label: 'Debt Ratio', value: (debtRatio * 100).toFixed(1) + '%', cls: debtRatio > 0.6 ? 'metric-bad' : debtRatio > 0.4 ? 'metric-warn' : 'metric-good' },
+        { label: 'Capital Ratio', value: (capitalRatio * 100).toFixed(1) + '%', cls: capitalRatio > 0.3 ? 'metric-good' : 'metric-warn' },
+        { label: 'Credit Rating', value: rating, cls: ['AAA','AA','A'].includes(rating) ? 'metric-good' : 'metric-warn' },
+        { label: 'Financial Risk', value: risk + '/100', cls: risk < 35 ? 'metric-good' : risk < 60 ? 'metric-warn' : 'metric-bad' },
+        { label: 'Monthly Debt Service', value: '$' + this.getDebtService().toLocaleString(), cls: 'metric-neutral' }
+      ],
+      footnote: `Credit capacity at ${this.creditCapacity || 100}%. Effective borrowing rate: ${this._getEffectiveRate().toFixed(1)}%.`
+    });
+
+    // Exhibit D: Sector / Concentration Analysis (persona-specific)
+    if (this.persona === 'banker') {
+      const sectors = ['Commercial RE', 'Small Business', 'Agriculture', 'Consumer', 'Construction', 'Technology'];
+      const concentrations = sectors.map(s => {
+        const pct = Math.round(8 + Math.random() * 25);
+        return { sector: s, pct, limit: 30, status: pct > 30 ? 'Over Limit' : pct > 25 ? 'Near Limit' : 'Within Limit' };
+      });
+      // Normalize to 100%
+      const total = concentrations.reduce((s, c) => s + c.pct, 0);
+      concentrations.forEach(c => c.pct = Math.round(c.pct / total * 100));
+
+      exhibits.push({
+        id: 'concentration',
+        title: 'Exhibit D — Sector Concentration Analysis',
+        icon: '\u{1F4CA}',
+        type: 'table',
+        headers: ['Sector', 'Current %', 'Policy Limit', 'Status'],
+        rows: concentrations.map(c => [c.sector, c.pct + '%', c.limit + '%', c.status]),
+        footnote: 'Policy limits per regulatory guidance. Sectors exceeding limits require board-approved exception.'
+      });
+    } else if (this.persona === 'farmer') {
+      const crops = ['Corn', 'Soybeans', 'Wheat', 'Hay/Alfalfa', 'Specialty'];
+      const allocations = crops.map(c => {
+        const acres = Math.round(50 + Math.random() * 300);
+        const yieldPct = Math.round(85 + Math.random() * 25);
+        return { crop: c, acres, yieldVsBench: yieldPct + '%', priceOutlook: Math.random() > 0.5 ? 'Favorable' : 'Neutral' };
+      });
+      exhibits.push({
+        id: 'crop-analysis',
+        title: 'Exhibit D — Crop Allocation & Yield Analysis',
+        icon: '\u{1F33E}',
+        type: 'table',
+        headers: ['Crop', 'Acres', 'Yield vs Benchmark', 'Price Outlook'],
+        rows: allocations.map(a => [a.crop, a.acres.toString(), a.yieldVsBench, a.priceOutlook]),
+        footnote: 'Yields compared to county 5-year average. Price outlook based on current futures curve.'
+      });
+    } else {
+      const clients = ['Enterprise A', 'Mid-Market B', 'Startup C', 'Government D', 'Non-Profit E'];
+      const pipeline = clients.map(c => ({
+        client: c,
+        fees: '$' + Math.round(5000 + Math.random() * 50000).toLocaleString(),
+        stage: ['Prospect', 'Proposal', 'Negotiation', 'Closed', 'Active'][Math.floor(Math.random() * 5)],
+        probability: Math.round(20 + Math.random() * 70) + '%'
+      }));
+      exhibits.push({
+        id: 'pipeline',
+        title: 'Exhibit D — Client Pipeline & Revenue Forecast',
+        icon: '\u{1F4BC}',
+        type: 'table',
+        headers: ['Client', 'Projected Fees', 'Stage', 'Close Probability'],
+        rows: pipeline.map(p => [p.client, p.fees, p.stage, p.probability]),
+        footnote: 'Pipeline weighted by close probability for revenue forecasting.'
+      });
+    }
+
+    return exhibits;
+  }
+
+  // ---- UNDO SUPPORT ----
+  createUndoSnapshot() {
+    this._undoSnapshot = this.saveGame();
+    this._undoSnapshot._isUndo = true;
+  }
+
+  hasUndo() { return !!this._undoSnapshot; }
+
+  applyUndo() {
+    if (!this._undoSnapshot) return false;
+    const snap = this._undoSnapshot;
+    this._undoSnapshot = null;
+    this.loadGame(snap);
+    return true;
   }
 
   _getCommentaryTitle() {
