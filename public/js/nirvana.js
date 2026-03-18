@@ -1,5 +1,5 @@
 /* ============================================================
-   NIRVANA MODE — Freeform Arcade Hub
+   CLUB MODE — Freeform Arcade Hub
    Unlocked at empire level or from title screen.
    5 mini-games with CPU opponents (random persona/skin combos).
    Arrow-key + click/touch/drag controls.
@@ -14,6 +14,18 @@ let _nirvanaSkin = '#c68642';
 let _nirvanaKeys = {};
 let _nirvanaMouse = { x: 0, y: 0, down: false, startX: 0, startY: 0 };
 let _nirvanaTouch = false;
+
+// ---- CLUB LIGHTING ----
+let _clubLightsOn = true;
+let _clubLightOpacity = 0.25;
+let _clubLightTime = 0;
+const CLUB_LIGHTS = [
+  { color: [180, 60, 220], x: 0, y: 0, dx: 1.2, dy: 0.8, r: 120 },
+  { color: [60, 180, 255], x: 400, y: 100, dx: -0.9, dy: 1.1, r: 140 },
+  { color: [255, 120, 60], x: 600, y: 300, dx: 0.7, dy: -1.3, r: 110 },
+  { color: [100, 255, 140], x: 200, y: 400, dx: -1.1, dy: -0.6, r: 130 },
+  { color: [255, 200, 60], x: 700, y: 200, dx: -0.5, dy: 1.0, r: 100 }
+];
 
 // ---- CPU OPPONENTS ----
 const SKINS = ['#f5d0a9','#e8b88a','#d4a76a','#c68642','#b5651d','#8d5524','#70401c','#573214','#3b1f0b','#6b4423','#a0522d','#deb887'];
@@ -58,11 +70,21 @@ const HUB_LOCATIONS = [
 let _hubPlayer = { x: 400, y: 300, speed: 3 };
 let _hubPrompt = null;
 
+function _loadClubBalance() {
+  try { const v = localStorage.getItem('fbb_club_money'); return v ? parseInt(v) : 0; } catch(e) { return 0; }
+}
+function _saveClubBalance() {
+  try { localStorage.setItem('fbb_club_money', _nirvanaMoney.toString()); } catch(e) {}
+}
+
 function enterNirvana(persona, skin) {
   _nirvanaPersona = persona || _nirvanaPersona;
   _nirvanaSkin = skin || _nirvanaSkin;
   _nirvanaState = 'hub';
-  _nirvanaMoney = (typeof engine !== 'undefined' && engine.state) ? Math.max(5000, engine.state.money || 5000) : 5000;
+  // Load persistent balance; seed from game engine if first time
+  const saved = _loadClubBalance();
+  const fromEngine = (typeof engine !== 'undefined' && engine.state) ? (engine.state.money || 0) : 0;
+  _nirvanaMoney = saved > 0 ? saved : Math.max(5000, fromEngine);
   _hubPlayer.x = 400; _hubPlayer.y = 300;
 
   const el = document.getElementById('screen-nirvana');
@@ -87,6 +109,7 @@ function enterNirvana(persona, skin) {
 }
 
 function exitNirvana() {
+  _saveClubBalance();
   if (_nirvanaRAF) cancelAnimationFrame(_nirvanaRAF);
   _nirvanaRAF = null;
   _nirvanaState = 'hub';
@@ -100,8 +123,21 @@ function nirvanaLoop() {
   _nirvanaRAF = requestAnimationFrame(nirvanaLoop);
 }
 
+let _nirvanaLastState = 'hub';
 function nirvanaUpdate() {
-  if (_nirvanaState === 'hub') updateHub();
+  // Auto-save balance when returning to hub from a game
+  if (_nirvanaState === 'hub' && _nirvanaLastState !== 'hub') _saveClubBalance();
+  _nirvanaLastState = _nirvanaState;
+
+  if (_nirvanaState === 'hub') {
+    updateHub();
+    // Live-drag the opacity slider
+    if (_nirvanaMouse.down && _clubLightsOn &&
+        _nirvanaMouse.x >= 680 && _nirvanaMouse.x <= 760 &&
+        _nirvanaMouse.y >= 455 && _nirvanaMouse.y <= 480) {
+      _clubLightOpacity = Math.max(0.03, Math.min(0.6, ((_nirvanaMouse.x - 680) / 80) * 0.6));
+    }
+  }
   else if (_nirvanaState === 'pool') updatePool();
   else if (_nirvanaState === 'blackjack') {} // event-driven
   else if (_nirvanaState === 'horses') updateHorses();
@@ -126,7 +162,7 @@ function nirvanaDraw() {
   ctx.fillText(`$${_nirvanaMoney.toLocaleString()}`, 10, 18);
   ctx.fillStyle = '#aaa';
   ctx.textAlign = 'center';
-  ctx.fillText(_nirvanaState === 'hub' ? 'NIRVANA CLUB \u2014 Use arrow keys to move, click to enter' : 'Press ESC or click Back to return', 400, 18);
+  ctx.fillText(_nirvanaState === 'hub' ? 'CLUB MODE \u2014 Use arrow keys to move, click to enter' : 'Press ESC or click Back to return', 400, 18);
   ctx.textAlign = 'right';
   ctx.fillStyle = ({ farmer: '#4CAF50', banker: '#1565C0', businessman: '#FF8F00' })[_nirvanaPersona];
   ctx.fillText(_nirvanaPersona.toUpperCase(), 790, 18);
@@ -134,6 +170,19 @@ function nirvanaDraw() {
 
 function nirvanaClick() {
   if (_nirvanaState === 'hub') {
+    // Light toggle click (bottom-right area)
+    const toggleX = 620, toggleY = 460, toggleW = 50, toggleH = 18;
+    if (_nirvanaMouse.x >= toggleX && _nirvanaMouse.x <= toggleX + toggleW &&
+        _nirvanaMouse.y >= toggleY && _nirvanaMouse.y <= toggleY + toggleH) {
+      _clubLightsOn = !_clubLightsOn;
+      return;
+    }
+    // Opacity slider drag (to right of toggle)
+    if (_clubLightsOn && _nirvanaMouse.x >= 680 && _nirvanaMouse.x <= 760 &&
+        _nirvanaMouse.y >= 455 && _nirvanaMouse.y <= 480) {
+      _clubLightOpacity = Math.max(0.03, Math.min(0.6, ((_nirvanaMouse.x - 680) / 80) * 0.6));
+      return;
+    }
     // Check if clicking a location directly
     for (const loc of HUB_LOCATIONS) {
       if (_nirvanaMouse.x >= loc.x && _nirvanaMouse.x <= loc.x + loc.w && _nirvanaMouse.y >= loc.y && _nirvanaMouse.y <= loc.y + loc.h) {
@@ -167,6 +216,7 @@ document.addEventListener('keydown', e => {
   _nirvanaKeys[e.key] = true;
   if (e.key === 'Escape' && _nirvanaState !== 'hub') {
     _nirvanaState = 'hub';
+    _saveClubBalance();
   }
 });
 document.addEventListener('keyup', e => { _nirvanaKeys[e.key] = false; });
@@ -177,6 +227,19 @@ function updateHub() {
   if (_nirvanaKeys['ArrowDown'] || _nirvanaKeys['s']) p.y = Math.min(490, p.y + p.speed);
   if (_nirvanaKeys['ArrowLeft'] || _nirvanaKeys['a']) p.x = Math.max(10, p.x - p.speed);
   if (_nirvanaKeys['ArrowRight'] || _nirvanaKeys['d']) p.x = Math.min(790, p.x + p.speed);
+
+  // Update bouncing club lights
+  if (_clubLightsOn) {
+    _clubLightTime++;
+    for (const light of CLUB_LIGHTS) {
+      light.x += light.dx;
+      light.y += light.dy;
+      if (light.x < 0 || light.x > 800) light.dx = -light.dx;
+      if (light.y < 28 || light.y > 500) light.dy = -light.dy;
+      light.x = Math.max(0, Math.min(800, light.x));
+      light.y = Math.max(28, Math.min(500, light.y));
+    }
+  }
 
   // Check proximity to locations
   _hubPrompt = null;
@@ -208,6 +271,23 @@ function drawHub(ctx) {
   ctx.fillRect(0, 28, 800, 50);
   ctx.fillStyle = '#2a2a48';
   ctx.fillRect(0, 28, 800, 4);
+
+  // ---- Bouncing club lights overlay ----
+  if (_clubLightsOn) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    for (const light of CLUB_LIGHTS) {
+      const pulse = 0.85 + Math.sin(_clubLightTime * 0.03 + light.r) * 0.15;
+      const grad = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, light.r * pulse);
+      const [r, g, b] = light.color;
+      grad.addColorStop(0, `rgba(${r},${g},${b},${_clubLightOpacity})`);
+      grad.addColorStop(0.5, `rgba(${r},${g},${b},${_clubLightOpacity * 0.4})`);
+      grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(light.x, light.y, light.r * pulse, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
 
   // Locations
   for (const loc of HUB_LOCATIONS) {
@@ -241,11 +321,48 @@ function drawHub(ctx) {
     ctx.fillText(`Press ENTER or Click to enter ${_hubPrompt.label}`, 400, 472);
   }
 
+  // ---- Club Lights toggle + opacity slider (bottom-right) ----
+  const toggleX = 620, toggleY = 460, toggleW = 50, toggleH = 18;
+  // Toggle background
+  ctx.fillStyle = _clubLightsOn ? 'rgba(180,60,220,.6)' : 'rgba(255,255,255,.1)';
+  roundRect(ctx, toggleX, toggleY, toggleW, toggleH, 9); ctx.fill();
+  // Toggle knob
+  const knobX = _clubLightsOn ? toggleX + toggleW - 11 : toggleX + 11;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(knobX, toggleY + 9, 7, 0, Math.PI * 2); ctx.fill();
+  // Label
+  ctx.fillStyle = '#aaa'; ctx.font = '9px sans-serif'; ctx.textAlign = 'right';
+  ctx.fillText('Lights', toggleX - 6, toggleY + 13);
+
+  // Opacity slider (to the right of toggle)
+  if (_clubLightsOn) {
+    const sliderX = 680, sliderY = toggleY + 5, sliderW = 80, sliderH = 8;
+    // Track
+    ctx.fillStyle = 'rgba(255,255,255,.1)';
+    roundRect(ctx, sliderX, sliderY, sliderW, sliderH, 4); ctx.fill();
+    // Filled portion
+    const fillW = (_clubLightOpacity / 0.6) * sliderW;
+    const sliderGrad = ctx.createLinearGradient(sliderX, 0, sliderX + sliderW, 0);
+    sliderGrad.addColorStop(0, 'rgba(100,60,180,.4)');
+    sliderGrad.addColorStop(1, 'rgba(255,120,220,.8)');
+    ctx.fillStyle = sliderGrad;
+    roundRect(ctx, sliderX, sliderY, fillW, sliderH, 4); ctx.fill();
+    // Thumb
+    const thumbX = sliderX + fillW;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(thumbX, sliderY + 4, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(180,60,220,.6)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(thumbX, sliderY + 4, 6, 0, Math.PI * 2); ctx.stroke();
+    // Label
+    ctx.fillStyle = '#888'; ctx.font = '8px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(`${Math.round(_clubLightOpacity * 100)}%`, sliderX + sliderW / 2, sliderY + 20);
+  }
+
   // Title
   ctx.fillStyle = 'rgba(255,213,79,.8)';
   ctx.font = 'bold 18px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('NIRVANA CLUB', 400, 58);
+  ctx.fillText('CLUB MODE', 400, 58);
   ctx.fillStyle = 'rgba(255,255,255,.4)';
   ctx.font = '11px sans-serif';
   ctx.fillText('The empire retirement lounge \u2014 walk around with arrow keys', 400, 74);
@@ -277,8 +394,9 @@ function initPool() {
   // Cue ball
   balls.push({ x: 220, y: 200, vx: 0, vy: 0, r: 10, color: '#fff', id: 0, sunk: false });
   // Rack the 15 balls in triangle at x=550
-  const poolColors = ['#FFD700','#1565C0','#E53935','#7B1FA2','#FF8F00','#2E7D32','#8D6E63','#212121',
-                       '#FFD700','#1565C0','#E53935','#7B1FA2','#FF8F00','#2E7D32','#8D6E63'];
+  // Standard pool: yellow, blue, red, purple, orange, maroon, tan, black (solids 1-8), then stripes 9-15
+  const poolColors = ['#FFD700','#1565C0','#E53935','#7B1FA2','#FF8F00','#800020','#8D6E63','#212121',
+                       '#FFD700','#1565C0','#E53935','#7B1FA2','#FF8F00','#800020','#8D6E63'];
   let idx = 0;
   for (let row = 0; row < 5; row++) {
     for (let col = 0; col <= row; col++) {
@@ -456,20 +574,30 @@ function drawPool(ctx) {
   // Balls
   for (const b of p.balls) {
     if (b.sunk) continue;
+    // Ball fill
     ctx.fillStyle = b.color;
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+    // Stripe band
     if (b.stripe) {
       ctx.fillStyle = '#fff';
-      ctx.fillRect(b.x - b.r * 0.7, b.y - 2, b.r * 1.4, 4);
+      ctx.save(); ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.clip();
+      ctx.fillRect(b.x - b.r, b.y - 3, b.r * 2, 6);
+      ctx.restore();
     }
+    // Number circle
     if (b.id > 0) {
-      ctx.fillStyle = b.id === 8 ? '#fff' : '#000';
-      ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText(b.id, b.x, b.y + 3);
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(b.x, b.y, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#000';
+      ctx.font = 'bold 7px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(b.id, b.x, b.y + 2.5);
     }
-    // Cue ball highlight
+    // Thin black outline on every ball
+    ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.stroke();
+    // Cue ball extra highlight
     if (b.id === 0) {
-      ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.arc(b.x, b.y, b.r + 2, 0, Math.PI * 2); ctx.stroke();
     }
   }
@@ -895,19 +1023,72 @@ function initMovies() {
     selected: -1,
     watching: false,
     watchTimer: 0,
-    watchDuration: 300, // ~5 sec at 60fps
+    watchDuration: 300,
     scroll: 0,
-    audience: Array.from({ length: 8 }, () => makeCPU())
+    audience: Array.from({ length: 8 }, () => makeCPU()),
+    youtubeUrl: '',
+    youtubeActive: false,
+    inputFocused: false
   };
+  // Remove any leftover iframe
+  _removeYoutubeEmbed();
+}
+
+function _extractYoutubeId(url) {
+  if (!url) return null;
+  let m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
+function _showYoutubeEmbed(videoId) {
+  _removeYoutubeEmbed();
+  const wrapper = document.querySelector('.nirvana-wrapper');
+  if (!wrapper) return;
+  const iframe = document.createElement('iframe');
+  iframe.id = 'nirvana-youtube';
+  iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+  iframe.allow = 'autoplay; encrypted-media';
+  iframe.allowFullscreen = true;
+  iframe.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:640px;max-width:90%;aspect-ratio:16/9;border:3px solid rgba(255,213,79,.4);border-radius:8px;z-index:10;background:#000;';
+  wrapper.style.position = 'relative';
+  wrapper.appendChild(iframe);
+}
+
+function _removeYoutubeEmbed() {
+  const el = document.getElementById('nirvana-youtube');
+  if (el) el.remove();
 }
 
 function moviesClick() {
   const m = _movies;
+  if (m.youtubeActive) {
+    // Click "Close Video" button area
+    if (_nirvanaMouse.x >= 340 && _nirvanaMouse.x <= 460 && _nirvanaMouse.y >= 430 && _nirvanaMouse.y <= 465) {
+      m.youtubeActive = false;
+      _removeYoutubeEmbed();
+    }
+    return;
+  }
   if (m.watching) {
     if (m.watchTimer >= m.watchDuration) { m.watching = false; m.selected = -1; }
     return;
   }
-  if (_nirvanaMouse.x < 70 && _nirvanaMouse.y > 455) { _nirvanaState = 'hub'; return; }
+  if (_nirvanaMouse.x < 70 && _nirvanaMouse.y > 455) { _nirvanaState = 'hub'; _removeYoutubeEmbed(); return; }
+  // YouTube URL input click (focus)
+  if (_nirvanaMouse.x >= 320 && _nirvanaMouse.x <= 700 && _nirvanaMouse.y >= 395 && _nirvanaMouse.y <= 420) {
+    m.inputFocused = true;
+    const url = prompt('Enter a YouTube URL:');
+    if (url) {
+      m.youtubeUrl = url;
+      const vid = _extractYoutubeId(url);
+      if (vid) {
+        m.youtubeActive = true;
+        _showYoutubeEmbed(vid);
+      }
+    }
+    m.inputFocused = false;
+    return;
+  }
   // Movie list on left side
   for (let i = 0; i < m.list.length; i++) {
     const y = 90 + i * 38 - m.scroll;
@@ -915,7 +1096,7 @@ function moviesClick() {
       m.selected = i;
     }
   }
-  // Watch button
+  // Watch button (classic animated view)
   if (m.selected >= 0 && _nirvanaMouse.x >= 560 && _nirvanaMouse.x <= 700 && _nirvanaMouse.y >= 430 && _nirvanaMouse.y <= 465) {
     m.watching = true;
     m.watchTimer = 0;
@@ -966,6 +1147,18 @@ function drawMovies(ctx) {
     return;
   }
 
+  // YouTube active: show close button behind the iframe
+  if (m.youtubeActive) {
+    ctx.fillStyle = 'rgba(0,0,0,.85)'; ctx.fillRect(0, 28, 800, 472);
+    ctx.fillStyle = '#aaa'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('YouTube video playing above. Click below to close.', 400, 420);
+    ctx.fillStyle = '#e53935'; roundRect(ctx, 340, 430, 120, 35, 6); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 13px sans-serif';
+    ctx.fillText('Close Video', 400, 452);
+    drawBackButton(ctx);
+    return;
+  }
+
   // Movie list (left)
   ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center';
   ctx.fillText('NOW SHOWING', 155, 65);
@@ -983,6 +1176,16 @@ function drawMovies(ctx) {
     ctx.fillText(`${movie.genre} \u2022 ${movie.runtime}`, 40, y + 28);
   }
 
+  // YouTube URL input bar
+  ctx.fillStyle = 'rgba(255,255,255,.06)';
+  roundRect(ctx, 320, 395, 380, 25, 4); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 1;
+  roundRect(ctx, 320, 395, 380, 25, 4); ctx.stroke();
+  ctx.fillStyle = '#888'; ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText(m.youtubeUrl || 'Click to enter a YouTube URL...', 330, 412);
+  ctx.fillStyle = '#FF0000'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'right';
+  ctx.fillText('\u25B6 YouTube', 695, 412);
+
   // Preview (right)
   if (m.selected >= 0) {
     const movie = m.list[m.selected];
@@ -999,13 +1202,13 @@ function drawMovies(ctx) {
     ctx.fillStyle = '#FFD54F'; ctx.font = 'bold 12px sans-serif';
     ctx.fillText(`Genre: ${movie.genre}`, 540, 210);
     ctx.fillText(`Runtime: ${movie.runtime}`, 540, 230);
-    // Watch button
+    // Watch button (animated preview)
     ctx.fillStyle = '#e53935'; roundRect(ctx, 560, 430, 140, 35, 6); ctx.fill();
     ctx.fillStyle = '#fff'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
     ctx.fillText('\u{1F3AC} WATCH', 630, 452);
   } else {
     ctx.fillStyle = '#555'; ctx.font = '14px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText('Select a movie from the list', 540, 250);
+    ctx.fillText('Select a movie or paste a YouTube link', 540, 250);
   }
   drawBackButton(ctx);
 }
@@ -1029,10 +1232,14 @@ function wrapText(ctx, text, x, y, maxW, lineH) {
 /* ============================================================
    GAME 5: MINI PUTT
    Click & drag backward from ball to set power/direction.
-   Wavy green with slopes. Hole in 1-5 strokes.
+   Wavy green with slopes, obstacles, CPU putt replay.
    ============================================================ */
 let _putt = {};
+let _puttSlopeOverlay = false;
+
 function initPutt() {
+  const obstacles = generateObstacles();
+  const cpuResult = simulateCPUPutt(obstacles);
   _putt = {
     ball: { x: 150, y: 380, vx: 0, vy: 0, r: 6 },
     hole: { x: 620, y: 130, r: 10 },
@@ -1041,26 +1248,148 @@ function initPutt() {
     par: 3,
     bet: 200,
     cpu: makeCPU(),
-    cpuStrokes: 2 + Math.floor(Math.random() * 4), // 2-5
-    state: 'aiming', // aiming | rolling | done
+    cpuStrokes: cpuResult.strokes,
+    cpuPath: cpuResult.path,    // recorded positions for replay
+    cpuReplay: false,
+    cpuReplayIdx: 0,
+    cpuReplayTimer: 0,
+    state: 'aiming', // aiming | rolling | cpuReplay | done
     message: 'Drag backward from ball to putt!',
     terrain: generateTerrain(),
+    obstacles,
     sunk: false
   };
 }
 
 function generateTerrain() {
-  // Generate wavy bumps for the green
   const bumps = [];
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 10; i++) {
     bumps.push({
-      x: 100 + Math.random() * 600,
-      y: 80 + Math.random() * 380,
-      r: 40 + Math.random() * 80,
-      strength: (Math.random() - 0.5) * 0.04 // slope strength
+      x: 80 + Math.random() * 640,
+      y: 70 + Math.random() * 380,
+      r: 30 + Math.random() * 90,
+      strength: (Math.random() - 0.5) * 0.045
     });
   }
   return bumps;
+}
+
+function generateObstacles() {
+  const obs = [];
+  // Bumper walls (rectangles)
+  const wallCount = 2 + Math.floor(Math.random() * 2);
+  for (let i = 0; i < wallCount; i++) {
+    const vertical = Math.random() > 0.5;
+    obs.push({
+      type: 'wall',
+      x: 200 + Math.random() * 400,
+      y: 120 + Math.random() * 260,
+      w: vertical ? 8 : 40 + Math.random() * 60,
+      h: vertical ? 40 + Math.random() * 60 : 8
+    });
+  }
+  // Sand traps (circles — slow the ball)
+  const sandCount = 1 + Math.floor(Math.random() * 2);
+  for (let i = 0; i < sandCount; i++) {
+    obs.push({
+      type: 'sand',
+      x: 250 + Math.random() * 300,
+      y: 150 + Math.random() * 200,
+      r: 20 + Math.random() * 25
+    });
+  }
+  // Water hazard (one, occasionally)
+  if (Math.random() > 0.4) {
+    obs.push({
+      type: 'water',
+      x: 350 + Math.random() * 200,
+      y: 200 + Math.random() * 100,
+      r: 25 + Math.random() * 20
+    });
+  }
+  // Bumper circles (bouncy)
+  const bumperCount = 1 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < bumperCount; i++) {
+    obs.push({
+      type: 'bumper',
+      x: 200 + Math.random() * 400,
+      y: 100 + Math.random() * 300,
+      r: 10 + Math.random() * 8
+    });
+  }
+  return obs;
+}
+
+function simulateCPUPutt(obstacles) {
+  // Simulate a CPU putting attempt, recording path for replay
+  const terrain = _putt ? _putt.terrain : generateTerrain();
+  const ball = { x: 150, y: 380, vx: 0, vy: 0, r: 6 };
+  const hole = { x: 620, y: 130 };
+  const path = [{ x: ball.x, y: ball.y }];
+  let strokes = 0;
+  let sunk = false;
+
+  for (let s = 0; s < 6 && !sunk; s++) {
+    // Aim toward hole with some inaccuracy
+    const dx = hole.x - ball.x, dy = hole.y - ball.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.35;
+    const power = Math.min(7, dist * 0.04 + Math.random() * 2);
+    ball.vx = Math.cos(angle) * power;
+    ball.vy = Math.sin(angle) * power;
+    strokes++;
+
+    // Simulate rolling (max 200 frames per stroke)
+    for (let f = 0; f < 200; f++) {
+      // Terrain
+      let sx = 0, sy = 0;
+      for (const bump of terrain) {
+        const bx = ball.x - bump.x, by = ball.y - bump.y;
+        const bd = Math.sqrt(bx * bx + by * by);
+        if (bd < bump.r && bd > 0) {
+          const inf = 1 - bd / bump.r;
+          sx += (bx / bd) * bump.strength * inf;
+          sy += (by / bd) * bump.strength * inf;
+        }
+      }
+      ball.vx += sx; ball.vy += sy;
+      ball.x += ball.vx; ball.y += ball.vy;
+      ball.vx *= 0.98; ball.vy *= 0.98;
+      // Walls
+      if (ball.x < 46) { ball.x = 46; ball.vx = -ball.vx * 0.5; }
+      if (ball.x > 754) { ball.x = 754; ball.vx = -ball.vx * 0.5; }
+      if (ball.y < 56) { ball.y = 56; ball.vy = -ball.vy * 0.5; }
+      if (ball.y > 454) { ball.y = 454; ball.vy = -ball.vy * 0.5; }
+      // Obstacle collisions (simplified)
+      for (const o of obstacles) {
+        if (o.type === 'wall') {
+          if (ball.x > o.x && ball.x < o.x + o.w && ball.y > o.y && ball.y < o.y + o.h) {
+            if (o.w > o.h) ball.vy = -ball.vy * 0.7; else ball.vx = -ball.vx * 0.7;
+            ball.x += ball.vx * 2; ball.y += ball.vy * 2;
+          }
+        } else if (o.type === 'sand') {
+          const sd = Math.hypot(ball.x - o.x, ball.y - o.y);
+          if (sd < o.r) { ball.vx *= 0.92; ball.vy *= 0.92; }
+        } else if (o.type === 'bumper') {
+          const bd = Math.hypot(ball.x - o.x, ball.y - o.y);
+          if (bd < o.r + ball.r && bd > 0) {
+            const nx = (ball.x - o.x) / bd, ny = (ball.y - o.y) / bd;
+            ball.vx = nx * 3; ball.vy = ny * 3;
+          }
+        }
+      }
+      // Record path every 3 frames
+      if (f % 3 === 0) path.push({ x: ball.x, y: ball.y });
+      // Check hole
+      const hd = Math.hypot(ball.x - hole.x, ball.y - hole.y);
+      if (hd < 10 && Math.hypot(ball.vx, ball.vy) < 5) {
+        sunk = true; path.push({ x: hole.x, y: hole.y }); break;
+      }
+      if (Math.abs(ball.vx) < 0.02 && Math.abs(ball.vy) < 0.02) break;
+    }
+  }
+  if (!sunk) strokes = 3 + Math.floor(Math.random() * 3); // fallback
+  return { strokes, path };
 }
 
 function getTerrainSlope(x, y) {
@@ -1081,6 +1410,20 @@ function puttClick() {
   if (_putt.state === 'done') {
     if (_nirvanaMouse.x < 70 && _nirvanaMouse.y > 455) { _nirvanaState = 'hub'; return; }
     initPutt(); return;
+  }
+  if (_putt.state === 'cpuReplay') return; // don't interrupt
+  // Slope overlay toggle button (top-right of green)
+  if (_nirvanaMouse.x >= 690 && _nirvanaMouse.x <= 755 && _nirvanaMouse.y >= 52 && _nirvanaMouse.y <= 72) {
+    _puttSlopeOverlay = !_puttSlopeOverlay;
+    return;
+  }
+  // "Watch CPU" button
+  if (_putt.state === 'aiming' && _nirvanaMouse.x >= 580 && _nirvanaMouse.x <= 700 && _nirvanaMouse.y >= 475 && _nirvanaMouse.y <= 495) {
+    _putt.state = 'cpuReplay';
+    _putt.cpuReplayIdx = 0;
+    _putt.cpuReplayTimer = 0;
+    _putt.message = `Watching ${_putt.cpu.name}'s putt...`;
+    return;
   }
   if (_putt.state !== 'aiming') return;
   const b = _putt.ball;
@@ -1105,6 +1448,18 @@ function puttRelease() {
 }
 
 function updatePutt() {
+  // CPU replay
+  if (_putt.state === 'cpuReplay') {
+    _putt.cpuReplayTimer++;
+    if (_putt.cpuReplayTimer % 2 === 0 && _putt.cpuReplayIdx < _putt.cpuPath.length - 1) {
+      _putt.cpuReplayIdx++;
+    }
+    if (_putt.cpuReplayIdx >= _putt.cpuPath.length - 1) {
+      _putt.state = 'aiming';
+      _putt.message = `${_putt.cpu.name} finished in ${_putt.cpuStrokes}. Your turn!`;
+    }
+    return;
+  }
   if (_putt.state !== 'rolling') return;
   const b = _putt.ball;
   // Terrain slope influence
@@ -1117,6 +1472,37 @@ function updatePutt() {
   if (b.x + b.r > 760) { b.x = 760 - b.r; b.vx = -b.vx * 0.5; }
   if (b.y - b.r < 50) { b.y = 50 + b.r; b.vy = -b.vy * 0.5; }
   if (b.y + b.r > 460) { b.y = 460 - b.r; b.vy = -b.vy * 0.5; }
+  // Obstacle collisions
+  for (const o of _putt.obstacles) {
+    if (o.type === 'wall') {
+      if (b.x + b.r > o.x && b.x - b.r < o.x + o.w && b.y + b.r > o.y && b.y - b.r < o.y + o.h) {
+        if (o.w > o.h) { b.vy = -b.vy * 0.7; b.y += b.vy * 2; }
+        else { b.vx = -b.vx * 0.7; b.x += b.vx * 2; }
+      }
+    } else if (o.type === 'sand') {
+      const sd = Math.hypot(b.x - o.x, b.y - o.y);
+      if (sd < o.r) { b.vx *= 0.92; b.vy *= 0.92; }
+    } else if (o.type === 'water') {
+      const wd = Math.hypot(b.x - o.x, b.y - o.y);
+      if (wd < o.r) {
+        // Reset ball to start, penalty stroke
+        b.x = 150; b.y = 380; b.vx = 0; b.vy = 0;
+        _putt.strokes++;
+        _putt.state = 'aiming';
+        _putt.message = 'Water hazard! +1 penalty stroke.';
+        return;
+      }
+    } else if (o.type === 'bumper') {
+      const bd = Math.hypot(b.x - o.x, b.y - o.y);
+      if (bd < o.r + b.r && bd > 0) {
+        const nx = (b.x - o.x) / bd, ny = (b.y - o.y) / bd;
+        b.x = o.x + nx * (o.r + b.r + 1); b.y = o.y + ny * (o.r + b.r + 1);
+        const dot = b.vx * nx + b.vy * ny;
+        b.vx = b.vx - 2 * dot * nx; b.vy = b.vy - 2 * dot * ny;
+        b.vx *= 1.1; b.vy *= 1.1; // bumpers add energy
+      }
+    }
+  }
   // Check hole
   const hdx = b.x - _putt.hole.x, hdy = b.y - _putt.hole.y;
   const hd = Math.sqrt(hdx * hdx + hdy * hdy);
@@ -1149,7 +1535,7 @@ function finishPutt() {
   const cpuName = scoreNames[cpuDiff.toString()] || `+${cpuDiff}`;
 
   if (!_putt.sunk) {
-    _putt.message = `You didn't sink it (8 strokes). ${_putt.cpu.name} got ${cpuName} (${_putt.cpuStrokes}). -$${_putt.bet}`;
+    _putt.message = `DNF (8 strokes). ${_putt.cpu.name} got ${cpuName} (${_putt.cpuStrokes}). -$${_putt.bet}`;
     _nirvanaMoney -= _putt.bet;
   } else if (_putt.strokes < _putt.cpuStrokes) {
     const payout = _putt.bet * 2;
@@ -1184,13 +1570,83 @@ function drawPutt(ctx) {
     ctx.fillStyle = grad;
     ctx.beginPath(); ctx.arc(bump.x, bump.y, bump.r, 0, Math.PI * 2); ctx.fill();
   }
+
+  // ---- Slope overlay (arrow field) ----
+  if (_puttSlopeOverlay) {
+    ctx.save(); ctx.globalAlpha = 0.5;
+    for (let gx = 60; gx < 760; gx += 35) {
+      for (let gy = 70; gy < 460; gy += 35) {
+        const sl = getTerrainSlope(gx, gy);
+        const mag = Math.sqrt(sl.sx * sl.sx + sl.sy * sl.sy);
+        if (mag < 0.002) continue;
+        const len = Math.min(14, mag * 400);
+        const angle = Math.atan2(sl.sy, sl.sx);
+        // Arrow line
+        ctx.strokeStyle = mag > 0.02 ? '#ffeb3b' : '#b2ff59';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(gx, gy);
+        ctx.lineTo(gx + Math.cos(angle) * len, gy + Math.sin(angle) * len);
+        ctx.stroke();
+        // Arrowhead
+        const ax = gx + Math.cos(angle) * len, ay = gy + Math.sin(angle) * len;
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(ax - Math.cos(angle - 0.5) * 4, ay - Math.sin(angle - 0.5) * 4);
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(ax - Math.cos(angle + 0.5) * 4, ay - Math.sin(angle + 0.5) * 4);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
   // Grid lines for depth perception
-  ctx.strokeStyle = 'rgba(255,255,255,.05)'; ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(255,255,255,.04)'; ctx.lineWidth = 1;
   for (let x = 40; x <= 760; x += 30) { ctx.beginPath(); ctx.moveTo(x, 50); ctx.lineTo(x, 470); ctx.stroke(); }
   for (let y = 50; y <= 470; y += 30) { ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(760, y); ctx.stroke(); }
+
+  // ---- Obstacles ----
+  for (const o of p.obstacles) {
+    if (o.type === 'wall') {
+      ctx.fillStyle = '#5D4037';
+      ctx.fillRect(o.x, o.y, o.w, o.h);
+      ctx.strokeStyle = '#3E2723'; ctx.lineWidth = 1;
+      ctx.strokeRect(o.x, o.y, o.w, o.h);
+    } else if (o.type === 'sand') {
+      ctx.fillStyle = 'rgba(210,180,100,.6)';
+      ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(180,150,70,.4)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2); ctx.stroke();
+      // Sand dots
+      ctx.fillStyle = 'rgba(180,150,70,.3)';
+      for (let i = 0; i < 6; i++) {
+        const sx = o.x + (Math.random() - 0.5) * o.r * 1.2;
+        const sy = o.y + (Math.random() - 0.5) * o.r * 1.2;
+        ctx.fillRect(sx, sy, 2, 2);
+      }
+    } else if (o.type === 'water') {
+      ctx.fillStyle = 'rgba(30,100,200,.5)';
+      ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2); ctx.fill();
+      // Ripple
+      ctx.strokeStyle = 'rgba(100,180,255,.3)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(o.x, o.y, o.r * 0.5, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(o.x, o.y, o.r * 0.8, 0, Math.PI * 2); ctx.stroke();
+    } else if (o.type === 'bumper') {
+      ctx.fillStyle = '#FF5722';
+      ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#BF360C'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2); ctx.stroke();
+      // Highlight
+      ctx.fillStyle = 'rgba(255,255,255,.3)';
+      ctx.beginPath(); ctx.arc(o.x - o.r * 0.3, o.y - o.r * 0.3, o.r * 0.3, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
   // Border
   ctx.strokeStyle = '#1b5e20'; ctx.lineWidth = 4;
   ctx.strokeRect(40, 50, 720, 420);
+
   // Hole
   ctx.fillStyle = '#111';
   ctx.beginPath(); ctx.arc(p.hole.x, p.hole.y, p.hole.r, 0, Math.PI * 2); ctx.fill();
@@ -1199,13 +1655,36 @@ function drawPutt(ctx) {
   ctx.beginPath(); ctx.moveTo(p.hole.x, p.hole.y); ctx.lineTo(p.hole.x, p.hole.y - 40); ctx.stroke();
   ctx.fillStyle = '#e53935';
   ctx.beginPath(); ctx.moveTo(p.hole.x, p.hole.y - 40); ctx.lineTo(p.hole.x + 20, p.hole.y - 32); ctx.lineTo(p.hole.x, p.hole.y - 24); ctx.fill();
-  // Ball
-  if (!p.sunk) {
+
+  // ---- CPU replay path + ball ----
+  if (p.state === 'cpuReplay' && p.cpuPath.length > 0) {
+    // Trail
+    ctx.strokeStyle = 'rgba(255,165,0,.35)'; ctx.lineWidth = 2;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(p.cpuPath[0].x, p.cpuPath[0].y);
+    for (let i = 1; i <= p.cpuReplayIdx && i < p.cpuPath.length; i++) {
+      ctx.lineTo(p.cpuPath[i].x, p.cpuPath[i].y);
+    }
+    ctx.stroke(); ctx.setLineDash([]);
+    // CPU ball
+    const cp = p.cpuPath[Math.min(p.cpuReplayIdx, p.cpuPath.length - 1)];
+    ctx.fillStyle = p.cpu.accent;
+    ctx.beginPath(); ctx.arc(cp.x, cp.y, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cp.x, cp.y, 5, 0, Math.PI * 2); ctx.stroke();
+    // CPU label
+    drawMiniPerson(ctx, cp.x + 15, cp.y - 10, 14, p.cpu.skin, p.cpu.accent, null);
+  }
+
+  // ---- Player ball ----
+  if (!p.sunk && p.state !== 'cpuReplay') {
     ctx.fillStyle = '#fff';
     ctx.beginPath(); ctx.arc(p.ball.x, p.ball.y, p.ball.r, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,.2)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.arc(p.ball.x, p.ball.y, p.ball.r, 0, Math.PI * 2); ctx.stroke();
   }
+
   // Aiming line
   if (p.aiming && p.state === 'aiming') {
     const b = p.ball;
@@ -1225,8 +1704,27 @@ function drawPutt(ctx) {
     ctx.fillStyle = pw > 70 ? '#e53935' : pw > 40 ? '#FFB74D' : '#4CAF50';
     ctx.fillRect(350, 475, pw, 8);
   }
-  // Info
-  ctx.fillStyle = 'rgba(0,0,0,.6)'; roundRect(ctx, 50, 50, 160, 55, 6); ctx.fill();
+
+  // Slope overlay toggle button (top-right)
+  const soHover = _nirvanaMouse.x >= 690 && _nirvanaMouse.x <= 755 && _nirvanaMouse.y >= 52 && _nirvanaMouse.y <= 72;
+  ctx.fillStyle = _puttSlopeOverlay ? 'rgba(255,235,59,.25)' : (soHover ? 'rgba(255,255,255,.12)' : 'rgba(255,255,255,.06)');
+  roundRect(ctx, 690, 52, 65, 20, 4); ctx.fill();
+  ctx.fillStyle = _puttSlopeOverlay ? '#ffeb3b' : '#aaa';
+  ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('SLOPES', 722, 66);
+
+  // "Watch CPU" button
+  if (p.state === 'aiming') {
+    const wcHover = _nirvanaMouse.x >= 580 && _nirvanaMouse.x <= 700 && _nirvanaMouse.y >= 475 && _nirvanaMouse.y <= 495;
+    ctx.fillStyle = wcHover ? 'rgba(255,165,0,.3)' : 'rgba(255,255,255,.08)';
+    roundRect(ctx, 580, 475, 120, 20, 4); ctx.fill();
+    ctx.fillStyle = wcHover ? '#FFB74D' : '#aaa';
+    ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(`WATCH ${p.cpu.name.split(' ')[0].toUpperCase()}`, 640, 489);
+  }
+
+  // Info panel
+  ctx.fillStyle = 'rgba(0,0,0,.6)'; roundRect(ctx, 50, 50, 170, 55, 6); ctx.fill();
   ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'left';
   ctx.fillText(`Strokes: ${p.strokes}  |  Par: ${p.par}`, 60, 72);
   ctx.fillText(`Bet: $${p.bet}`, 60, 90);

@@ -2384,7 +2384,7 @@ function showCelebration(type) {
     icon = icons[persona]['empire'];
     title = titlesEmpire[persona];
     detail = detailsEmpire[persona];
-    subtitle = 'Empire tier unlocked. The Nirvana Club awaits.';
+    subtitle = 'Empire tier unlocked. Club Mode awaits.';
   } else {
     icon = is100 ? icons[persona]['100'] : icons[persona]['75'];
     title = is100 ? titles100[persona] : titles75[persona];
@@ -2398,7 +2398,7 @@ function showCelebration(type) {
     <div class="celebration-title">${title}</div>
     <div class="celebration-subtitle">${subtitle}</div>
     <div class="celebration-detail">${detail}</div>
-    ${(type === 'empire' || type === 'monopoly' || type === 'complete') ? '<button class="btn-nirvana-enter" onclick="enterNirvanaFromGame()">Enter the Nirvana Club</button>' : ''}
+    ${(type === 'empire' || type === 'monopoly' || type === 'complete') ? '<button class="btn-nirvana-enter" onclick="enterNirvanaFromGame()">Enter Club Mode</button>' : ''}
     <div class="celebration-dismiss">Click anywhere to continue</div>
   `;
   els.celebrationOverlay.style.display = 'flex';
