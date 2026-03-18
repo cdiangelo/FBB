@@ -3521,15 +3521,21 @@ function renderMap() {
     const weather = wPool[Math.floor((s.x * 7 + s.y * 3 + engine.day) % wPool.length)];
     let roleData = {};
     if (persona === 'farmer') {
-      roleData.crop = ['Corn','Wheat','Soybeans','Cotton','Rice'][Math.floor((s.x + s.y + engine.day) % 5)];
+      const cropIdx = Math.floor((s.x + s.y + engine.day) % 5);
+      const cropNames = ['Corn','Wheat','Soybeans','Cotton','Rice'];
+      const cropUnits = ['bu','bu','bu','lb','cwt'];
+      roleData.crop = cropNames[cropIdx];
+      roleData.cropUnit = cropUnits[cropIdx];
       roleData.yield = Math.round(75 + (s.x + s.y) % 30);
       roleData.price = (4 + ((s.x * 3 + engine.day) % 80) / 10).toFixed(2);
     } else if (persona === 'banker') {
       roleData.loanVol = Math.round(50 + (s.x * 3 + engine.day) % 200);
       roleData.risk = ['Low','Moderate','Elevated','High'][(s.y + engine.day) % 4];
+      roleData.defaultRate = (0.5 + ((s.x + engine.day) % 40) / 10).toFixed(1);
     } else {
       roleData.deals = Math.floor(1 + (s.x + engine.day) % 8);
       roleData.revenue = Math.round(10 + (s.y * 2 + engine.day) % 90) + 'K';
+      roleData.sector = ['Tech','Services','Retail','Healthcare','Manufacturing'][Math.floor((s.x + s.y) % 5)];
     }
     return { ...s, weather, roleData };
   });
@@ -3553,14 +3559,19 @@ function renderMap() {
       svg += `<circle cx="${s.x}" cy="${s.y}" r="${baseR}" fill="${opColor}" opacity="0.7" stroke="#fff" stroke-width="0.3"/>`;
     }
     if (_mapLayers.prices && persona === 'farmer') {
-      svg += `<text x="${s.x}" y="${s.y + 4}" text-anchor="middle" fill="#FFD54F" font-size="2">$${s.roleData.price}</text>`;
+      svg += `<text x="${s.x}" y="${s.y + 3.5}" text-anchor="middle" fill="#FFD54F" font-size="1.8">$${s.roleData.price}/${s.roleData.cropUnit}</text>`;
+      svg += `<text x="${s.x}" y="${s.y + 5.5}" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="1.3">${s.roleData.crop}</text>`;
     }
     if (_mapLayers.risk && persona === 'banker') {
       const rc = { Low:'#4CAF50', Moderate:'#FFB74D', Elevated:'#FF9800', High:'#EF5350' }[s.roleData.risk] || '#888';
       svg += `<circle cx="${s.x}" cy="${s.y}" r="${baseR + 1.2}" fill="none" stroke="${rc}" stroke-width="0.4" stroke-dasharray="1,0.5"/>`;
+      svg += `<text x="${s.x}" y="${s.y + 4}" text-anchor="middle" fill="${rc}" font-size="1.5">${s.roleData.defaultRate}% def</text>`;
     }
-    if (_mapLayers.pipeline && persona === 'businessman' && s.roleData.deals > 4) {
-      svg += `<text x="${s.x}" y="${s.y + 4}" text-anchor="middle" fill="#69f0ae" font-size="2">${s.roleData.revenue}</text>`;
+    if (_mapLayers.pipeline && persona === 'businessman') {
+      if (s.roleData.deals > 4) {
+        svg += `<text x="${s.x}" y="${s.y + 3.5}" text-anchor="middle" fill="#69f0ae" font-size="1.8">$${s.roleData.revenue}</text>`;
+        svg += `<text x="${s.x}" y="${s.y + 5.5}" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="1.3">${s.roleData.sector}</text>`;
+      }
     }
     svg += `<text x="${s.x}" y="${s.y - 2.5}" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="1.8" font-weight="600">${s.id}</text>`;
   });
@@ -3571,13 +3582,22 @@ function renderMap() {
   svg += `</svg>`;
   container.innerHTML = svg;
 
-  // Legend
+  // Legend — clearly label what each layer represents
   let legendHtml = '';
-  if (_mapLayers.weather) legendHtml += `<span class="map-leg-group">Weather: ${Object.entries(weatherColors).slice(0, 5).map(([k, c]) => `<span style="color:${c}">${k}</span>`).join(' ')}</span>`;
+  if (_mapLayers.weather) legendHtml += `<span class="map-leg-group"><strong>${season} Weather:</strong> ${Object.entries(weatherColors).slice(0, 5).map(([k, c]) => `<span style="color:${c}">${k}</span>`).join(' ')}</span>`;
   if (_mapLayers.operations) {
-    if (persona === 'farmer') legendHtml += '<span class="map-leg-group">Yield: <span style="color:#4CAF50">High</span> <span style="color:#FFB74D">Med</span> <span style="color:#EF5350">Low</span></span>';
-    if (persona === 'banker') legendHtml += '<span class="map-leg-group">Risk: <span style="color:#4CAF50">Low</span> <span style="color:#FFB74D">Mod</span> <span style="color:#EF5350">High</span></span>';
-    if (persona === 'businessman') legendHtml += '<span class="map-leg-group">Deals: <span style="color:#4CAF50">Active</span> <span style="color:#FFB74D">Growing</span> <span style="color:#78909C">Quiet</span></span>';
+    if (persona === 'farmer') legendHtml += '<span class="map-leg-group"><strong>Crop Yield (bu/acre):</strong> <span style="color:#4CAF50">&gt;90 High</span> <span style="color:#FFB74D">80-90 Med</span> <span style="color:#EF5350">&lt;80 Low</span></span>';
+    if (persona === 'banker') legendHtml += '<span class="map-leg-group"><strong>Lending Risk (default probability):</strong> <span style="color:#4CAF50">Low</span> <span style="color:#FFB74D">Moderate</span> <span style="color:#EF5350">Elevated/High</span></span>';
+    if (persona === 'businessman') legendHtml += '<span class="map-leg-group"><strong>Active Deals (pipeline count):</strong> <span style="color:#4CAF50">5+ Active</span> <span style="color:#FFB74D">2-4 Growing</span> <span style="color:#78909C">&lt;2 Quiet</span></span>';
+  }
+  if (_mapLayers.prices && persona === 'farmer') {
+    legendHtml += '<span class="map-leg-group"><strong>Spot Prices:</strong> <span style="color:#FFD54F">$/unit by dominant crop per region</span></span>';
+  }
+  if (_mapLayers.risk && persona === 'banker') {
+    legendHtml += '<span class="map-leg-group"><strong>Default Rate:</strong> <span style="color:#FFB74D">Annualized default % by region</span></span>';
+  }
+  if (_mapLayers.pipeline && persona === 'businessman') {
+    legendHtml += '<span class="map-leg-group"><strong>Pipeline Revenue:</strong> <span style="color:#69f0ae">Quarterly revenue by sector (active markets only)</span></span>';
   }
   legend.innerHTML = legendHtml;
 }
