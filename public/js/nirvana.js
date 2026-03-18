@@ -108,7 +108,7 @@ function _createClubLightOverlay() {
   el.width = _OVERLAY_W;
   el.height = _OVERLAY_H;
   el.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;' +
-    'pointer-events:none;z-index:9999;mix-blend-mode:screen;opacity:1;';
+    'pointer-events:none;z-index:9999;opacity:1;';
   document.body.appendChild(el);
   _clubLightOverlay = el;
   _clubLightCanvas = el.getContext('2d');
@@ -177,9 +177,8 @@ function _updateClubLightOverlay() {
     const cgy = Math.min(_colorGrid - 1, Math.max(0, Math.floor(geo.y * _colorGrid)));
     const [cr, cg, cb] = _cgColors[cgy * _colorGrid + cgx];
 
-    // Gentle shimmer
-    const breathe = 0.8 + Math.sin(_clubLightTime * 0.03 + geo.phase) * 0.2;
-    const alpha = _clubLightOpacity * 0.6 * breathe;
+    // Shimmer
+    const breathe = 0.85 + Math.sin(_clubLightTime * 0.04 + geo.phase) * 0.15;
 
     const px = geo.x * W, py = geo.y * H;
     const gs = geo.size * Math.min(W, H);
@@ -189,10 +188,9 @@ function _updateClubLightOverlay() {
     ctx.translate(px, py);
     ctx.rotate(geo.rot);
 
-    // Transparent wireframe only — see-through, slightly distorts beneath
-    ctx.globalAlpha = alpha;
-    ctx.strokeStyle = `rgb(${cr},${cg},${cb})`;
-    ctx.lineWidth = 0.4;
+    // Subtle transparent fill — see-through tint
+    ctx.globalAlpha = 0.06 * breathe;
+    ctx.fillStyle = `rgb(${cr},${cg},${cb})`;
     ctx.beginPath();
     for (let i = 0; i <= sides; i++) {
       const a = (i / sides) * Math.PI * 2;
@@ -200,11 +198,17 @@ function _updateClubLightOverlay() {
       if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
     }
     ctx.closePath();
+    ctx.fill();
+
+    // Wireframe outline — visible but transparent
+    ctx.globalAlpha = 0.18 * breathe;
+    ctx.strokeStyle = `rgb(${cr},${cg},${cb})`;
+    ctx.lineWidth = 0.7;
     ctx.stroke();
 
-    // Inner concentric ring — adds density without blocking
-    ctx.globalAlpha = alpha * 0.4;
-    ctx.lineWidth = 0.25;
+    // Inner concentric ring
+    ctx.globalAlpha = 0.10 * breathe;
+    ctx.lineWidth = 0.5;
     const innerR = gs * 0.45;
     ctx.beginPath();
     for (let i = 0; i <= sides; i++) {
