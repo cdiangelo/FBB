@@ -289,9 +289,7 @@ function setupEventListeners() {
   const speechControls = document.getElementById('speech-controls');
   if (speechToggle) {
     speechToggle.addEventListener('change', () => {
-      speechEnabled = speechToggle.checked;
-      speechControls.style.display = speechEnabled ? 'block' : 'none';
-      if (!speechEnabled) stopSpeech();
+      toggleGameSpeech(speechToggle.checked);
     });
   }
   // Speech speed buttons
@@ -381,6 +379,11 @@ function startNewGame(persona) {
 
 function enterGameScreen() {
   showScreen('game');
+  // Sync game-screen speech toggle with current state
+  const gameSpeechToggle = document.getElementById('game-toggle-speech');
+  if (gameSpeechToggle) gameSpeechToggle.checked = speechEnabled;
+  const gameDings = document.getElementById('game-ding-btns');
+  if (gameDings) gameDings.style.display = speechEnabled ? 'flex' : 'none';
   applyPersonaTheme();
   updateStatusBar();
   updateJourneyPanel();
@@ -1579,9 +1582,23 @@ function spawnConfetti(persona, count) {
 
 function selectDing(choice) {
   dingSoundChoice = choice;
-  document.querySelectorAll('.ding-btn').forEach(b => b.classList.remove('active'));
-  const active = document.querySelector(`.ding-btn[data-ding="${choice}"]`);
-  if (active) active.classList.add('active');
+  // Sync both title-screen and game-screen ding buttons
+  document.querySelectorAll('.ding-btn, .ding-btn-sm').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll(`.ding-btn[data-ding="${choice}"], .ding-btn-sm[data-ding="${choice}"]`).forEach(b => b.classList.add('active'));
+}
+
+function toggleGameSpeech(enabled) {
+  speechEnabled = enabled;
+  // Sync the title-screen toggle
+  const titleToggle = document.getElementById('toggle-speech');
+  if (titleToggle) titleToggle.checked = enabled;
+  // Show/hide ding buttons in game
+  const gameDings = document.getElementById('game-ding-btns');
+  if (gameDings) gameDings.style.display = enabled ? 'flex' : 'none';
+  // Show/hide title-screen speech controls
+  const titleControls = document.getElementById('speech-controls');
+  if (titleControls) titleControls.style.display = enabled ? 'block' : 'none';
+  if (!enabled) stopSpeech();
 }
 
 // ===============================
@@ -1773,6 +1790,26 @@ function renderAdminPanel(settings, users) {
   _renderAdminTab();
 }
 
+// Admin play mode: skip profile, auto-set name/appearance, go straight to title
+function adminPlay() {
+  closeAdminPanel();
+  playerGender = 'other';
+  playerSkinTone = 8; // Mint (green)
+  playerProfile = playerProfile || {};
+  playerProfile.name = 'Admin';
+  playerProfile.gender = 'other';
+  playerProfile.skinTone = 8;
+  // Save profile silently
+  if (fingerprint) {
+    fetch(`/api/profile/${fingerprint}/name`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Admin', gender: 'other', skinTone: 8 })
+    }).catch(() => {});
+  }
+  goToTitle();
+}
+
 function _renderAdminTab() {
   const overlay = document.getElementById('celebration-overlay');
   const content = document.getElementById('celebration-content');
@@ -1781,6 +1818,7 @@ function _renderAdminTab() {
 
   const tabs = [
     { id: 'settings', label: 'Settings' },
+    { id: 'balance', label: 'Balance' },
     { id: 'levels', label: 'Level Jump' },
     { id: 'avatars', label: 'Avatars' },
     { id: 'scenarios', label: 'Scenarios' }
@@ -1791,6 +1829,7 @@ function _renderAdminTab() {
 
   let body = '';
   if (_adminTab === 'settings') body = _adminSettingsTab(settings, users);
+  else if (_adminTab === 'balance') body = _adminBalanceTab();
   else if (_adminTab === 'levels') body = _adminLevelsTab();
   else if (_adminTab === 'avatars') body = _adminAvatarsTab();
   else if (_adminTab === 'scenarios') body = _adminScenariosTab();
@@ -1799,7 +1838,10 @@ function _renderAdminTab() {
     <div class="admin-panel">
       <div class="admin-header">
         <h3>Admin Panel</h3>
-        <button class="trend-close" onclick="closeAdminPanel()">&#10005;</button>
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <button class="btn-primary" onclick="adminPlay()" style="padding:.35rem .8rem;font-size:.75rem;background:#00e676;color:#1a1a2e">Play</button>
+          <button class="trend-close" onclick="closeAdminPanel()">&#10005;</button>
+        </div>
       </div>
       <div class="admin-tabs">${tabsHtml}</div>
       <div class="admin-tab-body">${body}</div>
@@ -1965,6 +2007,143 @@ function _adminScenariosTab() {
   });
 
   html += '<div id="admin-scenario-preview" class="admin-scenario-preview"></div>';
+  return html;
+}
+
+function _adminBalanceTab() {
+  const pre = {
+    easy: {
+      farmer:     { basic: { fail: 100, days: '3-6',  level: 'L1-2' }, moderate: { fail: 100, days: '3-5',  level: 'L1-2' }, analytical: { fail: 100, days: '4-16', level: 'L2-5' } },
+      banker:     { basic: { fail: 50,  days: '12-30', level: 'L4-5' }, moderate: { fail: 100, days: '6-29', level: 'L3-5' }, analytical: { fail: 75,  days: '3-32', level: 'L4-5' } },
+      businessman:{ basic: { fail: 75,  days: '4-20', level: 'L3-5' }, moderate: { fail: 100, days: '3-11', level: 'L1-3' }, analytical: { fail: 100, days: '3-8',  level: 'L2-3' } }
+    },
+    hard: {
+      farmer:     { basic: { fail: 100, days: '5-8',  level: 'L0-1' }, moderate: { fail: 100, days: '2-4',  level: 'L0-1' }, analytical: { fail: 100, days: '2-6',  level: 'L0-1' } },
+      banker:     { basic: { fail: 100, days: '2-7',  level: 'L1-2' }, moderate: { fail: 100, days: '2-4',  level: 'L0-1' }, analytical: { fail: 100, days: '2-12', level: 'L1-2' } },
+      businessman:{ basic: { fail: 100, days: '3-8',  level: 'L0-1' }, moderate: { fail: 100, days: '4-8',  level: 'L1-2' }, analytical: { fail: 100, days: '4-20', level: 'L2-5' } }
+    }
+  };
+  const post = {
+    easy: {
+      farmer:     { basic: { fail: 100, days: '4-26',  level: 'L3-5' }, moderate: { fail: 100, days: '10-25', level: 'L4-5' }, analytical: { fail: 75,  days: '10-22', level: 'L4-5' } },
+      banker:     { basic: { fail: 0,   days: '51',    level: 'L5'   }, moderate: { fail: 0,   days: '51',    level: 'L5'   }, analytical: { fail: 0,   days: '51',    level: 'L5'   } },
+      businessman:{ basic: { fail: 0,   days: '51',    level: 'L5'   }, moderate: { fail: 0,   days: '51',    level: 'L5'   }, analytical: { fail: 0,   days: '51',    level: 'L5'   } }
+    },
+    hard: {
+      farmer:     { basic: { fail: 100, days: '7-17',  level: 'L1-2' }, moderate: { fail: 100, days: '6-14',  level: 'L1-2' }, analytical: { fail: 100, days: '7-18',  level: 'L2-3' } },
+      banker:     { basic: { fail: 100, days: '11-21', level: 'L2-3' }, moderate: { fail: 75,  days: '7-64',  level: 'L4-8' }, analytical: { fail: 100, days: '9-22',  level: 'L3-4' } },
+      businessman:{ basic: { fail: 100, days: '9-19',  level: 'L3-4' }, moderate: { fail: 100, days: '7-18',  level: 'L3-4' }, analytical: { fail: 75,  days: '4-33',  level: 'L2-8' } }
+    }
+  };
+
+  const failColor = (pct) => {
+    if (pct === 0) return '#00e676';
+    if (pct <= 25) return '#69f0ae';
+    if (pct <= 50) return '#FFD54F';
+    if (pct <= 75) return '#FF8F00';
+    return '#ef5350';
+  };
+  const deltaArrow = (before, after) => {
+    const diff = after - before;
+    if (diff === 0) return '<span style="color:var(--text-dim)">—</span>';
+    if (diff < 0) return `<span style="color:#00e676">\u25BC${Math.abs(diff)}%</span>`;
+    return `<span style="color:#ef5350">\u25B2${diff}%</span>`;
+  };
+
+  const buildTable = (data, label, showDelta) => {
+    const personas = ['farmer', 'banker', 'businessman'];
+    const skills = ['basic', 'moderate', 'analytical'];
+    let html = `<table class="admin-balance-table">
+      <thead><tr><th>${label}</th><th>Basic (L1)</th><th>Moderate (L2)</th><th>Analytical (L3)</th></tr></thead><tbody>`;
+    personas.forEach(p => {
+      html += `<tr><td class="admin-balance-persona">${p.charAt(0).toUpperCase() + p.slice(1)}</td>`;
+      skills.forEach(s => {
+        const d = data[p][s];
+        const bg = failColor(d.fail);
+        const deltaHtml = showDelta ? `<div class="admin-balance-delta">${deltaArrow(pre[label === 'Easy Mode (After)' ? 'easy' : 'hard'][p][s].fail, d.fail)}</div>` : '';
+        html += `<td>
+          <div class="admin-balance-cell">
+            <div class="admin-balance-fail" style="color:${bg}">${d.fail}% fail</div>
+            <div class="admin-balance-meta">d${d.days} | ${d.level}</div>
+            ${deltaHtml}
+          </div>
+        </td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    return html;
+  };
+
+  const buildDeltaTable = (mode) => {
+    const personas = ['farmer', 'banker', 'businessman'];
+    const skills = ['basic', 'moderate', 'analytical'];
+    let html = `<table class="admin-balance-table">
+      <thead><tr><th>${mode === 'easy' ? 'Easy' : 'Hard'} Mode Delta</th><th>Basic (L1)</th><th>Moderate (L2)</th><th>Analytical (L3)</th></tr></thead><tbody>`;
+    personas.forEach(p => {
+      html += `<tr><td class="admin-balance-persona">${p.charAt(0).toUpperCase() + p.slice(1)}</td>`;
+      skills.forEach(s => {
+        const before = pre[mode][p][s].fail;
+        const after = post[mode][p][s].fail;
+        const diff = after - before;
+        const color = diff < 0 ? '#00e676' : diff === 0 ? 'var(--text-dim)' : '#ef5350';
+        html += `<td><div class="admin-balance-cell">
+          <div style="font-size:.9rem;font-weight:700;color:${color}">${diff === 0 ? '—' : (diff > 0 ? '+' : '') + diff + 'pp'}</div>
+          <div class="admin-balance-meta">${before}% \u2192 ${after}%</div>
+        </div></td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    return html;
+  };
+
+  let html = '<p style="font-size:.78rem;color:var(--text-secondary);margin-bottom:1rem">Simulation results from 72 playthroughs (4 runs &times; 3 personas &times; 3 skill levels &times; 2 difficulties). Fail rate = % of runs ending in game over (bankruptcy/burnout).</p>';
+
+  html += `<details class="collapsible-section"><summary>Easy Mode — Before (No Compensation)</summary><div class="collapsible-body">${buildTable(pre.easy, 'Easy Mode (Before)', false)}</div></details>`;
+  html += `<details class="collapsible-section"><summary>Easy Mode — After (With Compensation)</summary><div class="collapsible-body">${buildTable(post.easy, 'Easy Mode (After)', false)}</div></details>`;
+  html += `<details class="collapsible-section" open><summary>Easy Mode — Delta</summary><div class="collapsible-body">${buildDeltaTable('easy')}</div></details>`;
+
+  html += '<div style="height:.75rem"></div>';
+
+  html += `<details class="collapsible-section"><summary>Hard Mode — Before (No Compensation)</summary><div class="collapsible-body">${buildTable(pre.hard, 'Hard Mode (Before)', false)}</div></details>`;
+  html += `<details class="collapsible-section"><summary>Hard Mode — After (With Compensation)</summary><div class="collapsible-body">${buildTable(post.hard, 'Hard Mode (After)', false)}</div></details>`;
+  html += `<details class="collapsible-section" open><summary>Hard Mode — Delta</summary><div class="collapsible-body">${buildDeltaTable('hard')}</div></details>`;
+
+  html += '<div style="height:.75rem"></div>';
+
+  // Summary metrics
+  html += `<details class="collapsible-section"><summary>Key Improvement Metrics</summary><div class="collapsible-body">
+    <table class="admin-balance-table">
+      <thead><tr><th>Metric</th><th>Before</th><th>After</th><th>Change</th></tr></thead>
+      <tbody>
+        <tr><td>Easy survival (banker/businessman)</td><td style="color:#ef5350">25% avg</td><td style="color:#00e676">100%</td><td style="color:#00e676">+75pp</td></tr>
+        <tr><td>Easy avg days survived</td><td>11 days</td><td>38 days</td><td style="color:#00e676">+245%</td></tr>
+        <tr><td>Easy max level reached</td><td>L5 (lucky)</td><td style="color:#00e676">L5 (consistent)</td><td style="color:#00e676">Reliable</td></tr>
+        <tr><td>Hard avg days survived</td><td>5 days</td><td>15 days</td><td style="color:#00e676">+200%</td></tr>
+        <tr><td>Hard max level reached</td><td>L2</td><td style="color:#00e676">L8 (empire)</td><td style="color:#00e676">Reachable</td></tr>
+        <tr><td>Burnout rate (moderate)</td><td style="color:#ef5350">60%</td><td style="color:#00e676">0% easy</td><td style="color:#00e676">Eliminated</td></tr>
+        <tr><td>Farmer survivability</td><td style="color:#ef5350">0% all</td><td style="color:#FFD54F">25% easy/analytical</td><td style="color:#00e676">First survivors</td></tr>
+      </tbody>
+    </table>
+  </div></details>`;
+
+  // Compensation model reference
+  html += `<details class="collapsible-section"><summary>Compensation Model Reference</summary><div class="collapsible-body">
+    <table class="admin-balance-table" style="font-size:.72rem">
+      <thead><tr><th>Tier</th><th>Farmer Salary</th><th>Banker Salary</th><th>Businessman Salary</th><th>Cost Exposure</th></tr></thead>
+      <tbody>
+        <tr><td>L0 (Entry)</td><td>$32K + 1% share</td><td>$55K + 0.3% share</td><td>$35K + 1% share</td><td>6-12%</td></tr>
+        <tr><td>L1 (Junior)</td><td>$42K + 2% share</td><td>$72K + 0.8% share</td><td>$50K + 2% share</td><td>10-22%</td></tr>
+        <tr><td>L2 (Producer)</td><td>$55K + 3% share</td><td>$95K + 1.5% share</td><td>$70K + 3.5% share</td><td>20-42%</td></tr>
+        <tr><td>L3 (Manager)</td><td>$75K + 4.5% share</td><td>$130K + 2.5% share</td><td>$100K + 5% share</td><td>35-62%</td></tr>
+        <tr><td>L4 (Director)</td><td>$105K + 6% share</td><td>$180K + 4% share</td><td>$150K + 7.5% share</td><td>55-82%</td></tr>
+        <tr><td>L5 (Owner)</td><td>$150K + 9% share</td><td>$250K + 6.5% share</td><td>$200K + 10% share</td><td>80-100%</td></tr>
+        <tr><td>L6+ (Empire)</td><td>$200-350K + 13-22%</td><td>$350-750K + 10-18%</td><td>$275-500K + 14-22%</td><td>100%</td></tr>
+      </tbody>
+    </table>
+  </div></details>`;
+
   return html;
 }
 

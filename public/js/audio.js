@@ -6,7 +6,7 @@
 // ---- STATE ----
 let speechEnabled = false;
 let speechSpeed = 1;        // 1, 1.5, or 2
-let dingSoundChoice = 'A';  // 'A', 'B', or 'C'
+let dingSoundChoice = 'C';  // 'A', 'B', or 'C' — default to Double Ding
 let _audioCtx = null;
 
 function _getAudioCtx() {
@@ -21,8 +21,12 @@ function speakText(text) {
   if (!speechEnabled || !text) return;
   window.speechSynthesis.cancel(); // stop any in-progress speech
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = speechSpeed * 0.85; // slightly slow baseline
-  utterance.pitch = 0.95;              // slightly lower for robotic feel
+  // Speed: 1x=1.7 rate, 1.5x=2.4 rate, 2x=3.0 rate (fast baseline)
+  // At higher speeds, boost pitch and volume for clearer articulation
+  const effectiveRate = speechSpeed * 1.5 + 0.2;
+  utterance.rate = effectiveRate;
+  utterance.pitch = speechSpeed <= 1 ? 1.0 : speechSpeed <= 1.5 ? 1.05 : 1.1;
+  utterance.volume = speechSpeed >= 2 ? 1.0 : 0.9;
   // Pick a good voice — prefer English, slightly robotic
   const voices = window.speechSynthesis.getVoices();
   const preferred = voices.find(v => /Google US|Microsoft David|Daniel|Samantha/i.test(v.name) && /en/i.test(v.lang))
@@ -38,7 +42,8 @@ function stopSpeech() {
 
 function speakScenario(title, description) {
   if (!speechEnabled) return;
-  speakText(`${title}. ${description}`);
+  // Skip the header/title — only read the description body
+  speakText(description);
 }
 
 // ===============================

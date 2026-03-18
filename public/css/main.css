@@ -633,7 +633,18 @@ body {
 .status-money { font-family: 'Courier New', monospace; font-weight: 700; color: #4CAF50 !important; }
 .status-satisfaction { color: #e91e63 !important; font-size: .82rem !important; }
 
-.top-bar-actions { display: flex; gap: .5rem; }
+.top-bar-actions { display: flex; gap: .5rem; align-items: center; }
+
+/* Game speech controls (inline in top bar) */
+.game-speech-controls { display: flex; align-items: center; gap: .4rem; margin-left: .25rem; padding-left: .5rem; border-left: 1px solid var(--border); }
+.game-ding-btns { display: flex; gap: 2px; }
+.ding-btn-sm {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 3px;
+  padding: .2rem .4rem; font-size: .65rem; color: var(--text-dim);
+  cursor: pointer; transition: all .2s; line-height: 1;
+}
+.ding-btn-sm:hover { border-color: var(--accent); color: var(--text-primary); }
+.ding-btn-sm.active { background: var(--accent); color: #1a1a2e; border-color: var(--accent); font-weight: 600; }
 
 .btn-back, .btn-save, .btn-sell, .btn-financials {
   padding: .4rem .8rem;
@@ -1364,6 +1375,17 @@ body {
 .admin-scenario-btn:hover { border-color: var(--accent); color: var(--text-primary); }
 .admin-scenario-btn.admin-scenario-hard { border-color: rgba(255,152,0,.3); color: #FF8F00; }
 .admin-scenario-preview { }
+
+/* Admin balance tables */
+.admin-balance-table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+.admin-balance-table th { text-align: left; padding: .5rem .6rem; color: var(--text-dim); font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; border-bottom: 1px solid var(--border); }
+.admin-balance-table td { padding: .5rem .6rem; border-bottom: 1px solid rgba(255,255,255,.04); vertical-align: top; }
+.admin-balance-table tbody tr:hover { background: rgba(255,255,255,.02); }
+.admin-balance-persona { font-weight: 600; color: var(--text-primary); text-transform: capitalize; min-width: 90px; }
+.admin-balance-cell { text-align: center; }
+.admin-balance-fail { font-size: .85rem; font-weight: 700; }
+.admin-balance-meta { font-size: .65rem; color: var(--text-dim); margin-top: 2px; }
+.admin-balance-delta { font-size: .72rem; font-weight: 600; margin-top: 2px; }
 
 /* Small toggle for admin */
 .toggle-label-sm { display: inline-flex; align-items: center; cursor: pointer; }
