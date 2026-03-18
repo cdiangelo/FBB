@@ -171,11 +171,21 @@ function enterNirvana(persona, skin) {
   _createClubLightOverlay();
 
   // Input handlers
-  _nirvanaCanvas.onmousedown = e => { const r = _nirvanaCanvas.getBoundingClientRect(); _nirvanaMouse.down = true; _nirvanaMouse.startX = _nirvanaMouse.x = (e.clientX - r.left) * (800/r.width); _nirvanaMouse.startY = _nirvanaMouse.y = (e.clientY - r.top) * (500/r.height); nirvanaClick(); };
-  _nirvanaCanvas.onmousemove = e => { const r = _nirvanaCanvas.getBoundingClientRect(); _nirvanaMouse.x = (e.clientX - r.left) * (800/r.width); _nirvanaMouse.y = (e.clientY - r.top) * (500/r.height); };
+  // Helper to convert client coords to canvas coords (allows coords outside canvas for drag power)
+  function _toCanvasCoords(clientX, clientY) {
+    const r = _nirvanaCanvas.getBoundingClientRect();
+    return { x: (clientX - r.left) * (800 / r.width), y: (clientY - r.top) * (500 / r.height) };
+  }
+  _nirvanaCanvas.onmousedown = e => { const c = _toCanvasCoords(e.clientX, e.clientY); _nirvanaMouse.down = true; _nirvanaMouse.startX = _nirvanaMouse.x = c.x; _nirvanaMouse.startY = _nirvanaMouse.y = c.y; nirvanaClick(); };
+  _nirvanaCanvas.onmousemove = e => { if (!_nirvanaMouse.down) { const c = _toCanvasCoords(e.clientX, e.clientY); _nirvanaMouse.x = c.x; _nirvanaMouse.y = c.y; } };
+  // When dragging, track mouse across entire document (allows dragging outside canvas for max power)
+  document.addEventListener('mousemove', e => { if (_nirvanaMouse.down && _nirvanaCanvas) { const c = _toCanvasCoords(e.clientX, e.clientY); _nirvanaMouse.x = c.x; _nirvanaMouse.y = c.y; } });
+  document.addEventListener('mouseup', e => { if (_nirvanaMouse.down && _nirvanaCanvas) { const c = _toCanvasCoords(e.clientX, e.clientY); _nirvanaMouse.x = c.x; _nirvanaMouse.y = c.y; nirvanaRelease(); _nirvanaMouse.down = false; } });
   _nirvanaCanvas.onmouseup = () => { nirvanaRelease(); _nirvanaMouse.down = false; };
-  _nirvanaCanvas.ontouchstart = e => { e.preventDefault(); _nirvanaTouch = true; const t = e.touches[0]; const r = _nirvanaCanvas.getBoundingClientRect(); _nirvanaMouse.down = true; _nirvanaMouse.startX = _nirvanaMouse.x = (t.clientX - r.left) * (800/r.width); _nirvanaMouse.startY = _nirvanaMouse.y = (t.clientY - r.top) * (500/r.height); nirvanaClick(); };
-  _nirvanaCanvas.ontouchmove = e => { e.preventDefault(); const t = e.touches[0]; const r = _nirvanaCanvas.getBoundingClientRect(); _nirvanaMouse.x = (t.clientX - r.left) * (800/r.width); _nirvanaMouse.y = (t.clientY - r.top) * (500/r.height); };
+  _nirvanaCanvas.ontouchstart = e => { e.preventDefault(); _nirvanaTouch = true; const t = e.touches[0]; const c = _toCanvasCoords(t.clientX, t.clientY); _nirvanaMouse.down = true; _nirvanaMouse.startX = _nirvanaMouse.x = c.x; _nirvanaMouse.startY = _nirvanaMouse.y = c.y; nirvanaClick(); };
+  _nirvanaCanvas.ontouchmove = e => { e.preventDefault(); const t = e.touches[0]; const c = _toCanvasCoords(t.clientX, t.clientY); _nirvanaMouse.x = c.x; _nirvanaMouse.y = c.y; };
+  document.addEventListener('touchmove', e => { if (_nirvanaMouse.down && _nirvanaCanvas && e.touches.length > 0) { const t = e.touches[0]; const c = _toCanvasCoords(t.clientX, t.clientY); _nirvanaMouse.x = c.x; _nirvanaMouse.y = c.y; } }, { passive: true });
+  document.addEventListener('touchend', e => { if (_nirvanaMouse.down && _nirvanaCanvas) { nirvanaRelease(); _nirvanaMouse.down = false; } });
   _nirvanaCanvas.ontouchend = e => { e.preventDefault(); nirvanaRelease(); _nirvanaMouse.down = false; };
 
   if (_nirvanaRAF) cancelAnimationFrame(_nirvanaRAF);
@@ -1956,33 +1966,53 @@ function drawPutt(ctx) {
     ctx.beginPath(); ctx.arc(bump.x, bump.y, bump.r, 0, Math.PI * 2); ctx.fill();
   }
 
-  // ---- Slope overlay (arrow field) ----
+  // ---- Slope overlay (gradient heatmap) ----
   if (_puttSlopeOverlay) {
-    ctx.save(); ctx.globalAlpha = 0.5;
-    for (let gx = 60; gx < 760; gx += 35) {
-      for (let gy = 70; gy < 460; gy += 35) {
-        const sl = getTerrainSlope(gx, gy);
-        const mag = Math.sqrt(sl.sx * sl.sx + sl.sy * sl.sy);
-        if (mag < 0.002) continue;
-        const len = Math.min(14, mag * 400);
-        const angle = Math.atan2(sl.sy, sl.sx);
-        // Arrow line
-        ctx.strokeStyle = mag > 0.02 ? '#ffeb3b' : '#b2ff59';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(gx, gy);
-        ctx.lineTo(gx + Math.cos(angle) * len, gy + Math.sin(angle) * len);
-        ctx.stroke();
-        // Arrowhead
-        const ax = gx + Math.cos(angle) * len, ay = gy + Math.sin(angle) * len;
-        ctx.beginPath();
-        ctx.moveTo(ax, ay);
-        ctx.lineTo(ax - Math.cos(angle - 0.5) * 4, ay - Math.sin(angle - 0.5) * 4);
-        ctx.moveTo(ax, ay);
-        ctx.lineTo(ax - Math.cos(angle + 0.5) * 4, ay - Math.sin(angle + 0.5) * 4);
-        ctx.stroke();
+    ctx.save(); ctx.globalAlpha = 0.45;
+    const step = 8;
+    for (let gx = 40; gx < 760; gx += step) {
+      for (let gy = 50; gy < 470; gy += step) {
+        // Compute terrain height at this point (sum of bump influences)
+        let height = 0;
+        for (const bump of p.terrain) {
+          const dx = gx - bump.x, dy = gy - bump.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < bump.r) {
+            const influence = 1 - dist / bump.r;
+            height += bump.strength * influence * 20; // scale for visibility
+          }
+        }
+        // Map height to color: high (hills) = warm, low (valleys) = cool
+        // height range roughly -0.9 to +0.9
+        const t = Math.max(0, Math.min(1, (height + 0.5) / 1.0));
+        // Cool blue (low) -> green (mid) -> yellow/red (high)
+        let r, g, b;
+        if (t < 0.33) {
+          const f = t / 0.33;
+          r = Math.round(30 + f * 20); g = Math.round(80 + f * 120); b = Math.round(200 - f * 100);
+        } else if (t < 0.66) {
+          const f = (t - 0.33) / 0.33;
+          r = Math.round(50 + f * 160); g = Math.round(200 - f * 40); b = Math.round(100 - f * 60);
+        } else {
+          const f = (t - 0.66) / 0.34;
+          r = Math.round(210 + f * 45); g = Math.round(160 - f * 100); b = Math.round(40 - f * 20);
+        }
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.fillRect(gx, gy, step, step);
       }
     }
+    // Legend: gradient bar + labels
+    ctx.globalAlpha = 0.85;
+    const lx = 580, ly = 52, lw = 100, lh = 12;
+    const grad = ctx.createLinearGradient(lx, 0, lx + lw, 0);
+    grad.addColorStop(0, 'rgb(30,80,200)'); grad.addColorStop(0.33, 'rgb(50,200,100)');
+    grad.addColorStop(0.66, 'rgb(210,160,40)'); grad.addColorStop(1, 'rgb(255,60,20)');
+    ctx.fillStyle = '#000'; ctx.fillRect(lx - 2, ly - 2, lw + 4, lh + 4);
+    ctx.fillStyle = grad; ctx.fillRect(lx, ly, lw, lh);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText('LOW', lx, ly - 4);
+    ctx.textAlign = 'right';
+    ctx.fillText('HIGH', lx + lw, ly - 4);
     ctx.restore();
   }
 
@@ -2027,6 +2057,46 @@ function drawPutt(ctx) {
       ctx.beginPath(); ctx.arc(o.x - o.r * 0.3, o.y - o.r * 0.3, o.r * 0.3, 0, Math.PI * 2); ctx.fill();
     }
   }
+
+  // Obstacle labels on each obstacle
+  ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center';
+  for (const o of p.obstacles) {
+    if (o.type === 'wall') {
+      ctx.fillStyle = '#fff';
+      ctx.fillText('WALL', o.x + o.w / 2, o.y + o.h / 2 + 3);
+    } else if (o.type === 'sand') {
+      ctx.fillStyle = 'rgba(100,70,20,.8)';
+      ctx.fillText('SAND', o.x, o.y + 3);
+    } else if (o.type === 'water') {
+      ctx.fillStyle = 'rgba(200,230,255,.8)';
+      ctx.fillText('WATER', o.x, o.y + 3);
+    } else if (o.type === 'bumper') {
+      ctx.fillStyle = '#fff';
+      ctx.fillText('BMP', o.x, o.y + 3);
+    }
+  }
+
+  // Obstacle legend (bottom-left)
+  ctx.save(); ctx.globalAlpha = 0.9;
+  const legX = 45, legY = 415, legH = 13;
+  ctx.fillStyle = 'rgba(0,0,0,.6)'; roundRect(ctx, legX, legY - 2, 175, 54, 4); ctx.fill();
+  ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'left';
+  // Wall
+  ctx.fillStyle = '#5D4037'; ctx.fillRect(legX + 6, legY + 3, 14, 6);
+  ctx.fillStyle = '#ddd'; ctx.fillText('Wall — bounces ball', legX + 26, legY + 10);
+  // Sand
+  ctx.fillStyle = 'rgba(210,180,100,.8)';
+  ctx.beginPath(); ctx.arc(legX + 13, legY + 3 + legH + 3, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ddd'; ctx.fillText('Sand — slows ball', legX + 26, legY + 10 + legH);
+  // Water
+  ctx.fillStyle = 'rgba(30,100,200,.7)';
+  ctx.beginPath(); ctx.arc(legX + 13, legY + 3 + legH * 2 + 3, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ddd'; ctx.fillText('Water — reset + penalty', legX + 26, legY + 10 + legH * 2);
+  // Bumper
+  ctx.fillStyle = '#FF5722';
+  ctx.beginPath(); ctx.arc(legX + 13, legY + 3 + legH * 3 + 3, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ddd'; ctx.fillText('Bumper — bounces + boost', legX + 26, legY + 10 + legH * 3);
+  ctx.restore();
 
   // Border
   ctx.strokeStyle = '#1b5e20'; ctx.lineWidth = 4;
@@ -2096,7 +2166,7 @@ function drawPutt(ctx) {
   roundRect(ctx, 690, 52, 65, 20, 4); ctx.fill();
   ctx.fillStyle = _puttSlopeOverlay ? '#ffeb3b' : '#aaa';
   ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText('SLOPES', 722, 66);
+  ctx.fillText('TERRAIN', 722, 66);
 
   // "Watch CPU" button
   if (p.state === 'aiming') {

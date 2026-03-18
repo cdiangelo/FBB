@@ -2143,26 +2143,27 @@ function executeSellOff(type) {
 
 function showBuyoutEndScreen(value) {
   const netWorth = (engine.state.money || 0) + (engine.portfolio?.totalAssetValue || 0) - (engine.debtStructure?.totalDebt || 0);
+  const persona = engine.persona;
 
-  setTaskHeader('Congratulations', 'Buyout Complete');
-  clearTaskFixed();
-
-  els.taskBody.innerHTML = `<div class="grade-display" style="border-color:#4CAF50">
-    <div style="font-size:3rem;margin-bottom:.5rem">\u{1F3C6}</div>
-    <div style="font-size:1.5rem;font-weight:900;color:#4CAF50;margin-bottom:.75rem">BUYOUT ACCEPTED</div>
-    <p class="grade-feedback" style="color:var(--text-secondary);margin-bottom:1rem">You sold your operation for $${value.toLocaleString()} and walked away at the top of your game.</p>
-    <div style="font-size:.85rem;color:var(--text-dim);text-align:left;max-width:300px;margin:0 auto">
-      <p>Final Score: <strong>${engine.totalScore} pts</strong></p>
-      <p>Days Played: <strong>${engine.day}</strong></p>
-      <p>Final Net Worth: <strong>$${netWorth.toLocaleString()}</strong></p>
-      <p>Level Reached: <strong>${engine.getLevel().name}</strong></p>
-      <p>Ownership Retained: <strong>${100 - (engine.debtStructure?.equityGiven || 0)}%</strong></p>
+  // Use the celebration overlay for a muted buyout celebration
+  els.celebrationContent.className = `celebration-content celebration-${persona} celebration-75`;
+  els.celebrationContent.innerHTML = `
+    <div class="celebration-icon" style="font-size:2.5rem">\u{1F4BC}\u{1F4B0}</div>
+    <div class="celebration-title" style="font-size:1.4rem;color:#8BC34A">Buyout Complete</div>
+    <div class="celebration-subtitle" style="color:var(--text-secondary)">You sold your operation for $${value.toLocaleString()}</div>
+    <div class="celebration-detail" style="font-size:.85rem;color:var(--text-dim);max-width:340px;margin:.75rem auto">
+      You walked away at the top of your game. The books are closed.<br><br>
+      <span style="opacity:.8">Final Score: <strong>${engine.totalScore} pts</strong> &bull; Days: <strong>${engine.day}</strong><br>
+      Net Worth: <strong>$${netWorth.toLocaleString()}</strong> &bull; Level: <strong>${engine.getLevel().name}</strong><br>
+      Ownership Retained: <strong>${100 - (engine.debtStructure?.equityGiven || 0)}%</strong></span>
     </div>
-  </div>`;
-
-  els.taskActions.innerHTML = `
-    <button class="btn-primary" onclick="showScreen('title'); loadSavedGamesMenu();">Return to Menu</button>
+    <button class="btn-nirvana-enter" onclick="enterNirvanaFromGame()">Enter Club Mode</button>
+    <div style="margin-top:.5rem"><button class="btn-secondary" style="font-size:.75rem;padding:.3rem .8rem;opacity:.7" onclick="dismissCelebration(); showScreen('title'); loadSavedGamesMenu();">Return to Menu</button></div>
   `;
+  els.celebrationOverlay.style.display = 'flex';
+
+  // Muted confetti — fewer particles, softer feel
+  spawnConfetti(persona, 15);
 
   speakText('Congratulations. Buyout complete. Well played.');
 }
