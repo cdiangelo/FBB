@@ -3564,9 +3564,12 @@ function renderMap() {
   const weatherPool = { Winter:['Snow','Cold','Frost','Clear'], Spring:['Rain','Storms','Clear','Warm'], Summer:['Hot','Drought','Clear','Humid'], Fall:['Cool','Rain','Clear','Frost'] };
   const weatherColors = { Snow:'#90CAF9',Cold:'#64B5F6',Frost:'#CE93D8',Clear:'#81C784',Rain:'#78909C',Storms:'#FF8A65',Hot:'#EF5350',Drought:'#FFAB91',Warm:'#FFD54F',Humid:'#FFB74D',Cool:'#80CBC4' };
 
-  // Scale data
+  // Scale data — gated by level tier, not money
   const money = engine.state.money || 0;
-  const scaleTier = money < 20000 ? 'local' : money < 100000 ? 'regional' : money < 500000 ? 'multi-state' : money < 2000000 ? 'national' : 'empire';
+  const levelIdx = engine.getLevelIndex();
+  // L0-L2: local, L3: multi-state, L4: multi-region, L5: national, L6+: empire/global
+  const scaleTier = levelIdx <= 2 ? 'local' : levelIdx === 3 ? 'multi-state' : levelIdx === 4 ? 'multi-region' : levelIdx === 5 ? 'national' : 'empire';
+  const isGlobal = levelIdx >= 6 && engine.difficulty === 'hard'; // Hard mode L6+ = global
   const scaleRegions = _getScaleRegionStates(scaleTier);
 
   const stateData = states.map(s => {
@@ -3661,11 +3664,57 @@ function renderMap() {
   });
 
   // Season + day label
-  const tierLabel = { local:'Local',regional:'Regional','multi-state':'Multi-State',national:'National',empire:'Empire' }[scaleTier];
+  const tierLabel = { local:'Local','multi-state':'Multi-State','multi-region':'Multi-Region',national:'National',empire:'Empire/Global' }[scaleTier];
   svg += `<text x="47" y="67" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="2.5" font-weight="600">${season} — Day ${engine.day}</text>`;
   if (_mapLayers.scale) {
     svg += `<text x="47" y="70" text-anchor="middle" fill="${{farmer:'#4CAF50',banker:'#1565C0',businessman:'#FF8F00'}[persona]}" font-size="1.8" font-weight="600">${tierLabel} Operations — $${_formatCompact(money)}</text>`;
   }
+
+  // ---- GLOBAL OVERLAY (hard mode L6+) ----
+  if (_mapLayers.scale && isGlobal) {
+    const accentColor = { farmer:'#4CAF50', banker:'#1565C0', businessman:'#FF8F00' }[persona];
+    const accentDark = { farmer:'#2E7D32', banker:'#0D47A1', businessman:'#E65100' }[persona];
+    // Semi-transparent overlay
+    svg += `<rect x="-2" y="-2" width="96" height="72" fill="rgba(15,23,42,0.7)" rx="3"/>`;
+    // AMER region (left third)
+    svg += `<rect x="1" y="3" width="28" height="25" rx="2" fill="none" stroke="${accentColor}" stroke-width="0.5" stroke-dasharray="1,0.5"/>`;
+    svg += `<text x="15" y="7" text-anchor="middle" fill="${accentColor}" font-size="2.2" font-weight="700">AMER</text>`;
+    svg += `<text x="15" y="10" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="1.4">Americas HQ</text>`;
+    // US mini silhouette in AMER
+    svg += `<rect x="4" y="12" width="22" height="14" rx="1" fill="${accentDark}" fill-opacity="0.25" stroke="${accentColor}" stroke-width="0.3"/>`;
+    svg += `<text x="15" y="20" text-anchor="middle" fill="${accentColor}" font-size="1.6" font-weight="600">US National Scale</text>`;
+    svg += `<text x="15" y="23" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="1.2">${scaleRegions.length} states active</text>`;
+    // EMEA region (middle third)
+    svg += `<rect x="33" y="3" width="28" height="25" rx="2" fill="none" stroke="${accentColor}" stroke-width="0.5" stroke-dasharray="1,0.5"/>`;
+    svg += `<text x="47" y="7" text-anchor="middle" fill="${accentColor}" font-size="2.2" font-weight="700">EMEA</text>`;
+    svg += `<text x="47" y="10" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="1.4">Europe, Middle East, Africa</text>`;
+    // EMEA sub-regions
+    const emeaActive = levelIdx >= 7;
+    svg += `<rect x="35" y="12" width="10" height="7" rx="1" fill="${emeaActive ? accentDark : '#1e293b'}" fill-opacity="${emeaActive ? '0.35' : '0.5'}" stroke="${emeaActive ? accentColor : '#334155'}" stroke-width="0.3"/>`;
+    svg += `<text x="40" y="16.5" text-anchor="middle" fill="${emeaActive ? '#fff' : '#666'}" font-size="1.3" font-weight="600">EU</text>`;
+    svg += `<rect x="47" y="12" width="12" height="7" rx="1" fill="${emeaActive ? accentDark : '#1e293b'}" fill-opacity="${emeaActive ? '0.35' : '0.5'}" stroke="${emeaActive ? accentColor : '#334155'}" stroke-width="0.3"/>`;
+    svg += `<text x="53" y="16.5" text-anchor="middle" fill="${emeaActive ? '#fff' : '#666'}" font-size="1.3" font-weight="600">ME/AF</text>`;
+    if (!emeaActive) svg += `<text x="47" y="24" text-anchor="middle" fill="#666" font-size="1.1" font-style="italic">Expand at L7+</text>`;
+    else svg += `<text x="47" y="24" text-anchor="middle" fill="${accentColor}" font-size="1.1">Offshoring active</text>`;
+    // APAC region (right third)
+    svg += `<rect x="65" y="3" width="28" height="25" rx="2" fill="none" stroke="${accentColor}" stroke-width="0.5" stroke-dasharray="1,0.5"/>`;
+    svg += `<text x="79" y="7" text-anchor="middle" fill="${accentColor}" font-size="2.2" font-weight="700">APAC</text>`;
+    svg += `<text x="79" y="10" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="1.4">Asia-Pacific</text>`;
+    const apacActive = levelIdx >= 8;
+    svg += `<rect x="67" y="12" width="12" height="7" rx="1" fill="${apacActive ? accentDark : '#1e293b'}" fill-opacity="${apacActive ? '0.35' : '0.5'}" stroke="${apacActive ? accentColor : '#334155'}" stroke-width="0.3"/>`;
+    svg += `<text x="73" y="16.5" text-anchor="middle" fill="${apacActive ? '#fff' : '#666'}" font-size="1.3" font-weight="600">ASIA</text>`;
+    svg += `<rect x="81" y="12" width="10" height="7" rx="1" fill="${apacActive ? accentDark : '#1e293b'}" fill-opacity="${apacActive ? '0.35' : '0.5'}" stroke="${apacActive ? accentColor : '#334155'}" stroke-width="0.3"/>`;
+    svg += `<text x="86" y="16.5" text-anchor="middle" fill="${apacActive ? '#fff' : '#666'}" font-size="1.3" font-weight="600">PAC</text>`;
+    if (!apacActive) svg += `<text x="79" y="24" text-anchor="middle" fill="#666" font-size="1.1" font-style="italic">Expand at L8+</text>`;
+    else svg += `<text x="79" y="24" text-anchor="middle" fill="${accentColor}" font-size="1.1">Full global ops</text>`;
+    // Global strategy bar at bottom
+    svg += `<rect x="1" y="32" width="92" height="8" rx="1.5" fill="rgba(0,0,0,0.4)" stroke="${accentColor}" stroke-width="0.3"/>`;
+    svg += `<text x="47" y="37" text-anchor="middle" fill="#fff" font-size="1.8" font-weight="700">GLOBAL OPERATIONS \u2014 ${engine.getLevel().name}</text>`;
+    const globalPct = levelIdx >= 8 ? 100 : levelIdx >= 7 ? 66 : 33;
+    svg += `<rect x="3" y="38.5" width="${88 * globalPct / 100}" height="1" rx="0.5" fill="${accentColor}" fill-opacity="0.6"/>`;
+    svg += `<rect x="3" y="38.5" width="88" height="1" rx="0.5" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="0.2"/>`;
+  }
+
   svg += `</svg>`;
   container.innerHTML = svg;
 
@@ -3677,7 +3726,12 @@ function renderMap() {
     if (persona === 'banker') legendHtml += '<span class="map-leg-group"><strong>Risk:</strong> <span style="color:#4CAF50">\u25A0 Low</span> <span style="color:#FFB74D">\u25A0 Mod</span> <span style="color:#EF5350">\u25A0 High</span></span>';
     if (persona === 'businessman') legendHtml += '<span class="map-leg-group"><strong>Deals:</strong> <span style="color:#4CAF50">\u25A0 5+</span> <span style="color:#FFB74D">\u25A0 2-4</span> <span style="color:#78909C">\u25A0 &lt;2</span></span>';
   }
-  if (_mapLayers.scale) legendHtml += `<span class="map-leg-group"><strong>Scale:</strong> <span style="color:${({farmer:'#4CAF50',banker:'#1565C0',businessman:'#FF8F00'})[persona]}">\u25A0 Active regions with org blocks</span></span>`;
+  if (_mapLayers.scale) {
+    const scColor = ({farmer:'#4CAF50',banker:'#1565C0',businessman:'#FF8F00'})[persona];
+    legendHtml += `<span class="map-leg-group"><strong>Scale (${tierLabel}):</strong> <span style="color:${scColor}">\u25A0 ${scaleRegions.length} states</span>`;
+    if (isGlobal) legendHtml += ` <span style="color:#FFD54F">\u25A0 Global overlay active</span>`;
+    legendHtml += `</span>`;
+  }
   if (_mapLayers.prices && persona === 'farmer') legendHtml += '<span class="map-leg-group"><strong>Prices:</strong> <span style="color:#FFD54F">$/unit spot</span></span>';
   if (_mapLayers.risk && persona === 'banker') legendHtml += '<span class="map-leg-group"><strong>Default %:</strong> <span style="color:#FFB74D">Annualized</span></span>';
   if (_mapLayers.pipeline && persona === 'businessman') legendHtml += '<span class="map-leg-group"><strong>Pipeline:</strong> <span style="color:#69f0ae">Revenue (active)</span></span>';
@@ -3685,6 +3739,7 @@ function renderMap() {
 }
 
 // Map which states belong to active regions at each scale tier
+// Gated by level: local (L0-2), multi-state (L3), multi-region (L4), national (L5), empire (L6+)
 function _getScaleRegionStates(scaleTier) {
   const regionStates = {
     'Northeast': ['ME','NH','VT','MA','CT','RI','NY'],
@@ -3699,7 +3754,8 @@ function _getScaleRegionStates(scaleTier) {
     'California': ['CA']
   };
   const regionOrder = Object.keys(regionStates);
-  const activeCount = { local:1, regional:2, 'multi-state':4, national:7, empire:10 }[scaleTier] || 1;
+  // local=1 region, multi-state=3, multi-region=5, national=8, empire=10
+  const activeCount = { local:1, 'multi-state':3, 'multi-region':5, national:8, empire:10 }[scaleTier] || 1;
   let active = [];
   for (let i = 0; i < Math.min(activeCount, regionOrder.length); i++) {
     active = active.concat(regionStates[regionOrder[i]]);
