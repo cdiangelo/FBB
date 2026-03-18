@@ -197,6 +197,8 @@ async function loadAdminSettings() {
     const resp = await fetch('/api/admin/settings');
     adminSettings = await resp.json();
     advisorEnabled = adminSettings.advisorAvailable && !adminSettings.userDisabled;
+    // Sync the admin-configured reasoning level
+    if (adminSettings.reasoningLevel) advisorReasoningLevel = adminSettings.reasoningLevel;
   } catch (e) { adminSettings = { advisorAvailable: false }; }
 }
 
@@ -1761,7 +1763,7 @@ function updateInterpersonalPanel() {
 function showAdminPanel() {
   // If already authenticated this session, skip the password prompt
   if (_adminSessionAuth && _adminSettings) {
-    renderAdminPanel(_adminSettings, _adminUsers);
+    renderAdminPanel(_adminSettings, _adminUsers, _adminAuditLog);
     return;
   }
 
@@ -1775,17 +1777,19 @@ function showAdminPanel() {
   }).then(r => r.json()).then(data => {
     if (!data.success) { showNotification('Invalid admin password.'); return; }
     _adminSessionAuth = true;
-    renderAdminPanel(data.settings, data.users);
+    renderAdminPanel(data.settings, data.users, data.auditLog);
   }).catch(() => showNotification('Admin login failed.'));
 }
 
 let _adminSettings = null;
 let _adminUsers = null;
+let _adminAuditLog = null;
 let _adminTab = 'settings';
 
-function renderAdminPanel(settings, users) {
+function renderAdminPanel(settings, users, auditLog) {
   _adminSettings = settings;
   _adminUsers = users;
+  _adminAuditLog = auditLog || [];
   _adminTab = 'settings';
   _renderAdminTab();
 }
@@ -1799,15 +1803,25 @@ function adminPlay() {
   playerProfile.name = 'Admin';
   playerProfile.gender = 'other';
   playerProfile.skinTone = 8;
-  // Save profile silently
+  // Save profile silently — create if needed via identify first
   if (fingerprint) {
-    fetch(`/api/profile/${fingerprint}/name`, {
-      method: 'PUT',
+    fetch('/api/profile/identify', {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Admin', gender: 'other', skinTone: 8 })
-    }).catch(() => {});
+      body: JSON.stringify({ fingerprint, name: 'Admin' })
+    }).then(() =>
+      fetch(`/api/profile/${fingerprint}/name`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Admin', gender: 'other', skinTone: 8 })
+      })
+    ).catch(() => {});
   }
-  goToTitle();
+  // Skip profile screen entirely, go straight to title
+  showScreen('title');
+  els.playerNameDisplay.textContent = 'Admin';
+  updateTitlePersonaCards();
+  loadSavedGamesMenu();
 }
 
 function _renderAdminTab() {
@@ -1887,7 +1901,36 @@ function _adminSettingsTab(settings, users) {
         <tbody>${userRows || '<tr><td colspan="3">No users yet</td></tr>'}</tbody>
       </table>
     </div>
+    ${_adminAuditLogHtml()}
   `;
+}
+
+function _adminAuditLogHtml() {
+  const log = _adminAuditLog || [];
+  if (!log.length) return '<div class="admin-section"><h4>Audit Log</h4><p style="font-size:.8rem;color:var(--text-dim)">No entries yet.</p></div>';
+
+  const eventIcon = { register: '\u{1F195}', login: '\u{1F513}', name_set: '\u{270F}\uFE0F' };
+  const eventLabel = { register: 'New User', login: 'Login', name_set: 'Name Set' };
+  const rows = log.slice(0, 50).map(e => {
+    const time = e.timestamp ? new Date(e.timestamp).toLocaleString() : '—';
+    const icon = eventIcon[e.event] || '\u{2022}';
+    const label = eventLabel[e.event] || e.event;
+    const detail = e.event === 'name_set' && e.oldName ? `${e.oldName} \u2192 ${e.user}` : (e.user || e.fingerprint || '');
+    const retBadge = e.returning ? ' <span style="color:var(--accent);font-size:.65rem">returning</span>' : '';
+    return `<tr>
+      <td style="white-space:nowrap">${time}</td>
+      <td>${icon} ${label}${retBadge}</td>
+      <td>${detail}</td>
+      <td style="font-size:.7rem;color:var(--text-dim)">${e.ip || ''}</td>
+    </tr>`;
+  }).join('');
+
+  return `<details class="collapsible-section"><summary>Audit Log (${log.length} entries)</summary><div class="collapsible-body">
+    <table class="admin-user-table">
+      <thead><tr><th>Time</th><th>Event</th><th>User</th><th>IP</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div></details>`;
 }
 
 function _adminLevelsTab() {
@@ -2159,6 +2202,8 @@ function adminSaveSettings() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ advisorEnabled, reasoningLevel })
   }).then(() => {
+    // Immediately apply the saved reasoning level
+    advisorReasoningLevel = reasoningLevel;
     loadAdminSettings();
     const status = document.getElementById('admin-save-status');
     if (status) { status.textContent = 'Saved!'; setTimeout(() => status.textContent = '', 2000); }

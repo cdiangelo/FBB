@@ -36,15 +36,45 @@ function loadUserRegistry() {
 }
 
 function updateUserRegistry(profile) {
-  const registry = loadUserRegistry();
-  registry.users[profile.id] = {
-    name: profile.name,
-    gender: profile.gender || 'male',
-    createdAt: profile.createdAt,
-    lastSeen: profile.lastSeen || new Date().toISOString(),
-    hasSaves: !!(profile.saves && Object.keys(profile.saves).length > 0)
-  };
-  fs.writeFileSync(REGISTRY_PATH, JSON.stringify(registry, null, 2));
+  try {
+    const registry = loadUserRegistry();
+    registry.users[profile.id] = {
+      name: profile.name,
+      gender: profile.gender || 'male',
+      skinTone: profile.skinTone,
+      createdAt: profile.createdAt,
+      lastSeen: profile.lastSeen || new Date().toISOString(),
+      hasSaves: !!(profile.saves && Object.keys(profile.saves).length > 0)
+    };
+    fs.writeFileSync(REGISTRY_PATH, JSON.stringify(registry, null, 2));
+  } catch (e) {
+    console.error('Failed to update user registry:', e.message);
+  }
+}
+
+// ---- AUDIT LOG ----
+const AUDIT_PATH = path.join(DATA_DIR, '_audit_log.json');
+
+function appendAuditEntry(entry) {
+  try {
+    let log = [];
+    if (fs.existsSync(AUDIT_PATH)) {
+      log = JSON.parse(fs.readFileSync(AUDIT_PATH, 'utf8'));
+    }
+    log.push({ ...entry, timestamp: new Date().toISOString() });
+    // Keep last 500 entries
+    if (log.length > 500) log = log.slice(-500);
+    fs.writeFileSync(AUDIT_PATH, JSON.stringify(log, null, 2));
+  } catch (e) {
+    console.error('Audit log write failed:', e.message);
+  }
+}
+
+function loadAuditLog() {
+  try {
+    if (fs.existsSync(AUDIT_PATH)) return JSON.parse(fs.readFileSync(AUDIT_PATH, 'utf8'));
+  } catch (e) {}
+  return [];
 }
 
 // ---- PROFILE APIs ----
@@ -68,6 +98,7 @@ app.post('/api/profile/identify', (req, res) => {
       if (profile.accessLog.length > 50) profile.accessLog = profile.accessLog.slice(-50);
       fs.writeFileSync(profilePath, JSON.stringify(profile, null, 2));
       updateUserRegistry(profile);
+      appendAuditEntry({ event: 'login', user: profile.name, fingerprint, ip, returning: true });
       return res.json({ profile, isReturning: true });
     } catch (e) {
       // Corrupted file — recreate
@@ -86,6 +117,7 @@ app.post('/api/profile/identify', (req, res) => {
   };
   fs.writeFileSync(profilePath, JSON.stringify(profile, null, 2));
   updateUserRegistry(profile);
+  appendAuditEntry({ event: 'register', user: profile.name, fingerprint, ip, returning: false });
   res.json({ profile, isReturning: false });
 });
 
@@ -98,12 +130,15 @@ app.put('/api/profile/:fingerprint/name', (req, res) => {
   if (!fs.existsSync(profilePath)) return res.status(404).json({ error: 'Profile not found' });
 
   const profile = JSON.parse(fs.readFileSync(profilePath, 'utf8'));
+  const oldName = profile.name;
   profile.name = name;
   if (req.body.gender !== undefined) profile.gender = req.body.gender;
   if (req.body.skinTone !== undefined) profile.skinTone = req.body.skinTone;
   profile.lastSeen = new Date().toISOString();
   fs.writeFileSync(profilePath, JSON.stringify(profile, null, 2));
   updateUserRegistry(profile);
+  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+  appendAuditEntry({ event: 'name_set', user: name, fingerprint, ip, oldName });
   res.json({ success: true });
 });
 
@@ -323,7 +358,7 @@ app.get('/api/admin/settings', (req, res) => {
   const hasApiKey = !!process.env.ANTHROPIC_API_KEY;
   res.json({
     advisorAvailable: hasApiKey && settings.advisorEnabled !== false,
-    reasoningLevel: settings.reasoningLevel || 50,
+    reasoningLevel: settings.reasoningLevel ?? 50,
     userDisabled: false // Client checks per-user in login
   });
 });
@@ -363,7 +398,8 @@ app.post('/api/admin/login', (req, res) => {
   } catch (e) {}
 
   const users = Object.values(usersMap).sort((a, b) => (b.lastSeen || '').localeCompare(a.lastSeen || ''));
-  res.json({ success: true, settings, users });
+  const auditLog = loadAuditLog().slice(-100).reverse(); // most recent first
+  res.json({ success: true, settings, users, auditLog });
 });
 
 // Update admin settings
