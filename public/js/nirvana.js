@@ -16,17 +16,29 @@ let _nirvanaMouse = { x: 0, y: 0, down: false, startX: 0, startY: 0 };
 let _nirvanaTouch = false;
 
 // ---- CLUB LIGHTING (DOM overlay — follows into all games) ----
+// Grid-based cubular pattern: 3x2 cells that transition between colors
 let _clubLightsOn = true;
 let _clubLightOpacity = 0.25;
 let _clubLightTime = 0;
 let _clubLightOverlay = null; // DOM element
-const CLUB_LIGHTS = [
-  { color: [180, 60, 220], x: 10, y: 10, dx: 1.2, dy: 0.8, r: 120 },
-  { color: [60, 180, 255], x: 50, y: 20, dx: -0.9, dy: 1.1, r: 140 },
-  { color: [255, 120, 60], x: 75, y: 60, dx: 0.7, dy: -1.3, r: 110 },
-  { color: [100, 255, 140], x: 25, y: 80, dx: -1.1, dy: -0.6, r: 130 },
-  { color: [255, 200, 60], x: 88, y: 40, dx: -0.5, dy: 1.0, r: 100 }
+const CLUB_LIGHT_COLORS = [
+  [180, 60, 220], [60, 180, 255], [255, 120, 60],
+  [100, 255, 140], [255, 200, 60], [220, 50, 120],
+  [50, 220, 200], [255, 80, 180], [120, 80, 255]
 ];
+// 3x2 grid cells, each with a color index and transition speed
+const CLUB_GRID = [];
+for (let row = 0; row < 2; row++) {
+  for (let col = 0; col < 3; col++) {
+    CLUB_GRID.push({
+      col, row,
+      colorIdx: (row * 3 + col) % CLUB_LIGHT_COLORS.length,
+      nextColorIdx: (row * 3 + col + 3) % CLUB_LIGHT_COLORS.length,
+      blend: 0,
+      speed: 0.004 + Math.random() * 0.006 // each cell transitions at a different rate
+    });
+  }
+}
 
 // ---- CPU OPPONENTS ----
 const SKINS = ['#f5d0a9','#e8b88a','#d4a76a','#c68642','#b5651d','#8d5524','#70401c','#573214','#3b1f0b','#6b4423','#a0522d','#deb887'];
@@ -60,40 +72,59 @@ function drawMiniPerson(ctx, x, y, size, skin, accent, label) {
 }
 
 // ---- CLUB LIGHT DOM OVERLAY (full browser overlay, pointer-events:none) ----
+// Uses a canvas to render a 3x2 cubular grid of color cells that smoothly
+// transition between colors, covering the entire screen.
+let _clubLightCanvas = null;
 function _createClubLightOverlay() {
   if (_clubLightOverlay) return;
-  const el = document.createElement('div');
+  const el = document.createElement('canvas');
   el.id = 'club-light-overlay';
-  el.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;mix-blend-mode:screen;transition:opacity .3s;';
+  el.width = 6; el.height = 4; // tiny — will be stretched full screen for soft blocks
+  el.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;mix-blend-mode:screen;opacity:1;image-rendering:auto;';
   document.body.appendChild(el);
   _clubLightOverlay = el;
+  _clubLightCanvas = el.getContext('2d');
 }
 function _removeClubLightOverlay() {
-  if (_clubLightOverlay) { _clubLightOverlay.remove(); _clubLightOverlay = null; }
+  if (_clubLightOverlay) { _clubLightOverlay.remove(); _clubLightOverlay = null; _clubLightCanvas = null; }
 }
 function _updateClubLightOverlay() {
-  if (!_clubLightOverlay) return;
+  if (!_clubLightCanvas || !_clubLightOverlay) return;
   if (!_clubLightsOn) { _clubLightOverlay.style.opacity = '0'; return; }
   _clubLightOverlay.style.opacity = '1';
   _clubLightTime++;
-  // Update light positions (in % of viewport)
-  for (const light of CLUB_LIGHTS) {
-    light.x += light.dx * 0.15;
-    light.y += light.dy * 0.15;
-    if (light.x < 0 || light.x > 100) light.dx = -light.dx;
-    if (light.y < 0 || light.y > 100) light.dy = -light.dy;
-    light.x = Math.max(0, Math.min(100, light.x));
-    light.y = Math.max(0, Math.min(100, light.y));
+
+  const ctx = _clubLightCanvas;
+  const W = 6, H = 4; // 3x2 grid mapped to 6x4 pixels (each cell = 2x2 px for soft interpolation)
+  ctx.clearRect(0, 0, W, H);
+
+  // Advance each grid cell's color blend
+  for (const cell of CLUB_GRID) {
+    cell.blend += cell.speed;
+    if (cell.blend >= 1) {
+      cell.blend = 0;
+      cell.colorIdx = cell.nextColorIdx;
+      // Pick a new target color (different from current)
+      let next;
+      do { next = Math.floor(Math.random() * CLUB_LIGHT_COLORS.length); } while (next === cell.colorIdx);
+      cell.nextColorIdx = next;
+    }
+    // Interpolate colors
+    const c1 = CLUB_LIGHT_COLORS[cell.colorIdx];
+    const c2 = CLUB_LIGHT_COLORS[cell.nextColorIdx];
+    const t = cell.blend;
+    // Smooth ease
+    const ease = t * t * (3 - 2 * t);
+    const r = Math.round(c1[0] + (c2[0] - c1[0]) * ease);
+    const g = Math.round(c1[1] + (c2[1] - c1[1]) * ease);
+    const b = Math.round(c1[2] + (c2[2] - c1[2]) * ease);
+    // Pulse
+    const pulse = 0.85 + Math.sin(_clubLightTime * 0.025 + cell.col * 1.5 + cell.row * 2.3) * 0.15;
+    const alpha = _clubLightOpacity * pulse;
+    // Draw 2x2 block in the tiny canvas (bilinear filtering when stretched = soft edges)
+    ctx.fillStyle = `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
+    ctx.fillRect(cell.col * 2, cell.row * 2, 2, 2);
   }
-  // Build gradient background
-  const grads = CLUB_LIGHTS.map(l => {
-    const [r, g, b] = l.color;
-    const pulse = 0.85 + Math.sin(_clubLightTime * 0.03 + l.r) * 0.15;
-    const op = _clubLightOpacity * pulse;
-    const rPx = l.r * pulse;
-    return `radial-gradient(circle ${rPx}px at ${l.x}% ${l.y}%, rgba(${r},${g},${b},${op.toFixed(3)}) 0%, rgba(${r},${g},${b},${(op * 0.4).toFixed(3)}) 50%, transparent 100%)`;
-  });
-  _clubLightOverlay.style.background = grads.join(',');
 }
 
 // ---- HUB WORLD ----
