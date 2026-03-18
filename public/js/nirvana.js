@@ -7,7 +7,7 @@
 
 // ---- GLOBALS ----
 let _nirvanaCanvas, _nirvanaCtx, _nirvanaRAF;
-let _nirvanaState = 'hub'; // hub | pool | blackjack | horses | movies | putt
+let _nirvanaState = 'hub'; // hub | pool | blackjack | horses | movies | putt | skeeball
 let _nirvanaMoney = 5000;
 let _nirvanaPersona = 'businessman';
 let _nirvanaSkin = '#c68642';
@@ -15,16 +15,17 @@ let _nirvanaKeys = {};
 let _nirvanaMouse = { x: 0, y: 0, down: false, startX: 0, startY: 0 };
 let _nirvanaTouch = false;
 
-// ---- CLUB LIGHTING ----
+// ---- CLUB LIGHTING (DOM overlay — follows into all games) ----
 let _clubLightsOn = true;
 let _clubLightOpacity = 0.25;
 let _clubLightTime = 0;
+let _clubLightOverlay = null; // DOM element
 const CLUB_LIGHTS = [
-  { color: [180, 60, 220], x: 0, y: 0, dx: 1.2, dy: 0.8, r: 120 },
-  { color: [60, 180, 255], x: 400, y: 100, dx: -0.9, dy: 1.1, r: 140 },
-  { color: [255, 120, 60], x: 600, y: 300, dx: 0.7, dy: -1.3, r: 110 },
-  { color: [100, 255, 140], x: 200, y: 400, dx: -1.1, dy: -0.6, r: 130 },
-  { color: [255, 200, 60], x: 700, y: 200, dx: -0.5, dy: 1.0, r: 100 }
+  { color: [180, 60, 220], x: 10, y: 10, dx: 1.2, dy: 0.8, r: 120 },
+  { color: [60, 180, 255], x: 50, y: 20, dx: -0.9, dy: 1.1, r: 140 },
+  { color: [255, 120, 60], x: 75, y: 60, dx: 0.7, dy: -1.3, r: 110 },
+  { color: [100, 255, 140], x: 25, y: 80, dx: -1.1, dy: -0.6, r: 130 },
+  { color: [255, 200, 60], x: 88, y: 40, dx: -0.5, dy: 1.0, r: 100 }
 ];
 
 // ---- CPU OPPONENTS ----
@@ -58,13 +59,51 @@ function drawMiniPerson(ctx, x, y, size, skin, accent, label) {
   }
 }
 
+// ---- CLUB LIGHT DOM OVERLAY (full browser overlay, pointer-events:none) ----
+function _createClubLightOverlay() {
+  if (_clubLightOverlay) return;
+  const el = document.createElement('div');
+  el.id = 'club-light-overlay';
+  el.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;mix-blend-mode:screen;transition:opacity .3s;';
+  document.body.appendChild(el);
+  _clubLightOverlay = el;
+}
+function _removeClubLightOverlay() {
+  if (_clubLightOverlay) { _clubLightOverlay.remove(); _clubLightOverlay = null; }
+}
+function _updateClubLightOverlay() {
+  if (!_clubLightOverlay) return;
+  if (!_clubLightsOn) { _clubLightOverlay.style.opacity = '0'; return; }
+  _clubLightOverlay.style.opacity = '1';
+  _clubLightTime++;
+  // Update light positions (in % of viewport)
+  for (const light of CLUB_LIGHTS) {
+    light.x += light.dx * 0.15;
+    light.y += light.dy * 0.15;
+    if (light.x < 0 || light.x > 100) light.dx = -light.dx;
+    if (light.y < 0 || light.y > 100) light.dy = -light.dy;
+    light.x = Math.max(0, Math.min(100, light.x));
+    light.y = Math.max(0, Math.min(100, light.y));
+  }
+  // Build gradient background
+  const grads = CLUB_LIGHTS.map(l => {
+    const [r, g, b] = l.color;
+    const pulse = 0.85 + Math.sin(_clubLightTime * 0.03 + l.r) * 0.15;
+    const op = _clubLightOpacity * pulse;
+    const rPx = l.r * pulse;
+    return `radial-gradient(circle ${rPx}px at ${l.x}% ${l.y}%, rgba(${r},${g},${b},${op.toFixed(3)}) 0%, rgba(${r},${g},${b},${(op * 0.4).toFixed(3)}) 50%, transparent 100%)`;
+  });
+  _clubLightOverlay.style.background = grads.join(',');
+}
+
 // ---- HUB WORLD ----
 const HUB_LOCATIONS = [
-  { id: 'pool',      x: 150, y: 180, w: 120, h: 80, label: '8-Ball Pool',    icon: '\u{1F3B1}', color: '#2e7d32' },
-  { id: 'blackjack', x: 350, y: 120, w: 120, h: 80, label: 'Blackjack',      icon: '\u{1F0CF}', color: '#b71c1c' },
-  { id: 'horses',    x: 550, y: 180, w: 120, h: 80, label: 'Horse Racing',   icon: '\u{1F3C7}', color: '#e65100' },
-  { id: 'movies',    x: 150, y: 340, w: 120, h: 80, label: 'Movie Theater',  icon: '\u{1F3AC}', color: '#4a148c' },
-  { id: 'putt',      x: 550, y: 340, w: 120, h: 80, label: 'Mini Putt',      icon: '\u26F3',    color: '#1b5e20' }
+  { id: 'pool',      x: 100, y: 160, w: 110, h: 70, label: '8-Ball Pool',    icon: '\u{1F3B1}', color: '#2e7d32' },
+  { id: 'blackjack', x: 345, y: 110, w: 110, h: 70, label: 'Blackjack',      icon: '\u{1F0CF}', color: '#b71c1c' },
+  { id: 'horses',    x: 590, y: 160, w: 110, h: 70, label: 'Horse Racing',   icon: '\u{1F3C7}', color: '#e65100' },
+  { id: 'movies',    x: 100, y: 320, w: 110, h: 70, label: 'Movie Theater',  icon: '\u{1F3AC}', color: '#4a148c' },
+  { id: 'putt',      x: 345, y: 320, w: 110, h: 70, label: 'Mini Putt',      icon: '\u26F3',    color: '#1b5e20' },
+  { id: 'skeeball',  x: 590, y: 320, w: 110, h: 70, label: 'Skeeball',       icon: '\u{1F3B3}', color: '#0277BD' }
 ];
 
 let _hubPlayer = { x: 400, y: 300, speed: 3 };
@@ -80,7 +119,8 @@ function _saveClubBalance() {
 function enterNirvana(persona, skin) {
   _nirvanaPersona = persona || _nirvanaPersona;
   _nirvanaSkin = skin || _nirvanaSkin;
-  _nirvanaState = 'hub';
+  _nirvanaState = 'hub'; // ALWAYS enter into lobby
+  _removeYoutubeEmbed(); // clean up any leftover embeds
   // Load persistent balance; seed from game engine if first time
   const saved = _loadClubBalance();
   const fromEngine = (typeof engine !== 'undefined' && engine.state) ? (engine.state.money || 0) : 0;
@@ -96,6 +136,9 @@ function enterNirvana(persona, skin) {
   _nirvanaCanvas.width = 800; _nirvanaCanvas.height = 500;
   _nirvanaCtx = _nirvanaCanvas.getContext('2d');
 
+  // Create DOM light overlay
+  _createClubLightOverlay();
+
   // Input handlers
   _nirvanaCanvas.onmousedown = e => { const r = _nirvanaCanvas.getBoundingClientRect(); _nirvanaMouse.down = true; _nirvanaMouse.startX = _nirvanaMouse.x = (e.clientX - r.left) * (800/r.width); _nirvanaMouse.startY = _nirvanaMouse.y = (e.clientY - r.top) * (500/r.height); nirvanaClick(); };
   _nirvanaCanvas.onmousemove = e => { const r = _nirvanaCanvas.getBoundingClientRect(); _nirvanaMouse.x = (e.clientX - r.left) * (800/r.width); _nirvanaMouse.y = (e.clientY - r.top) * (500/r.height); };
@@ -110,6 +153,8 @@ function enterNirvana(persona, skin) {
 
 function exitNirvana() {
   _saveClubBalance();
+  _removeClubLightOverlay();
+  _removeYoutubeEmbed();
   if (_nirvanaRAF) cancelAnimationFrame(_nirvanaRAF);
   _nirvanaRAF = null;
   _nirvanaState = 'hub';
@@ -129,6 +174,9 @@ function nirvanaUpdate() {
   if (_nirvanaState === 'hub' && _nirvanaLastState !== 'hub') _saveClubBalance();
   _nirvanaLastState = _nirvanaState;
 
+  // Update DOM light overlay (follows into all games)
+  _updateClubLightOverlay();
+
   if (_nirvanaState === 'hub') {
     updateHub();
     // Live-drag the opacity slider
@@ -142,6 +190,7 @@ function nirvanaUpdate() {
   else if (_nirvanaState === 'blackjack') {} // event-driven
   else if (_nirvanaState === 'horses') updateHorses();
   else if (_nirvanaState === 'putt') updatePutt();
+  else if (_nirvanaState === 'skeeball') updateSkeeball();
 }
 
 function nirvanaDraw() {
@@ -153,6 +202,7 @@ function nirvanaDraw() {
   else if (_nirvanaState === 'horses') drawHorses(ctx);
   else if (_nirvanaState === 'movies') drawMovies(ctx);
   else if (_nirvanaState === 'putt') drawPutt(ctx);
+  else if (_nirvanaState === 'skeeball') drawSkeeball(ctx);
   // HUD
   ctx.fillStyle = 'rgba(0,0,0,.6)';
   ctx.fillRect(0, 0, 800, 28);
@@ -169,6 +219,13 @@ function nirvanaDraw() {
 }
 
 function nirvanaClick() {
+  // Universal back button check for ALL game states (not hub)
+  if (_nirvanaState !== 'hub' && _nirvanaMouse.x < 70 && _nirvanaMouse.y > 455) {
+    _removeYoutubeEmbed();
+    _nirvanaState = 'hub';
+    _saveClubBalance();
+    return;
+  }
   if (_nirvanaState === 'hub') {
     // Light toggle click (bottom-right area)
     const toggleX = 620, toggleY = 460, toggleW = 50, toggleH = 18;
@@ -195,11 +252,13 @@ function nirvanaClick() {
   if (_nirvanaState === 'horses') horsesClick();
   if (_nirvanaState === 'movies') moviesClick();
   if (_nirvanaState === 'putt') puttClick();
+  if (_nirvanaState === 'skeeball') skeeballClick();
 }
 
 function nirvanaRelease() {
   if (_nirvanaState === 'pool') poolRelease();
   if (_nirvanaState === 'putt') puttRelease();
+  if (_nirvanaState === 'skeeball') skeeballRelease();
 }
 
 function launchGame(id) {
@@ -209,12 +268,14 @@ function launchGame(id) {
   else if (id === 'horses') initHorses();
   else if (id === 'movies') initMovies();
   else if (id === 'putt') initPutt();
+  else if (id === 'skeeball') initSkeeball();
 }
 
 // Key handling (attached globally)
 document.addEventListener('keydown', e => {
   _nirvanaKeys[e.key] = true;
   if (e.key === 'Escape' && _nirvanaState !== 'hub') {
+    _removeYoutubeEmbed();
     _nirvanaState = 'hub';
     _saveClubBalance();
   }
@@ -227,19 +288,6 @@ function updateHub() {
   if (_nirvanaKeys['ArrowDown'] || _nirvanaKeys['s']) p.y = Math.min(490, p.y + p.speed);
   if (_nirvanaKeys['ArrowLeft'] || _nirvanaKeys['a']) p.x = Math.max(10, p.x - p.speed);
   if (_nirvanaKeys['ArrowRight'] || _nirvanaKeys['d']) p.x = Math.min(790, p.x + p.speed);
-
-  // Update bouncing club lights
-  if (_clubLightsOn) {
-    _clubLightTime++;
-    for (const light of CLUB_LIGHTS) {
-      light.x += light.dx;
-      light.y += light.dy;
-      if (light.x < 0 || light.x > 800) light.dx = -light.dx;
-      if (light.y < 28 || light.y > 500) light.dy = -light.dy;
-      light.x = Math.max(0, Math.min(800, light.x));
-      light.y = Math.max(28, Math.min(500, light.y));
-    }
-  }
 
   // Check proximity to locations
   _hubPrompt = null;
@@ -272,24 +320,7 @@ function drawHub(ctx) {
   ctx.fillStyle = '#2a2a48';
   ctx.fillRect(0, 28, 800, 4);
 
-  // ---- Bouncing club lights overlay ----
-  if (_clubLightsOn) {
-    ctx.save();
-    ctx.globalCompositeOperation = 'screen';
-    for (const light of CLUB_LIGHTS) {
-      const pulse = 0.85 + Math.sin(_clubLightTime * 0.03 + light.r) * 0.15;
-      const grad = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, light.r * pulse);
-      const [r, g, b] = light.color;
-      grad.addColorStop(0, `rgba(${r},${g},${b},${_clubLightOpacity})`);
-      grad.addColorStop(0.5, `rgba(${r},${g},${b},${_clubLightOpacity * 0.4})`);
-      grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
-      ctx.fillStyle = grad;
-      ctx.beginPath(); ctx.arc(light.x, light.y, light.r * pulse, 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.restore();
-  }
-
-  // Locations
+  // Locations (lights now rendered via DOM overlay)
   for (const loc of HUB_LOCATIONS) {
     const hovered = _hubPrompt === loc;
     ctx.fillStyle = hovered ? loc.color : darkenColor(loc.color, 0.6);
@@ -526,7 +557,7 @@ function cpuPoolShot() {
 }
 
 function poolClick() {
-  if (_pool.gameOver) { _nirvanaState = 'hub'; return; }
+  if (_pool.gameOver) { initPool(); return; }
   if (_pool.turn !== 'player') return;
   const cue = _pool.balls[0];
   if (cue.sunk) return;
@@ -685,8 +716,6 @@ function initBlackjack() {
 
 function blackjackClick() {
   if (_bj.state === 'done') {
-    // Click anywhere to play again or go back
-    if (_nirvanaMouse.y < 50) { _nirvanaState = 'hub'; return; }
     initBlackjack(); return;
   }
   if (_bj.state !== 'playing') return;
@@ -717,8 +746,6 @@ function blackjackClick() {
       return;
     }
   }
-  // Back button check
-  if (_nirvanaMouse.x < 70 && _nirvanaMouse.y > 455) _nirvanaState = 'hub';
 }
 
 function bjDealerPlay() {
@@ -856,7 +883,6 @@ function initHorses() {
 function horsesClick() {
   const h = _horses;
   if (h.state === 'done') {
-    if (_nirvanaMouse.x < 70 && _nirvanaMouse.y > 455) { _nirvanaState = 'hub'; return; }
     initHorses(); return;
   }
   if (h.state === 'betting') {
@@ -878,7 +904,6 @@ function horsesClick() {
       }
     }
   }
-  if (_nirvanaMouse.x < 70 && _nirvanaMouse.y > 455) _nirvanaState = 'hub';
 }
 
 function updateHorses() {
@@ -1004,6 +1029,7 @@ function drawHorses(ctx) {
    Browse classic movies, click to "watch" with an animated screen.
    ============================================================ */
 let _movies = {};
+let _popcornAnim = { reclined: false, timer: 0, munchTimer: 0, eating: false };
 const CLASSIC_MOVIES = [
   { title: 'The Godfather', year: 1972, genre: 'Crime', desc: '"I\'m gonna make him an offer he can\'t refuse."', color: '#8B0000', runtime: '2h 55m' },
   { title: 'Casablanca', year: 1942, genre: 'Romance', desc: '"Here\'s looking at you, kid."', color: '#2c3e50', runtime: '1h 42m' },
@@ -1030,6 +1056,7 @@ function initMovies() {
     youtubeActive: false,
     inputFocused: false
   };
+  _popcornAnim = { reclined: false, timer: 0, munchTimer: 0, eating: false };
   // Remove any leftover iframe
   _removeYoutubeEmbed();
 }
@@ -1044,36 +1071,169 @@ function _showYoutubeEmbed(videoId) {
   _removeYoutubeEmbed();
   const wrapper = document.querySelector('.nirvana-wrapper');
   if (!wrapper) return;
+  // Split-screen container: video on left, canvas (hub) on right
+  const splitDiv = document.createElement('div');
+  splitDiv.id = 'nirvana-theater-split';
+  splitDiv.style.cssText = 'display:flex;gap:8px;width:100%;max-width:850px;align-items:flex-start;';
+  // Video column (left)
+  const videoCol = document.createElement('div');
+  videoCol.style.cssText = 'flex:1;display:flex;flex-direction:column;gap:6px;';
   const iframe = document.createElement('iframe');
   iframe.id = 'nirvana-youtube';
   iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
   iframe.allow = 'autoplay; encrypted-media';
   iframe.allowFullscreen = true;
-  iframe.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:640px;max-width:90%;aspect-ratio:16/9;border:3px solid rgba(255,213,79,.4);border-radius:8px;z-index:10;background:#000;';
+  iframe.style.cssText = 'width:100%;aspect-ratio:16/9;border:2px solid rgba(255,213,79,.4);border-radius:6px;background:#000;';
+  videoCol.appendChild(iframe);
+  // Popcorn persona canvas (below video)
+  const popcornCanvas = document.createElement('canvas');
+  popcornCanvas.id = 'nirvana-popcorn-canvas';
+  popcornCanvas.width = 400;
+  popcornCanvas.height = 120;
+  popcornCanvas.style.cssText = 'width:100%;border-radius:6px;background:#0a0a14;';
+  videoCol.appendChild(popcornCanvas);
+  // Close button
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = 'Close Video';
+  closeBtn.style.cssText = 'background:#e53935;color:#fff;border:none;padding:6px 16px;border-radius:6px;cursor:pointer;font-weight:bold;font-size:12px;align-self:center;';
+  closeBtn.onclick = () => { _movies.youtubeActive = false; _popcornAnim.eating = false; _removeYoutubeEmbed(); };
+  videoCol.appendChild(closeBtn);
+  splitDiv.appendChild(videoCol);
+  // Insert before the canvas to share space
   wrapper.style.position = 'relative';
-  wrapper.appendChild(iframe);
+  wrapper.insertBefore(splitDiv, wrapper.firstChild);
+  // Start popcorn animation
+  _popcornAnim = { reclined: false, timer: 0, munchTimer: 0, eating: true };
+  _animatePopcornCanvas();
 }
 
 function _removeYoutubeEmbed() {
   const el = document.getElementById('nirvana-youtube');
   if (el) el.remove();
+  const split = document.getElementById('nirvana-theater-split');
+  if (split) split.remove();
+  _popcornAnim.eating = false;
+}
+
+// ---- POPCORN PERSONA ANIMATION (below video pane) ----
+let _popcornRAF = null;
+function _animatePopcornCanvas() {
+  const canvas = document.getElementById('nirvana-popcorn-canvas');
+  if (!canvas || !_popcornAnim.eating) { _popcornRAF = null; return; }
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  // Dark theater background
+  ctx.fillStyle = '#0a0a14';
+  ctx.fillRect(0, 0, W, H);
+
+  _popcornAnim.timer++;
+  const t = _popcornAnim.timer;
+  // Reclining transition
+  const reclineProgress = Math.min(1, t / 40);
+  const tiltAngle = reclineProgress * 0.25; // slight backward tilt
+
+  const cx = W / 2, baseY = H - 10;
+  const colors = { farmer: '#4CAF50', banker: '#1565C0', businessman: '#FF8F00' };
+  const accent = colors[_nirvanaPersona] || '#FF8F00';
+
+  ctx.save();
+  ctx.translate(cx, baseY);
+  ctx.rotate(-tiltAngle);
+
+  // ---- Recliner chair (from behind) ----
+  // Chair base
+  ctx.fillStyle = '#3a1a1a';
+  roundRect(ctx, -35, -50, 70, 55, 8); ctx.fill();
+  // Chair back (tall, padded)
+  ctx.fillStyle = '#4a2020';
+  roundRect(ctx, -30, -95, 60, 50, 6); ctx.fill();
+  // Armrests
+  ctx.fillStyle = '#3a1a1a';
+  ctx.fillRect(-38, -70, 8, 40);
+  ctx.fillRect(30, -70, 8, 40);
+  // Cushion stitching
+  ctx.strokeStyle = '#5a3030'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(-10, -90); ctx.lineTo(-10, -50); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(10, -90); ctx.lineTo(10, -50); ctx.stroke();
+
+  // ---- Persona body (from behind) ----
+  // Torso/shoulders
+  ctx.fillStyle = accent;
+  roundRect(ctx, -22, -105, 44, 30, 4); ctx.fill();
+  // Head (from behind — hair/back of head)
+  ctx.fillStyle = _nirvanaSkin;
+  ctx.beginPath(); ctx.arc(0, -120, 16, 0, Math.PI * 2); ctx.fill();
+  // Back of hair
+  ctx.fillStyle = darkenColor(_nirvanaSkin, 0.7);
+  ctx.beginPath(); ctx.arc(0, -123, 14, Math.PI * 1.1, Math.PI * 1.9); ctx.fill();
+  // Ears (tiny from behind view)
+  ctx.fillStyle = _nirvanaSkin;
+  ctx.beginPath(); ctx.arc(-15, -118, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(15, -118, 4, 0, Math.PI * 2); ctx.fill();
+
+  // ---- Popcorn bucket (right hand on armrest) ----
+  const munchCycle = Math.sin(t * 0.15) * 3;
+  // Bucket
+  ctx.fillStyle = '#e53935';
+  ctx.beginPath();
+  ctx.moveTo(28, -85); ctx.lineTo(22, -60);
+  ctx.lineTo(42, -60); ctx.lineTo(38, -85);
+  ctx.closePath(); ctx.fill();
+  // Stripes on bucket
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(27, -80, 2, 18);
+  ctx.fillRect(32, -80, 2, 18);
+  ctx.fillRect(37, -80, 2, 18);
+  // Popcorn kernels on top
+  const kernelY = -87 + munchCycle * 0.3;
+  ctx.fillStyle = '#FFF9C4';
+  ctx.beginPath(); ctx.arc(29, kernelY, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(33, kernelY - 2, 3.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(37, kernelY, 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(31, kernelY - 4, 2, 0, Math.PI * 2); ctx.fill();
+
+  // Hand reaching into popcorn (animated munching)
+  if (t > 30) {
+    _popcornAnim.munchTimer++;
+    const mt = _popcornAnim.munchTimer;
+    const handUp = Math.sin(mt * 0.08) > 0.3;
+    if (handUp) {
+      // Hand up near mouth
+      ctx.fillStyle = _nirvanaSkin;
+      ctx.beginPath(); ctx.arc(-5, -110 + munchCycle, 5, 0, Math.PI * 2); ctx.fill();
+    } else {
+      // Hand at popcorn bucket
+      ctx.fillStyle = _nirvanaSkin;
+      ctx.beginPath(); ctx.arc(30, -82 + munchCycle, 5, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  ctx.restore();
+
+  // Ambient glow from screen onto persona
+  ctx.save();
+  ctx.globalAlpha = 0.15 + Math.sin(t * 0.05) * 0.05;
+  const screenGlow = ctx.createLinearGradient(0, 0, 0, H);
+  screenGlow.addColorStop(0, 'rgba(100,150,255,.3)');
+  screenGlow.addColorStop(1, 'transparent');
+  ctx.fillStyle = screenGlow;
+  ctx.fillRect(0, 0, W, H * 0.4);
+  ctx.restore();
+
+  _popcornRAF = requestAnimationFrame(_animatePopcornCanvas);
 }
 
 function moviesClick() {
   const m = _movies;
   if (m.youtubeActive) {
-    // Click "Close Video" button area
-    if (_nirvanaMouse.x >= 340 && _nirvanaMouse.x <= 460 && _nirvanaMouse.y >= 430 && _nirvanaMouse.y <= 465) {
-      m.youtubeActive = false;
-      _removeYoutubeEmbed();
-    }
+    // Close handled by DOM button; canvas click does nothing while youtube active
     return;
   }
   if (m.watching) {
     if (m.watchTimer >= m.watchDuration) { m.watching = false; m.selected = -1; }
     return;
   }
-  if (_nirvanaMouse.x < 70 && _nirvanaMouse.y > 455) { _nirvanaState = 'hub'; _removeYoutubeEmbed(); return; }
   // YouTube URL input click (focus)
   if (_nirvanaMouse.x >= 320 && _nirvanaMouse.x <= 700 && _nirvanaMouse.y >= 395 && _nirvanaMouse.y <= 420) {
     m.inputFocused = true;
@@ -1147,14 +1307,14 @@ function drawMovies(ctx) {
     return;
   }
 
-  // YouTube active: show close button behind the iframe
+  // YouTube active: show split-screen hub mini-view on canvas
   if (m.youtubeActive) {
-    ctx.fillStyle = 'rgba(0,0,0,.85)'; ctx.fillRect(0, 28, 800, 472);
-    ctx.fillStyle = '#aaa'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText('YouTube video playing above. Click below to close.', 400, 420);
-    ctx.fillStyle = '#e53935'; roundRect(ctx, 340, 430, 120, 35, 6); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 13px sans-serif';
-    ctx.fillText('Close Video', 400, 452);
+    // Draw a mini hub on the canvas side while video plays in DOM split
+    drawHub(ctx);
+    ctx.fillStyle = 'rgba(0,0,0,.5)';
+    roundRect(ctx, 200, 440, 400, 30, 6); ctx.fill();
+    ctx.fillStyle = '#FFD54F'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('THEATER MODE \u2014 Video playing to the left', 400, 460);
     drawBackButton(ctx);
     return;
   }
@@ -1238,8 +1398,9 @@ let _putt = {};
 let _puttSlopeOverlay = false;
 
 function initPutt() {
+  const terrain = generateTerrain();
   const obstacles = generateObstacles();
-  const cpuResult = simulateCPUPutt(obstacles);
+  // Create _putt first so simulateCPUPutt can reference _putt.terrain
   _putt = {
     ball: { x: 150, y: 380, vx: 0, vy: 0, r: 6 },
     hole: { x: 620, y: 130, r: 10 },
@@ -1248,17 +1409,21 @@ function initPutt() {
     par: 3,
     bet: 200,
     cpu: makeCPU(),
-    cpuStrokes: cpuResult.strokes,
-    cpuPath: cpuResult.path,    // recorded positions for replay
+    cpuStrokes: 3,
+    cpuPath: [],
     cpuReplay: false,
     cpuReplayIdx: 0,
     cpuReplayTimer: 0,
     state: 'aiming', // aiming | rolling | cpuReplay | done
     message: 'Drag backward from ball to putt!',
-    terrain: generateTerrain(),
+    terrain: terrain,
     obstacles,
     sunk: false
   };
+  // Now simulate CPU putt (uses _putt.terrain)
+  const cpuResult = simulateCPUPutt(obstacles);
+  _putt.cpuStrokes = cpuResult.strokes;
+  _putt.cpuPath = cpuResult.path;
 }
 
 function generateTerrain() {
@@ -1408,7 +1573,6 @@ function getTerrainSlope(x, y) {
 
 function puttClick() {
   if (_putt.state === 'done') {
-    if (_nirvanaMouse.x < 70 && _nirvanaMouse.y > 455) { _nirvanaState = 'hub'; return; }
     initPutt(); return;
   }
   if (_putt.state === 'cpuReplay') return; // don't interrupt
@@ -1737,6 +1901,281 @@ function drawPutt(ctx) {
   ctx.fillStyle = '#FFD54F'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
   ctx.fillText(p.message, 400, 458);
   if (p.state === 'done') {
+    ctx.fillStyle = '#aaa'; ctx.font = '11px sans-serif';
+    ctx.fillText('Click to play again', 400, 490);
+  }
+  drawBackButton(ctx);
+}
+
+
+/* ============================================================
+   GAME 6: SKEEBALL
+   Flick ball up the ramp into scoring holes. Higher holes = more points.
+   Celebratory flashing lights for high-value holes.
+   ============================================================ */
+let _skeeball = {};
+let _skeeballCelebLights = []; // { timer, color, x, y }
+
+function initSkeeball() {
+  _skeeball = {
+    ball: { x: 400, y: 430, vx: 0, vy: 0, r: 12, active: false, rolling: false },
+    holes: [
+      { x: 400, y: 80, r: 22, points: 100, label: '100', color: '#FFD700' },
+      { x: 340, y: 120, r: 20, points: 50, label: '50', color: '#E53935' },
+      { x: 460, y: 120, r: 20, points: 50, label: '50', color: '#E53935' },
+      { x: 300, y: 165, r: 22, points: 30, label: '30', color: '#1565C0' },
+      { x: 500, y: 165, r: 22, points: 30, label: '30', color: '#1565C0' },
+      { x: 340, y: 210, r: 24, points: 20, label: '20', color: '#4CAF50' },
+      { x: 460, y: 210, r: 24, points: 20, label: '20', color: '#4CAF50' },
+      { x: 400, y: 260, r: 28, points: 10, label: '10', color: '#FF8F00' }
+    ],
+    score: 0,
+    ballsLeft: 9,
+    aiming: false,
+    bet: 200,
+    cpu: makeCPU(),
+    cpuScore: 0,
+    state: 'aiming', // aiming | rolling | done
+    message: 'Drag backward from ball to roll!',
+    rampTop: 270,
+    celebTimer: 0
+  };
+  // Pre-compute CPU score
+  for (let i = 0; i < 9; i++) {
+    const r = Math.random();
+    if (r < 0.05) _skeeball.cpuScore += 100;
+    else if (r < 0.15) _skeeball.cpuScore += 50;
+    else if (r < 0.35) _skeeball.cpuScore += 30;
+    else if (r < 0.65) _skeeball.cpuScore += 20;
+    else _skeeball.cpuScore += 10;
+  }
+}
+
+function skeeballClick() {
+  const s = _skeeball;
+  if (s.state === 'done') { initSkeeball(); return; }
+  if (s.state !== 'aiming' || s.ball.rolling) return;
+  // Start aiming drag
+  const dx = _nirvanaMouse.x - s.ball.x, dy = _nirvanaMouse.y - s.ball.y;
+  if (Math.sqrt(dx * dx + dy * dy) < 50) {
+    s.aiming = true;
+  }
+}
+
+function skeeballRelease() {
+  const s = _skeeball;
+  if (!s.aiming) return;
+  s.aiming = false;
+  const b = s.ball;
+  const dx = b.x - _nirvanaMouse.x, dy = b.y - _nirvanaMouse.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 5) return;
+  const power = Math.min(10, dist * 0.07);
+  // Bias toward upward (negative y)
+  b.vx = (dx / dist) * power * 0.4;
+  b.vy = -Math.abs(dy / dist) * power;
+  b.rolling = true;
+  s.state = 'rolling';
+}
+
+function updateSkeeball() {
+  const s = _skeeball;
+  // Decay celebration lights
+  _skeeballCelebLights = _skeeballCelebLights.filter(l => { l.timer--; return l.timer > 0; });
+
+  if (s.state !== 'rolling') return;
+  const b = s.ball;
+  b.x += b.vx; b.y += b.vy;
+  // Slight friction and gravity pull
+  b.vx *= 0.99;
+  b.vy *= 0.995;
+  b.vy += 0.02; // slight gravity
+  // Wall bounces
+  if (b.x < 200) { b.x = 200; b.vx = -b.vx * 0.5; }
+  if (b.x > 600) { b.x = 600; b.vx = -b.vx * 0.5; }
+  if (b.y < 50) { b.y = 50; b.vy = -b.vy * 0.3; }
+
+  // Check holes
+  for (const hole of s.holes) {
+    const hd = Math.hypot(b.x - hole.x, b.y - hole.y);
+    if (hd < hole.r && b.y < s.rampTop) {
+      s.score += hole.points;
+      s.message = `+${hole.points} points!`;
+      // Celebration lights - more for higher value
+      const numLights = Math.floor(hole.points / 10);
+      for (let i = 0; i < numLights; i++) {
+        _skeeballCelebLights.push({
+          timer: 40 + Math.random() * 30,
+          color: hole.color,
+          x: hole.x + (Math.random() - 0.5) * 200,
+          y: hole.y + (Math.random() - 0.5) * 100,
+          r: 20 + Math.random() * 40,
+          dx: (Math.random() - 0.5) * 3,
+          dy: (Math.random() - 0.5) * 2
+        });
+      }
+      // Reset ball
+      _skeeballResetBall();
+      return;
+    }
+  }
+
+  // Ball missed all holes and rolled past or stopped
+  if (b.y > 460 || (Math.abs(b.vx) < 0.05 && Math.abs(b.vy) < 0.05 && b.y > s.rampTop)) {
+    s.message = 'Miss!';
+    _skeeballResetBall();
+  }
+}
+
+function _skeeballResetBall() {
+  const s = _skeeball;
+  s.ballsLeft--;
+  if (s.ballsLeft <= 0) {
+    s.state = 'done';
+    if (s.score > s.cpuScore) {
+      const payout = s.bet * 2;
+      _nirvanaMoney += payout;
+      s.message = `You win! ${s.score} vs ${s.cpuScore}. +$${payout}!`;
+    } else if (s.score === s.cpuScore) {
+      s.message = `Tied ${s.score}! Bet returned.`;
+    } else {
+      _nirvanaMoney -= s.bet;
+      s.message = `${s.cpu.name} wins ${s.cpuScore} to ${s.score}. -$${s.bet}`;
+    }
+    // Big celebration for winner
+    if (s.score > s.cpuScore) {
+      for (let i = 0; i < 20; i++) {
+        _skeeballCelebLights.push({
+          timer: 60 + Math.random() * 40,
+          color: ['#FFD700','#E53935','#1565C0','#4CAF50','#FF8F00','#7B1FA2'][Math.floor(Math.random() * 6)],
+          x: Math.random() * 800, y: Math.random() * 500,
+          r: 30 + Math.random() * 50, dx: (Math.random() - 0.5) * 4, dy: (Math.random() - 0.5) * 3
+        });
+      }
+    }
+  } else {
+    s.state = 'aiming';
+    s.ball.x = 400; s.ball.y = 430; s.ball.vx = 0; s.ball.vy = 0; s.ball.rolling = false;
+  }
+}
+
+function drawSkeeball(ctx) {
+  const s = _skeeball;
+  // Background
+  ctx.fillStyle = '#1a0a2e'; ctx.fillRect(0, 28, 800, 472);
+
+  // Lane/ramp
+  ctx.fillStyle = '#3e2723';
+  ctx.beginPath();
+  ctx.moveTo(180, 480); ctx.lineTo(200, s.rampTop);
+  ctx.lineTo(600, s.rampTop); ctx.lineTo(620, 480);
+  ctx.closePath(); ctx.fill();
+  // Ramp surface
+  const rampGrad = ctx.createLinearGradient(0, 480, 0, s.rampTop);
+  rampGrad.addColorStop(0, '#5D4037');
+  rampGrad.addColorStop(1, '#4E342E');
+  ctx.fillStyle = rampGrad;
+  ctx.beginPath();
+  ctx.moveTo(200, 480); ctx.lineTo(210, s.rampTop);
+  ctx.lineTo(590, s.rampTop); ctx.lineTo(600, 480);
+  ctx.closePath(); ctx.fill();
+  // Lane lines
+  ctx.strokeStyle = 'rgba(255,255,255,.06)'; ctx.lineWidth = 1;
+  for (let x = 220; x < 600; x += 40) {
+    ctx.beginPath(); ctx.moveTo(x, 480); ctx.lineTo(x + 5, s.rampTop); ctx.stroke();
+  }
+
+  // Scoring area backdrop
+  ctx.fillStyle = '#1a1a3e';
+  ctx.beginPath();
+  ctx.moveTo(200, s.rampTop); ctx.lineTo(200, 40);
+  ctx.lineTo(600, 40); ctx.lineTo(600, s.rampTop);
+  ctx.closePath(); ctx.fill();
+  // Backboard
+  ctx.fillStyle = '#22223a';
+  ctx.fillRect(200, 40, 400, 30);
+
+  // Holes
+  for (const hole of s.holes) {
+    // Glow ring
+    ctx.strokeStyle = hole.color; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(hole.x, hole.y, hole.r + 4, 0, Math.PI * 2); ctx.stroke();
+    // Hole
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.arc(hole.x, hole.y, hole.r, 0, Math.PI * 2); ctx.fill();
+    // Inner ring
+    ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(hole.x, hole.y, hole.r - 3, 0, Math.PI * 2); ctx.stroke();
+    // Label
+    ctx.fillStyle = hole.color; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(hole.label, hole.x, hole.y + 4);
+  }
+
+  // ---- Celebration lights ----
+  if (_skeeballCelebLights.length > 0) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    for (const l of _skeeballCelebLights) {
+      l.x += l.dx || 0; l.y += l.dy || 0;
+      const alpha = Math.min(1, l.timer / 20) * 0.6;
+      const flash = Math.sin(l.timer * 0.5) > 0 ? 1 : 0.4;
+      const grad = ctx.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.r);
+      grad.addColorStop(0, `${l.color}${Math.round(alpha * flash * 255).toString(16).padStart(2, '0')}`);
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(l.x, l.y, l.r, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Ball
+  if (s.state !== 'done' || s.ballsLeft > 0) {
+    ctx.fillStyle = '#DDD';
+    ctx.beginPath(); ctx.arc(s.ball.x, s.ball.y, s.ball.r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(s.ball.x, s.ball.y, s.ball.r, 0, Math.PI * 2); ctx.stroke();
+    // Shine
+    ctx.fillStyle = 'rgba(255,255,255,.35)';
+    ctx.beginPath(); ctx.arc(s.ball.x - 3, s.ball.y - 3, 4, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Aiming line
+  if (s.aiming) {
+    const b = s.ball;
+    ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    const dx = b.x - _nirvanaMouse.x, dy = b.y - _nirvanaMouse.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > 0) {
+      ctx.beginPath(); ctx.moveTo(b.x, b.y);
+      ctx.lineTo(b.x + (dx / dist) * 100, b.y + Math.min(-20, (dy / dist) * 100));
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    // Power bar
+    const pw = Math.min(100, dist * 0.7);
+    ctx.fillStyle = '#333'; ctx.fillRect(350, 475, 100, 8);
+    ctx.fillStyle = pw > 70 ? '#e53935' : pw > 40 ? '#FFB74D' : '#4CAF50';
+    ctx.fillRect(350, 475, pw, 8);
+  }
+
+  // Score panel
+  ctx.fillStyle = 'rgba(0,0,0,.7)'; roundRect(ctx, 50, 35, 130, 60, 6); ctx.fill();
+  ctx.fillStyle = '#FFD54F'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText(`Score: ${s.score}`, 60, 58);
+  ctx.fillStyle = '#aaa'; ctx.font = '11px sans-serif';
+  ctx.fillText(`Balls left: ${s.ballsLeft}`, 60, 78);
+  ctx.fillText(`Bet: $${s.bet}`, 60, 92);
+  // CPU info
+  drawMiniPerson(ctx, 720, 80, 18, s.cpu.skin, s.cpu.accent, null);
+  ctx.fillStyle = '#aaa'; ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(`vs ${s.cpu.name.split(' ')[0]}`, 720, 105);
+
+  // Message
+  ctx.fillStyle = 'rgba(0,0,0,.7)'; roundRect(ctx, 250, 440, 300, 28, 6); ctx.fill();
+  ctx.fillStyle = '#FFD54F'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(s.message, 400, 458);
+  if (s.state === 'done') {
     ctx.fillStyle = '#aaa'; ctx.font = '11px sans-serif';
     ctx.fillText('Click to play again', 400, 490);
   }
