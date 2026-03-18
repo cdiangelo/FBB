@@ -962,7 +962,8 @@ function loadNextTask() {
     setTaskHeader('End of Day', 'You\'ve navigated every challenge. Time moves on.');
     clearTaskFixed();
     els.taskBody.innerHTML = '';
-    els.taskActions.innerHTML = '<button class="btn-primary" onclick="advanceAndContinue()">Continue to Next Day</button>';
+    els.taskActions.innerHTML = '';
+    setTimeout(() => advanceAndContinue(), 1200);
     return;
   }
 
@@ -1166,12 +1167,9 @@ function confirmMultiSelect() {
     <div style="font-size:1.2rem;margin-bottom:.5rem;color:var(--accent)">+${Math.round((totalScore + totalKnowledge) * engine.getScaleMultiplier())} pts ${moneyStr ? '| ' + moneyStr : ''}</div>
     <p class="grade-feedback">Bundle configured with ${_multiSelectState.length} products.</p>
   </div>`;
-  els.taskActions.innerHTML = `
-    <button class="btn-primary" onclick="advanceAndContinue()">Next Day &rarr;</button>
-    <button class="btn-secondary" onclick="loadNextTask()">Stay on Day ${engine.day}</button>
-    ${engine.hasUndo() ? '<button class="btn-undo" onclick="undoLastAction()">Undo</button>' : ''}
-  `;
+  els.taskActions.innerHTML = engine.hasUndo() ? '<button class="btn-undo" onclick="undoLastAction()">Undo</button>' : '';
   updateAll();
+  setTimeout(() => advanceAndContinue(), 1800);
 }
 
 function showCommentaryTask(scenario) {
@@ -1659,13 +1657,10 @@ function selectOption(index) {
     ${strategyInfo}
   </div>`;
 
-  els.taskActions.innerHTML = `
-    <button class="btn-primary" onclick="advanceAndContinue()">Next Day &rarr;</button>
-    <button class="btn-secondary" onclick="loadNextTask()">Stay on Day ${engine.day}</button>
-    ${engine.hasUndo() ? '<button class="btn-undo" onclick="undoLastAction()">Undo</button>' : ''}
-  `;
+  els.taskActions.innerHTML = engine.hasUndo() ? '<button class="btn-undo" onclick="undoLastAction()">Undo</button>' : '';
 
   updateAll();
+  setTimeout(() => advanceAndContinue(), 1800);
 }
 
 async function submitCommentary() {
@@ -1704,13 +1699,14 @@ function handleCommentaryResult(result) {
     <div style="font-size:1.1rem;margin-bottom:.75rem">${result.score}/100</div>
     <div class="grade-feedback">${(result.feedback || []).map(f => `<p>• ${f}</p>`).join('')}</div>
   </div>`;
-  els.taskActions.innerHTML = '<button class="btn-primary" onclick="advanceAndContinue()">Next Day &rarr;</button>';
+  els.taskActions.innerHTML = '';
   updateAll();
 
   // Read aloud commentary feedback in speech mode
   if (speechEnabled && result.feedback && result.feedback.length) {
     speakText(`Grade: ${result.grade}. ${result.feedback.join('. ')}`);
   }
+  setTimeout(() => advanceAndContinue(), 2200);
 }
 
 // ===============================
@@ -1859,22 +1855,43 @@ function undoLastAction() {
   }
 }
 
+function showDayTransition(nextDay, callback) {
+  const overlay = document.createElement('div');
+  overlay.className = 'day-transition-overlay';
+  overlay.innerHTML = `
+    <div class="sky"></div>
+    <div class="sun"></div>
+    <div class="cloud"></div>
+    <div class="cloud"></div>
+    <div class="horizon"></div>
+    <div class="day-label">Day ${nextDay}</div>
+  `;
+  document.body.appendChild(overlay);
+  setTimeout(() => {
+    overlay.remove();
+    if (callback) callback();
+  }, 2900);
+}
+
 function advanceAndContinue() {
   closeAllExhibits();
-  const event = engine.advanceDay();
-  if (event && event.isGameOver) {
-    showGameOver(event);
-    return;
-  }
-  if (event) {
-    const moneyStr = event.money > 0 ? `+$${event.money.toLocaleString()}` : `-$${Math.abs(event.money).toLocaleString()}`;
-    engine.addLog(`${event.text} (${moneyStr})`);
-    engine.addPeriodAction('event', `${event.text} (${moneyStr})`, { money: event.money });
-    showNotification(`${event.text} (${moneyStr})`);
-  }
-  updateAll();
-  updateSellOffButton();
-  setTimeout(() => loadNextTask(), event ? 1500 : 200);
+  const nextDay = (engine.day || 0) + 1;
+  showDayTransition(nextDay, () => {
+    const event = engine.advanceDay();
+    if (event && event.isGameOver) {
+      showGameOver(event);
+      return;
+    }
+    if (event) {
+      const moneyStr = event.money > 0 ? `+$${event.money.toLocaleString()}` : `-$${Math.abs(event.money).toLocaleString()}`;
+      engine.addLog(`${event.text} (${moneyStr})`);
+      engine.addPeriodAction('event', `${event.text} (${moneyStr})`, { money: event.money });
+      showNotification(`${event.text} (${moneyStr})`);
+    }
+    updateAll();
+    updateSellOffButton();
+    setTimeout(() => loadNextTask(), event ? 1500 : 200);
+  });
 }
 
 function showGameOver(event) {

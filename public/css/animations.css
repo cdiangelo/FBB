@@ -129,3 +129,106 @@
 .confetti.businessman:nth-child(2n) { background: #FFA726; }
 .confetti.businessman:nth-child(3n) { background: #FFD54F; }
 .confetti.businessman:nth-child(5n) { background: #E65100; }
+
+/* ===============================
+   DAY TRANSITION — SUNRISE / SUNSET
+   =============================== */
+.day-transition-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.day-transition-overlay .sky {
+  position: absolute;
+  inset: 0;
+  animation: skyShift 2.8s ease-in-out forwards;
+}
+
+@keyframes skyShift {
+  0%   { background: linear-gradient(180deg, #0a1628 0%, #1a2744 50%, #2a3a5a 100%); }
+  15%  { background: linear-gradient(180deg, #1a1040 0%, #4a2060 30%, #c04848 65%, #f09030 100%); }
+  35%  { background: linear-gradient(180deg, #2a3068 0%, #e87040 30%, #ffb347 60%, #ffe082 100%); }
+  55%  { background: linear-gradient(180deg, #64b5f6 0%, #90caf9 40%, #ffe082 80%, #fff9c4 100%); }
+  75%  { background: linear-gradient(180deg, #42a5f5 0%, #64b5f6 50%, #bbdefb 100%); }
+  100% { background: linear-gradient(180deg, #0a1628 0%, #1a2744 50%, #2a3a5a 100%); opacity: 0; }
+}
+
+.day-transition-overlay .sun {
+  position: absolute;
+  width: 50px;
+  height: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff8e1 30%, #ffcc02 60%, #ff9800 100%);
+  box-shadow: 0 0 40px 15px rgba(255,200,0,.5), 0 0 80px 30px rgba(255,150,0,.3);
+  animation: sunArc 2.8s ease-in-out forwards;
+}
+
+@keyframes sunArc {
+  0%   { bottom: -60px; opacity: 0; }
+  15%  { bottom: 15%; opacity: 1; }
+  40%  { bottom: 55%; opacity: 1; }
+  55%  { bottom: 65%; opacity: 1; }
+  70%  { bottom: 55%; opacity: .9; }
+  85%  { bottom: 15%; opacity: .6; }
+  100% { bottom: -60px; opacity: 0; }
+}
+
+.day-transition-overlay .horizon {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 25%;
+  background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.4) 100%);
+  animation: horizonFade 2.8s ease-in-out forwards;
+}
+
+@keyframes horizonFade {
+  0%, 100% { opacity: .6; }
+  50% { opacity: .2; }
+}
+
+.day-transition-overlay .day-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 2rem;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 2px 20px rgba(0,0,0,.6), 0 0 60px rgba(255,200,0,.3);
+  opacity: 0;
+  animation: dayLabelPop 2.8s ease-in-out forwards;
+  white-space: nowrap;
+}
+
+@keyframes dayLabelPop {
+  0%, 20%  { opacity: 0; transform: translate(-50%, -50%) scale(.7); }
+  40%      { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+  60%      { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  80%      { opacity: .6; transform: translate(-50%, -50%) scale(.95); }
+  100%     { opacity: 0; transform: translate(-50%, -50%) scale(.9); }
+}
+
+/* Cloud silhouettes */
+.day-transition-overlay .cloud {
+  position: absolute;
+  background: rgba(255,255,255,.15);
+  border-radius: 50px;
+  height: 20px;
+  animation: cloudDrift 2.8s linear forwards;
+}
+.day-transition-overlay .cloud:nth-child(1) { top: 22%; left: -80px; width: 100px; animation-delay: .2s; }
+.day-transition-overlay .cloud:nth-child(2) { top: 30%; right: -60px; width: 70px; animation-delay: .5s; }
+
+@keyframes cloudDrift {
+  0%   { transform: translateX(0); opacity: 0; }
+  20%  { opacity: .3; }
+  80%  { opacity: .3; }
+  100% { transform: translateX(120px); opacity: 0; }
+}
