@@ -803,23 +803,19 @@ function showDecisionTask(scenario, badge) {
     </details>`;
   }
 
-  // Options in scrollable area
+  // Options in scrollable area — compact cards with strategy tags
   const optionsHtml = `${badgeHtml}<div class="option-group">${scenario.options.map((opt, i) => {
-    const satHtml = opt.effect.satisfaction ? `<span class="option-sat">${opt.effect.satisfaction > 0 ? '+' : ''}${opt.effect.satisfaction} satisfaction</span>` : '';
     const cost = engine.getOptionCost(opt);
     const affordable = engine.canAfford(opt);
-    const costHtml = cost > 0 ? `<span class="option-cost ${affordable ? '' : 'option-cost-blocked'}">${affordable ? '' : '⚠ '}$${cost.toLocaleString()}${affordable ? '' : ' — not enough $'}</span>` : '';
-    // Depreciation policy badge
-    let policyHtml = '';
-    if (opt._depreciationMeta) {
-      policyHtml = `<span class="option-policy ${opt._depreciationMeta.cls}">${opt._depreciationMeta.label}</span>`;
-    }
+    const costHtml = cost > 0 ? `<span class="option-cost ${affordable ? '' : 'option-cost-blocked'}">${affordable ? '' : '\u26A0 '}$${cost.toLocaleString()}${affordable ? '' : ' \u2014 not enough $'}</span>` : '';
+    // Strategy implication tags
+    const tags = (opt._strategyTags || []).map(t => `<span class="strat-tag ${t.cls}" title="${t.label}">${t.icon}</span>`).join('');
+    const tagsRow = tags ? `<span class="strat-tags">${tags}</span>` : '';
     return `<button class="option-btn${affordable ? '' : ' option-unaffordable'}" onclick="selectOption(${i})">
       <span class="option-key">${String.fromCharCode(65 + i)}</span>
       <span class="option-text">
-        <span class="option-label">${opt.label}${costHtml ? ' ' + costHtml : ''}</span>
+        <span class="option-label">${opt.label}${costHtml ? ' ' + costHtml : ''}${tagsRow}</span>
         <span class="option-detail">${opt.detail}</span>
-        ${policyHtml}${satHtml}
       </span>
     </button>`;
   }).join('')}</div>`;
@@ -1173,27 +1169,8 @@ function selectOption(index) {
   }
 
   // Handle investment/asset purchases
-  if (option.assetPurchase && !option.capitalizeAsset) {
+  if (option.assetPurchase) {
     engine.addAsset(option.assetPurchase);
-  }
-
-  // Handle capitalized purchases (depreciation schedule)
-  if (option.capitalizeAsset) {
-    engine.capitalizeAsset(option.capitalizeAsset);
-    // Grey area / aggressive depreciation increases financial + regulatory risk
-    if (option.capitalizeAsset.policyAlignment === 'aggressive') {
-      engine.financialRisk = Math.min(100, engine.financialRisk + 5);
-      engine.regulatoryStanding = Math.max(0, (engine.regulatoryStanding || 100) - 5);
-      engine.addLog('Aggressive depreciation schedule — auditors may question.');
-    } else if (option.capitalizeAsset.policyAlignment === 'non_compliant') {
-      engine.financialRisk = Math.min(100, engine.financialRisk + 12);
-      engine.regulatoryStanding = Math.max(0, (engine.regulatoryStanding || 100) - 15);
-      engine.legalExposure = Math.min(100, (engine.legalExposure || 0) + 10);
-      engine.addLog('Non-compliant depreciation — significant audit and regulatory risk.');
-    }
-    if (option.assetPurchase) {
-      engine.addAsset({ ...option.assetPurchase, value: 0 }); // track asset in portfolio at 0 cost (already capitalized)
-    }
   }
 
   engine.addLog(`${scenario.title}: chose "${option.label}"`);
@@ -1203,19 +1180,12 @@ function selectOption(index) {
   const scoreEffect = `+${Math.round(((option.effect.score || 0) + (option.effect.knowledge || 0)) * engine.getScaleMultiplier())} pts`;
   const satEffect = option.effect.satisfaction ? ` | Satisfaction: ${option.effect.satisfaction > 0 ? '+' : ''}${option.effect.satisfaction}` : '';
 
-  // Depreciation summary line
-  let depreciationInfo = '';
-  if (option.capitalizeAsset) {
-    const cap = option.capitalizeAsset;
-    const dailyExp = Math.round(cap.totalCost / cap.usefulLifeDays);
-    const deposit = Math.round(cap.totalCost * 0.10);
-    const policy = option._depreciationMeta || GameEngine.getDepreciationPolicy(cap.type, cap.usefulLifeDays);
-    depreciationInfo = `<div style="font-size:.8rem;margin-top:.5rem;padding:.5rem;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid var(--border)">
-      <strong>Capitalized:</strong> $${cap.totalCost.toLocaleString()} over ${cap.usefulLifeDays} days ($${dailyExp}/day) | Deposit: $${deposit.toLocaleString()}
-      <br><span class="option-policy ${policy.cls}" style="margin-top:4px">${policy.label}</span>
-      ${cap.policyAlignment === 'aggressive' ? '<br><span style="color:#FF9800;font-size:.75rem">Increased financial risk +5 | Regulatory standing -5</span>' : ''}
-      ${cap.policyAlignment === 'non_compliant' ? '<br><span style="color:#f44336;font-size:.75rem">Financial risk +12 | Regulatory standing -15 | Legal exposure +10</span>' : ''}
-    </div>`;
+  // Strategy implications summary
+  let strategyInfo = '';
+  const stratTags = option._strategyTags || [];
+  if (stratTags.length) {
+    const tagItems = stratTags.map(t => `<span class="strat-tag-lg ${t.cls}">${t.icon} ${t.label}</span>`).join('');
+    strategyInfo = `<div style="margin-top:.5rem;display:flex;flex-wrap:wrap;gap:.3rem">${tagItems}</div>`;
   }
 
   setTaskHeader('Decision Made', `You chose: ${option.label}`);
@@ -1224,7 +1194,7 @@ function selectOption(index) {
   els.taskBody.innerHTML = `<div class="grade-display">
     <div style="font-size:1.2rem;margin-bottom:.5rem;color:var(--accent)">${scoreEffect} ${moneyEffect ? '| ' + moneyEffect : ''}${satEffect}</div>
     <p class="grade-feedback">${option.detail}</p>
-    ${depreciationInfo}
+    ${strategyInfo}
   </div>`;
 
   els.taskActions.innerHTML = `
@@ -1388,12 +1358,23 @@ function showFinancialStatement() {
           </tbody>
         </table>
         <table class="fin-stmt-table" style="margin-top:1rem">
-          <thead><tr><th colspan="2" style="text-align:left;border-bottom:1px solid var(--border);padding-bottom:.4rem">Operations</th></tr></thead>
+          <thead><tr><th colspan="2" style="text-align:left;border-bottom:1px solid var(--border);padding-bottom:.4rem">Cash vs Profit</th></tr></thead>
           <tbody>
+            <tr><td>Cash on Hand</td><td class="fin-val" style="color:#4CAF50">$${engine.getActualCash().toLocaleString()}</td></tr>
+            <tr><td>Book Profit</td><td class="fin-val">$${engine.getBookProfit().toLocaleString()}</td></tr>
+            ${engine.getCashProfitGap() !== 0 ? `<tr><td>Cash/Profit Gap</td><td class="fin-val" style="color:${engine.getCashProfitGap() > 0 ? '#FF9800' : '#4CAF50'}">$${engine.getCashProfitGap().toLocaleString()}</td></tr>` : ''}
+            ${engine.unrealizedGains ? `<tr><td>Unrealized Gains</td><td class="fin-val" style="color:#FF9800">$${engine.unrealizedGains.toLocaleString()}</td></tr>` : ''}
+          </tbody>
+        </table>
+        <table class="fin-stmt-table" style="margin-top:1rem">
+          <thead><tr><th colspan="2" style="text-align:left;border-bottom:1px solid var(--border);padding-bottom:.4rem">Risk & Operations</th></tr></thead>
+          <tbody>
+            <tr><td>Financial Risk</td><td class="fin-val" style="color:${(engine.financialRisk || 0) > 50 ? '#ef5350' : 'var(--text-secondary)'};">${engine.financialRisk || 0}%</td></tr>
+            <tr><td>Audit Risk</td><td class="fin-val" style="color:${(engine.auditRisk || 0) > 30 ? '#ef5350' : (engine.auditRisk || 0) > 15 ? '#FF9800' : 'var(--text-secondary)'};">${engine.auditRisk || 0}%</td></tr>
+            <tr><td>Tax Strategy</td><td class="fin-val" style="text-transform:capitalize">${engine.taxStrategy || 'standard'}</td></tr>
             <tr><td>Tech Level</td><td class="fin-val">${om?.techLevel || 0}</td></tr>
             <tr><td>Scalability</td><td class="fin-val">${om?.scalability || 0}</td></tr>
             <tr><td>Service Quality</td><td class="fin-val">${om?.serviceQuality || 0}</td></tr>
-            <tr><td>Financial Risk</td><td class="fin-val" style="color:${(engine.financialRisk || 0) > 50 ? '#ef5350' : 'var(--text-secondary)'};">${engine.financialRisk || 0}%</td></tr>
           </tbody>
         </table>
       </div>
@@ -2015,6 +1996,9 @@ function _adminScenariosTab() {
     { theme: 'Technology & Operations', categories: {
       all: ['techEnablement']
     }},
+    { theme: 'Financial Strategy', categories: {
+      all: ['taxStrategy', 'cashFlow', 'capitalAllocation', 'financing', 'expenseGrey']
+    }},
     { theme: 'Regulatory & Legal', categories: {
       farmer: ['regulatory'],
       banker: ['regulatory'],
@@ -2287,10 +2271,10 @@ function adminPreviewScenario(persona, category) {
   let optionsHtml = scenario.options.map((opt, i) => {
     const cost = (opt.effect?.money && opt.effect.money < 0) ? Math.abs(opt.effect.money) : (opt.assetPurchase?.value || 0);
     const costStr = cost > 0 ? ` <span style="color:#FF8F00">$${cost.toLocaleString()}</span>` : '';
-    const policyStr = opt._depreciationMeta ? ` <span class="option-policy ${opt._depreciationMeta.cls}">${opt._depreciationMeta.label}</span>` : '';
     const effects = Object.entries(opt.effect || {}).filter(([k, v]) => k !== 'money' && k !== 'score' && v).map(([k, v]) => `${k}: ${v > 0 ? '+' : ''}${v}`).join(', ');
+    const tags = (opt._strategyTags || []).map(t => `<span style="font-size:.6rem;padding:1px 4px;border-radius:3px;background:rgba(255,255,255,.06)">${t.icon} ${t.label}</span>`).join(' ');
     return `<div style="padding:.5rem;margin:.3rem 0;background:rgba(255,255,255,.03);border-radius:6px;border:1px solid var(--border)">
-      <strong>${String.fromCharCode(65 + i)}. ${opt.label}</strong>${costStr}${policyStr}
+      <strong>${String.fromCharCode(65 + i)}. ${opt.label}</strong>${costStr} ${tags}
       <div style="font-size:.75rem;color:var(--text-secondary);margin-top:.2rem">${opt.detail}</div>
       ${effects ? `<div style="font-size:.7rem;color:var(--text-dim);margin-top:.2rem">${effects}</div>` : ''}
     </div>`;

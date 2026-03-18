@@ -102,9 +102,15 @@ class GameEngine {
       investmentReturns: 0 // accumulated returns
     };
 
-    // Capitalized assets — depreciation schedules
+    // Capitalized assets — auto GAAP depreciation (background, not player-facing)
     this.capitalizedAssets = [];
-    // Each: { name, type, totalCost, bookValue, dailyExpense, usefulLifeDays, daysRemaining, dayAcquired, policyAlignment }
+
+    // Tax & cash flow strategy
+    this.taxStrategy = 'standard';    // 'standard', 'aggressive', 'conservative'
+    this.auditRisk = 0;               // 0-100: chance of tax audit / regulatory scrutiny
+    this.cashReserveTarget = 0.2;     // target cash reserve ratio
+    this.unrealizedGains = 0;         // paper profits not yet cash
+    this.accruedLiabilities = 0;      // obligations not yet paid
 
     // Operating model & tech enablement
     this.operatingModel = {
@@ -145,15 +151,17 @@ class GameEngine {
   }
 
   _initCategories() {
+    // Financial strategy categories rotate in for all personas
+    const finCategories = ['taxStrategy', 'cashFlow', 'capitalAllocation', 'financing', 'expenseGrey'];
     switch (this.persona) {
       case 'farmer':
-        this.categories = ['morning', 'inputs', 'crops', 'weather', 'market', 'equipment', 'labor', 'landUse', 'regulatory', 'livestock'];
+        this.categories = ['morning', 'inputs', 'crops', 'weather', 'market', 'equipment', 'labor', 'landUse', 'regulatory', 'livestock', ...finCategories];
         break;
       case 'banker':
-        this.categories = ['credit', 'investment', 'portfolio', 'regulatory', 'deposit', 'riskEvent', 'clientRelation', 'capitalPlanning'];
+        this.categories = ['credit', 'investment', 'portfolio', 'regulatory', 'deposit', 'riskEvent', 'clientRelation', 'capitalPlanning', ...finCategories];
         break;
       case 'businessman':
-        this.categories = ['meetings', 'market', 'venture', 'partnership', 'client', 'pricing', 'hiring', 'negotiation'];
+        this.categories = ['meetings', 'market', 'venture', 'partnership', 'client', 'pricing', 'hiring', 'negotiation', ...finCategories];
         break;
     }
     // Tech & investment categories (always available after day 10)
@@ -203,6 +211,10 @@ class GameEngine {
       creditRating: saveData.creditRating || 'A',
       portfolio: saveData.portfolio || { assets: [], totalAssetValue: 0, investmentReturns: 0 },
       capitalizedAssets: saveData.capitalizedAssets || [],
+      taxStrategy: saveData.taxStrategy || 'standard',
+      auditRisk: saveData.auditRisk || 0,
+      unrealizedGains: saveData.unrealizedGains || 0,
+      accruedLiabilities: saveData.accruedLiabilities || 0,
       operatingModel: saveData.operatingModel || {
         techLevel: 0, techApproach: null, serviceQuality: 70, costEfficiency: 50,
         scalability: 30, techDebt: 0, techInvestments: []
@@ -264,6 +276,10 @@ class GameEngine {
       creditRating: this.creditRating || 'A',
       portfolio: JSON.parse(JSON.stringify(this.portfolio || { assets: [], totalAssetValue: 0, investmentReturns: 0 })),
       capitalizedAssets: JSON.parse(JSON.stringify(this.capitalizedAssets || [])),
+      taxStrategy: this.taxStrategy || 'standard',
+      auditRisk: this.auditRisk || 0,
+      unrealizedGains: this.unrealizedGains || 0,
+      accruedLiabilities: this.accruedLiabilities || 0,
       operatingModel: JSON.parse(JSON.stringify(this.operatingModel || {})),
       marketDataMode: this.marketDataMode,
       actionsToday: this.actionsToday,
@@ -388,6 +404,18 @@ class GameEngine {
     if (effect.financialRisk) {
       this.financialRisk = Math.max(0, Math.min(100, this.financialRisk + effect.financialRisk));
       this._tickFinancialRisk();
+    }
+    // Audit risk effects (tax aggressiveness, grey-area deductions)
+    if (effect.auditRisk) {
+      this.auditRisk = Math.max(0, Math.min(100, this.auditRisk + effect.auditRisk));
+    }
+    // Unrealized gains (book profit that isn't cash yet)
+    if (effect.unrealizedGains) {
+      this.unrealizedGains += effect.unrealizedGains;
+    }
+    // Accrued liabilities (obligations you haven't paid yet)
+    if (effect.accruedLiabilities) {
+      this.accruedLiabilities += effect.accruedLiabilities;
     }
 
     // Tech/operating model effects
@@ -559,10 +587,6 @@ class GameEngine {
     let cost = 0;
     if (option.effect && option.effect.money < 0) cost += Math.abs(option.effect.money);
     if (option.assetPurchase) cost += option.assetPurchase.value;
-    // Capitalized purchases only require 10% deposit upfront
-    if (option.capitalizeAsset) {
-      cost = Math.round(option.capitalizeAsset.totalCost * 0.10);
-    }
     return cost;
   }
 
@@ -572,86 +596,74 @@ class GameEngine {
     return this.getAvailableFunds() >= cost;
   }
 
-  // ---- DEPRECIATION & CAPITALIZATION ----
+  // ---- DEPRECIATION (automatic GAAP — background only) ----
 
-  // Standard useful life (in game days) by asset type — GAAP-aligned
   static USEFUL_LIFE_DAYS() {
     return {
-      equipment: 90,         // ~3 years scaled (equipment: 3-7yr IRL)
-      infrastructure: 150,   // ~5 years (buildings/improvements: 15-39yr IRL)
-      real_estate: 240,      // ~8 years (commercial RE: 27-39yr)
-      intangible: 60,        // ~2 years (software/IP: 3-5yr)
-      financial: 30,         // ~1 year (securities: mark-to-market)
-      equity: 0,             // not depreciable
-      contractual: 60,       // contract term
-      tech_platform: 120,    // ~4 years (IT systems)
-      tech_tools: 60         // ~2 years (SaaS/tools)
+      equipment: 90, infrastructure: 150, real_estate: 240, intangible: 60,
+      financial: 30, equity: 0, contractual: 60, tech_platform: 120, tech_tools: 60
     };
   }
 
-  // Returns { policyAlignment, label, cls } for a depreciation schedule
-  static getDepreciationPolicy(assetType, chosenLifeDays) {
-    const standard = GameEngine.USEFUL_LIFE_DAYS()[assetType] || 90;
-    const ratio = chosenLifeDays / standard;
-    if (ratio >= 0.85 && ratio <= 1.15) {
-      return { alignment: 'compliant', label: 'GAAP Aligned', cls: 'policy-compliant' };
-    } else if (ratio >= 0.5 && ratio < 0.85) {
-      return { alignment: 'aggressive', label: 'Aggressive — Arguable', cls: 'policy-grey' };
-    } else if (ratio > 1.15 && ratio <= 2.0) {
-      return { alignment: 'conservative', label: 'Conservative — Defensible', cls: 'policy-compliant' };
-    } else if (ratio < 0.5) {
-      return { alignment: 'non_compliant', label: 'Non-Compliant — Audit Risk', cls: 'policy-danger' };
-    } else {
-      return { alignment: 'conservative', label: 'Very Conservative', cls: 'policy-compliant' };
-    }
-  }
-
+  // Auto-capitalize large purchases with standard GAAP treatment (not player-facing)
   capitalizeAsset(item) {
-    // item: { name, type, totalCost, usefulLifeDays, policyAlignment }
-    const dailyExpense = Math.round(item.totalCost / item.usefulLifeDays);
+    const usefulLife = GameEngine.USEFUL_LIFE_DAYS()[item.type] || 90;
+    const dailyExpense = Math.round(item.totalCost / usefulLife);
     this.capitalizedAssets.push({
-      name: item.name,
-      type: item.type,
-      totalCost: item.totalCost,
-      bookValue: item.totalCost,
-      dailyExpense,
-      usefulLifeDays: item.usefulLifeDays,
-      daysRemaining: item.usefulLifeDays,
-      dayAcquired: this.day,
-      policyAlignment: item.policyAlignment || 'compliant'
+      name: item.name, type: item.type, totalCost: item.totalCost,
+      bookValue: item.totalCost, dailyExpense, usefulLifeDays: usefulLife,
+      daysRemaining: usefulLife, dayAcquired: this.day
     });
-    // Upfront: only pay a small deposit/closing cost (10% of total)
-    const depositPct = 0.10;
-    const deposit = Math.round(item.totalCost * depositPct);
-    this.state.money -= deposit;
-    this.state.costs += deposit;
-    this.addLog(`Capitalized: ${item.name} ($${item.totalCost.toLocaleString()}, ${item.usefulLifeDays}-day life, $${dailyExpense}/day depreciation)`);
+    // Full cost hits cash immediately (realistic: you pay for it, depreciation is accounting)
+    this.state.money -= item.totalCost;
+    this.state.costs += item.totalCost;
     this._tickFinancialRisk();
   }
 
   _tickDepreciation() {
-    let totalExpense = 0;
+    // Background GAAP depreciation — reduces book value, no additional cash impact
     this.capitalizedAssets = this.capitalizedAssets.filter(asset => {
       if (asset.daysRemaining <= 0) return false;
       asset.daysRemaining--;
       asset.bookValue = Math.max(0, asset.bookValue - asset.dailyExpense);
-      totalExpense += asset.dailyExpense;
       return asset.daysRemaining > 0;
     });
-    if (totalExpense > 0) {
-      this.state.money -= totalExpense;
-      this.state.costs += totalExpense;
+  }
+
+  // ---- TAX & AUDIT RISK ----
+
+  _tickAuditRisk() {
+    // Audit risk naturally decays toward 0, but aggressive strategies keep it elevated
+    if (this.taxStrategy === 'aggressive') {
+      this.auditRisk = Math.min(100, this.auditRisk + 1);
+    } else if (this.taxStrategy === 'conservative') {
+      this.auditRisk = Math.max(0, this.auditRisk - 2);
+    } else {
+      this.auditRisk = Math.max(0, this.auditRisk - 1);
     }
-    return totalExpense;
+    // Random audit event if risk is high
+    if (this.auditRisk > 40 && Math.random() < this.auditRisk / 500) {
+      const penalty = Math.round(this.state.money * (this.auditRisk / 400));
+      if (penalty > 0) {
+        this.state.money -= penalty;
+        this.state.costs += penalty;
+        this.addLog(`Tax audit: $${penalty.toLocaleString()} in penalties and back taxes.`);
+        this.auditRisk = Math.max(0, this.auditRisk - 20);
+      }
+    }
   }
 
-  // Get total outstanding depreciation obligations
-  getDepreciationObligations() {
-    return this.capitalizedAssets.reduce((sum, a) => sum + a.bookValue, 0);
+  // Cash vs profit gap: unrealized gains look like profit but aren't cash
+  getBookProfit() {
+    return (this.state.revenue || 0) - (this.state.costs || 0) + this.unrealizedGains;
   }
 
-  getDailyDepreciationExpense() {
-    return this.capitalizedAssets.reduce((sum, a) => a.daysRemaining > 0 ? sum + a.dailyExpense : sum, 0);
+  getActualCash() {
+    return this.state.money;
+  }
+
+  getCashProfitGap() {
+    return this.getBookProfit() - this.getActualCash();
   }
 
   // ---- INVESTMENT & ASSET PORTFOLIO ----
@@ -829,6 +841,7 @@ class GameEngine {
     this._tickFinancialRisk();
     this._tickInvestmentReturns();
     this._tickDepreciation();
+    this._tickAuditRisk();
     this._tickTechDebt();
     // Hard mode: legal/regulatory tick
     if (this.difficulty === 'hard') {

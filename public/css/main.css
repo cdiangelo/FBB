@@ -959,10 +959,19 @@ body {
 .option-btn.option-unaffordable { opacity: .55; border-color: rgba(244,67,54,.3); }
 .option-btn.option-unaffordable:hover { border-color: rgba(244,67,54,.5); transform: none; }
 .option-btn.option-unaffordable .option-key { background: #666; }
-.option-btn .option-policy { display: inline-block; font-size: .65rem; font-weight: 700; padding: 1px 6px; border-radius: 8px; margin-top: 3px; }
-.option-btn .policy-compliant { background: rgba(76,175,80,.15); color: #4CAF50; }
-.option-btn .policy-grey { background: rgba(255,152,0,.15); color: #FF9800; }
-.option-btn .policy-danger { background: rgba(244,67,54,.15); color: #f44336; }
+/* Strategy implication tags on option cards */
+.strat-tags { display: inline-flex; gap: 3px; margin-left: .4rem; vertical-align: middle; }
+.strat-tag { display: inline-block; font-size: .6rem; line-height: 1; padding: 2px 4px; border-radius: 3px; background: rgba(255,255,255,.06); cursor: default; }
+.strat-tag.tag-cash { background: rgba(244,67,54,.12); }
+.strat-tag.tag-cash-in { background: rgba(76,175,80,.12); }
+.strat-tag.tag-risk { background: rgba(255,152,0,.12); }
+.strat-tag.tag-audit { background: rgba(156,39,176,.12); }
+.strat-tag.tag-growth { background: rgba(33,150,243,.12); }
+.strat-tag.tag-asset { background: rgba(255,193,7,.12); }
+.strat-tag.tag-life { background: rgba(233,30,99,.12); }
+.strat-tag.tag-life-up { background: rgba(76,175,80,.12); }
+/* Larger tags in decision result */
+.strat-tag-lg { display: inline-flex; align-items: center; gap: 3px; font-size: .7rem; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,.06); color: var(--text-secondary); }
 
 /* Life event badge */
 .life-event-badge {

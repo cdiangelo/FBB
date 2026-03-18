@@ -58,8 +58,8 @@ class ScenarioGenerator {
     if (difficulty === 'hard') {
       scenario = this._applyHardMode(scenario, day);
     }
-    // Inject depreciation options for large purchases (>= $10k)
-    scenario = this._injectDepreciationOptions(scenario, 10000);
+    // Inject financial strategy choices for significant decisions
+    scenario = this._injectFinancialStrategy(scenario, state);
     return scenario;
   }
 
@@ -68,9 +68,14 @@ class ScenarioGenerator {
     if (['empire', 'ethics', 'legal', 'consolidation'].includes(category)) {
       return this.genEmpireTier(persona, category, day, state);
     }
-    // Tech & investment categories — shared across personas
+    // Shared categories across personas
     if (category === 'techEnablement') return this._techEnablementScenario(persona, day, state);
     if (category === 'investment') return this._investmentScenario(persona, day, state);
+    if (category === 'taxStrategy') return this._taxStrategyScenario(persona, day, state);
+    if (category === 'cashFlow') return this._cashFlowScenario(persona, day, state);
+    if (category === 'capitalAllocation') return this._capitalAllocationScenario(persona, day, state);
+    if (category === 'financing') return this._financingScenario(persona, day, state);
+    if (category === 'expenseGrey') return this._expenseGreyAreaScenario(persona, day, state);
     switch (persona) {
       case 'farmer': return this.genFarmer(category, day, state);
       case 'banker': return this.genBanker(category, day, state);
@@ -78,68 +83,29 @@ class ScenarioGenerator {
     }
   }
 
-  // ---- DEPRECIATION OPTION INJECTION ----
-  // For large purchases (>= threshold), add capitalize+depreciate alternatives
-  _injectDepreciationOptions(scenario, threshold = 10000) {
+  // ---- FINANCIAL STRATEGY INJECTION ----
+  // Tag options with financial implications so the UI can group/display them
+  _injectFinancialStrategy(scenario, state) {
     if (!scenario.options) return scenario;
-    const newOptions = [];
     for (const opt of scenario.options) {
-      newOptions.push(opt);
-      // Find the total cost of this option
-      let cost = 0;
-      if (opt.effect && opt.effect.money < 0) cost = Math.abs(opt.effect.money);
-      if (opt.assetPurchase) cost = opt.assetPurchase.value;
-      if (cost < threshold) continue;
-      // Determine asset type for useful life lookup
-      const assetType = (opt.assetPurchase && opt.assetPurchase.type) ||
-        (scenario.isTechDecision ? 'tech_platform' : 'equipment');
-      const standardLife = (GameEngine.USEFUL_LIFE_DAYS()[assetType]) || 90;
-      if (!standardLife) continue; // equity etc — not depreciable
-
-      // 1) GAAP-aligned depreciation (standard life)
-      const gaapDaily = Math.round(cost / standardLife);
-      const gaapDeposit = Math.round(cost * 0.10);
-      const gaapPolicy = GameEngine.getDepreciationPolicy(assetType, standardLife);
-      newOptions.push({
-        label: `${opt.label} — Capitalize (${standardLife}-day life)`,
-        detail: `Depreciate over ${standardLife} days instead of paying upfront. ${this.dollar(gaapDeposit)} deposit now, then ${this.dollar(gaapDaily)}/day. ${gaapPolicy.label}. Spreads impact over the asset's useful life per standard accounting.`,
-        effect: { ...opt.effect, money: 0 }, // no upfront cash hit from effect
-        assetPurchase: opt.assetPurchase ? { ...opt.assetPurchase } : undefined,
-        techDecision: opt.techDecision,
-        capitalizeAsset: {
-          name: opt.assetPurchase ? opt.assetPurchase.name : scenario.title,
-          type: assetType,
-          totalCost: cost,
-          usefulLifeDays: standardLife,
-          policyAlignment: gaapPolicy.alignment
-        },
-        _depreciationMeta: gaapPolicy
-      });
-
-      // 2) Aggressive depreciation (50% of standard life) — grey area
-      const aggressiveLife = Math.round(standardLife * 0.5);
-      if (aggressiveLife >= 10) {
-        const aggDaily = Math.round(cost / aggressiveLife);
-        const aggDeposit = Math.round(cost * 0.10);
-        const aggPolicy = GameEngine.getDepreciationPolicy(assetType, aggressiveLife);
-        newOptions.push({
-          label: `${opt.label} — Accelerated (${aggressiveLife}-day write-off)`,
-          detail: `Aggressive depreciation: ${this.dollar(aggDeposit)} deposit, ${this.dollar(aggDaily)}/day for ${aggressiveLife} days. ${aggPolicy.label}. Higher daily cost but asset expenses clear faster. Auditors may question the schedule.`,
-          effect: { ...opt.effect, money: 0, financialRisk: (opt.effect.financialRisk || 0) + 3 },
-          assetPurchase: opt.assetPurchase ? { ...opt.assetPurchase } : undefined,
-          techDecision: opt.techDecision,
-          capitalizeAsset: {
-            name: opt.assetPurchase ? opt.assetPurchase.name : scenario.title,
-            type: assetType,
-            totalCost: cost,
-            usefulLifeDays: aggressiveLife,
-            policyAlignment: aggPolicy.alignment
-          },
-          _depreciationMeta: aggPolicy
-        });
-      }
+      const e = opt.effect || {};
+      const tags = [];
+      // Cash impact
+      if (e.money && e.money < -2000) tags.push({ type: 'cash', label: 'Cash outflow', icon: '\u{1F4B8}', cls: 'tag-cash' });
+      else if (e.money && e.money > 2000) tags.push({ type: 'cash', label: 'Cash inflow', icon: '\u{1F4B0}', cls: 'tag-cash-in' });
+      // Risk
+      if (e.financialRisk && e.financialRisk > 0) tags.push({ type: 'risk', label: 'Increases risk', icon: '\u26A0\uFE0F', cls: 'tag-risk' });
+      if (e.auditRisk && e.auditRisk > 0) tags.push({ type: 'tax', label: 'Audit exposure', icon: '\u{1F50D}', cls: 'tag-audit' });
+      // Growth / investment
+      if (e.scalability && e.scalability > 0) tags.push({ type: 'growth', label: 'Scales up', icon: '\u{1F4C8}', cls: 'tag-growth' });
+      if (e.techLevel && e.techLevel > 0) tags.push({ type: 'growth', label: 'Tech upgrade', icon: '\u2699\uFE0F', cls: 'tag-growth' });
+      // Satisfaction
+      if (e.satisfaction && e.satisfaction < 0) tags.push({ type: 'life', label: 'Work-life cost', icon: '\u{1F614}', cls: 'tag-life' });
+      else if (e.satisfaction && e.satisfaction > 0) tags.push({ type: 'life', label: 'Quality of life', icon: '\u{1F60A}', cls: 'tag-life-up' });
+      // Asset purchase
+      if (opt.assetPurchase) tags.push({ type: 'asset', label: 'Capital expenditure', icon: '\u{1F3E2}', cls: 'tag-asset' });
+      opt._strategyTags = tags;
     }
-    scenario.options = newOptions;
     return scenario;
   }
 
@@ -425,6 +391,136 @@ class ScenarioGenerator {
               detail: `Sell peripheral holdings and consolidate. Raises cash for operations or opportunistic acquisitions. Transaction costs apply.`,
               effect: { score: 8, money: this.randMoney(2000, 10000, 1000), financialRisk: -8, knowledge: 5 }
             }
+          ]
+        };
+      }
+    ];
+    return this.pick(scenarios)();
+  }
+
+  // ============================================================
+  //  FINANCIAL STRATEGY SCENARIOS
+  //  Tax, cash flow, capital allocation, financing, timing
+  // ============================================================
+
+  _taxStrategyScenario(persona, day, state) {
+    const labels = { farmer: 'farm', banker: 'bank', businessman: 'business' };
+    const biz = labels[persona];
+    const deduction = this.randMoney(3000, 15000, 500);
+    const scenarios = [
+      () => ({
+        title: `Tax Strategy ${this.pick(['Decision', 'Review', 'Planning'])}`,
+        description: `Your accountant identifies ${this.dollar(deduction)} in ${this.pick(['potential deductions', 'write-off opportunities', 'expense reclassifications'])}. Some are clearly legitimate, others are in a grey area. Filing deadline is in ${this.randInt(5, 20)} days.`,
+        options: [
+          { label: 'Conservative filing — claim only clear deductions', detail: `Take ${this.dollar(Math.round(deduction * 0.4))} in safe deductions. No audit risk. You leave money on the table but sleep well.`, effect: { score: this.randInt(8, 14), money: Math.round(deduction * 0.4), knowledge: this.randInt(3, 6) } },
+          { label: 'Moderate approach — stretch some definitions', detail: `Claim ${this.dollar(Math.round(deduction * 0.7))} including some arguable items. Common practice but technically grey. Modest audit risk.`, effect: { score: this.randInt(12, 18), money: Math.round(deduction * 0.7), auditRisk: this.randInt(5, 12), knowledge: this.randInt(5, 8) } },
+          { label: 'Aggressive — maximize every possible deduction', detail: `Claim the full ${this.dollar(deduction)}. Some items are a stretch. Significant audit risk, but the tax savings are real if it holds up.`, effect: { score: this.randInt(10, 15), money: deduction, auditRisk: this.randInt(15, 30), financialRisk: this.randInt(3, 8) } },
+          { label: 'Hire a tax strategist', detail: `Pay ${this.dollar(Math.round(deduction * 0.15))} for professional advice. They optimize without crossing lines. Best long-term approach.`, effect: { score: this.randInt(14, 20), money: Math.round(deduction * 0.6), knowledge: this.randInt(8, 14), auditRisk: -5 } }
+        ]
+      }),
+      () => ({
+        title: `${this.pick(['Year-End', 'Quarterly', 'Mid-Year'])} Tax Planning`,
+        description: `Your ${biz} shows ${this.dollar(this.randMoney(20000, 80000, 5000))} in taxable income. You have options to manage the tax burden through ${this.pick(['timing of purchases', 'expense classification', 'entity structuring', 'deferral strategies'])}.`,
+        options: [
+          { label: 'Accelerate planned expenses into this period', detail: `Buy equipment and supplies you'll need anyway. Reduces taxable income now but means less cash on hand. Timing, not evasion.`, effect: { score: this.randInt(10, 16), money: -this.randMoney(3000, 10000, 1000), knowledge: this.randInt(4, 8) } },
+          { label: 'Defer income recognition where possible', detail: `Delay invoicing and push revenue to next period. Technically fine but can create cash flow gaps. Customers may not mind the delay.`, effect: { score: this.randInt(10, 16), money: -this.randMoney(1000, 4000, 500), unrealizedGains: this.randMoney(5000, 15000, 1000), knowledge: this.randInt(3, 6) } },
+          { label: 'Maximize retirement contributions', detail: `Contribute the max to tax-advantaged accounts. Reduces taxable income legally. Money is locked up but growing.`, effect: { score: this.randInt(14, 20), money: -this.randMoney(5000, 15000, 1000), satisfaction: this.randInt(3, 8), knowledge: this.randInt(5, 10) } },
+          { label: 'Pay the taxes as-is', detail: `No games, no strategies. Pay what you owe. Simple and clean. Frees up mental energy for running the ${biz}.`, effect: { score: this.randInt(8, 12), money: -this.randMoney(5000, 20000, 1000), satisfaction: this.randInt(2, 5) } }
+        ]
+      })
+    ];
+    return this.pick(scenarios)();
+  }
+
+  _cashFlowScenario(persona, day, state) {
+    const labels = { farmer: 'farm', banker: 'bank', businessman: 'business' };
+    const biz = labels[persona];
+    const gap = this.randMoney(5000, 25000, 1000);
+    const scenarios = [
+      () => ({
+        title: 'Cash Flow Crunch',
+        description: `Your ${biz} looks profitable on paper — ${this.dollar(this.randMoney(10000, 40000, 2000))} in receivables — but your actual cash balance is low. Payroll of ${this.dollar(this.randMoney(3000, 12000, 500))} is due in ${this.randInt(2, 5)} days and a ${this.dollar(gap)} ${this.pick(['supplier invoice', 'lease payment', 'insurance premium', 'equipment loan'])} is due shortly after.`,
+        options: [
+          { label: 'Draw on a credit line', detail: `Borrow ${this.dollar(gap)} at ${this.randFloat(6, 12, 1)}% to bridge the gap. Solves the immediate crisis but adds debt service. Classic working capital management.`, effect: { score: this.randInt(10, 16), money: gap, financialRisk: this.randInt(3, 8), knowledge: this.randInt(3, 6) } },
+          { label: 'Offer discounts for early payment', detail: `Offer clients ${this.pct(2, 5)} off for paying within ${this.randInt(3, 7)} days. Converts receivables to cash fast but reduces margins. Industry-standard tactic.`, effect: { score: this.randInt(12, 18), money: Math.round(gap * 0.7), knowledge: this.randInt(5, 8) } },
+          { label: 'Delay vendor payments', detail: `Push back supplier payments by ${this.randInt(10, 30)} days. Preserves cash but risks relationship damage and late fees. Common but risky.`, effect: { score: this.randInt(6, 12), money: Math.round(gap * 0.5), accruedLiabilities: Math.round(gap * 0.5), satisfaction: -this.randInt(2, 5) } },
+          { label: 'Tighten operations — cut discretionary spending', detail: `Freeze non-essential spending. Cancel subscriptions, delay hires, reduce travel. Painful but builds discipline.`, effect: { score: this.randInt(8, 14), money: Math.round(gap * 0.4), satisfaction: -this.randInt(3, 6), costEfficiency: this.randInt(3, 8) } }
+        ]
+      }),
+      () => ({
+        title: `${this.pick(['Revenue', 'Profit', 'Growth'])} vs Cash Reality`,
+        description: `Your ${biz} booked ${this.dollar(this.randMoney(15000, 50000, 5000))} in revenue this period, but only ${this.dollar(this.randMoney(5000, 15000, 1000))} has been collected. A big client owes ${this.dollar(this.randMoney(8000, 25000, 1000))} and is ${this.randInt(15, 45)} days late. Meanwhile, your costs are real and due now.`,
+        options: [
+          { label: 'Chase the receivable aggressively', detail: `Call daily, escalate to management, threaten to involve collections. May damage the relationship but you need the cash.`, effect: { score: this.randInt(10, 14), money: this.randMoney(5000, 15000, 1000), satisfaction: -this.randInt(2, 4) } },
+          { label: 'Factor the receivable', detail: `Sell the outstanding invoice to a factoring company at ${this.pct(80, 92)} of face value. Immediate cash but you take a haircut.`, effect: { score: this.randInt(12, 16), money: this.randMoney(4000, 12000, 500), knowledge: this.randInt(5, 10) } },
+          { label: 'Renegotiate payment terms going forward', detail: `Require deposits, milestone payments, or net-15 terms. Prevents future gaps. Current crisis remains but future is healthier.`, effect: { score: this.randInt(14, 20), money: -this.randMoney(1000, 3000, 500), knowledge: this.randInt(8, 14) } },
+          { label: 'Accept the gap and fund from reserves', detail: `Use your cash reserves to cover operations. This is what reserves are for. But they take time to rebuild.`, effect: { score: this.randInt(8, 12), money: -this.randMoney(3000, 8000, 500) } }
+        ]
+      })
+    ];
+    return this.pick(scenarios)();
+  }
+
+  _capitalAllocationScenario(persona, day, state) {
+    const labels = { farmer: 'farm operation', banker: 'bank', businessman: 'business' };
+    const biz = labels[persona];
+    const surplus = this.randMoney(10000, 40000, 5000);
+    const scenarios = [
+      () => ({
+        title: 'Capital Allocation Decision',
+        description: `Your ${biz} generated a ${this.dollar(surplus)} surplus this period. You need to decide how to deploy this capital. Each option has different risk/return profiles and impacts on your ${biz}'s long-term trajectory.`,
+        options: [
+          { label: 'Reinvest in the business', detail: `Upgrade ${this.pick(['equipment', 'technology', 'facilities', 'training'])}. Higher future returns but the money is tied up. Reduces flexibility for ${this.randInt(30, 90)} days.`, effect: { score: this.randInt(14, 20), money: -surplus, scalability: this.randInt(5, 12), techLevel: this.randInt(3, 8), knowledge: this.randInt(5, 10) } },
+          { label: 'Build cash reserves', detail: `Keep the surplus liquid. Lower returns but maximum flexibility. You're prepared for opportunities or emergencies. Financial discipline.`, effect: { score: this.randInt(10, 16), knowledge: this.randInt(3, 6), financialRisk: -this.randInt(5, 12) } },
+          { label: 'Pay down debt', detail: `Reduce outstanding obligations by ${this.dollar(surplus)}. Lowers interest expense and risk. Boring but financially sound. Improves credit rating.`, effect: { score: this.randInt(12, 18), money: -Math.round(surplus * 0.8), financialRisk: -this.randInt(8, 15), knowledge: this.randInt(3, 6) } },
+          { label: 'Split: half reinvest, half reserve', detail: `Balanced approach. Some growth investment, some safety net. Doesn't maximize either but minimizes regret. Professional move.`, effect: { score: this.randInt(12, 18), money: -Math.round(surplus * 0.5), scalability: this.randInt(2, 6), financialRisk: -this.randInt(3, 6), knowledge: this.randInt(4, 8) } }
+        ]
+      })
+    ];
+    return this.pick(scenarios)();
+  }
+
+  _financingScenario(persona, day, state) {
+    const labels = { farmer: 'farm', banker: 'bank', businessman: 'business' };
+    const biz = labels[persona];
+    const needed = this.randMoney(15000, 60000, 5000);
+    const scenarios = [
+      () => ({
+        title: `${this.pick(['Expansion', 'Growth', 'Opportunity'])} Financing`,
+        description: `A ${this.pick(['time-sensitive opportunity', 'strategic acquisition', 'critical expansion'])} requires ${this.dollar(needed)} in capital. Your current cash wouldn't cover it without ${this.pick(['significant risk', 'depleting reserves', 'major cuts elsewhere'])}. How do you fund it?`,
+        options: [
+          { label: `Take on debt — ${this.randFloat(5, 10, 1)}% fixed rate`, detail: `Borrow ${this.dollar(needed)}. You retain full ownership but take on monthly payments. Leverage amplifies both upside and downside. Tax-deductible interest.`, effect: { score: this.randInt(12, 18), money: needed, financialRisk: this.randInt(8, 18), knowledge: this.randInt(5, 8) } },
+          { label: `Sell ${this.randInt(5, 15)}% equity to an investor`, detail: `Give up a slice of ownership for cash with no repayment obligation. Dilutes your control but the investor shares the risk. They may add expertise.`, effect: { score: this.randInt(14, 20), money: needed, knowledge: this.randInt(8, 14), satisfaction: -this.randInt(2, 5) } },
+          { label: 'Bootstrap — fund from operations', detail: `Grow into it slowly using cash flow. Takes longer but you keep 100% ownership and zero debt. The opportunity might not wait.`, effect: { score: this.randInt(8, 14), money: Math.round(needed * 0.2), knowledge: this.randInt(3, 6) } },
+          { label: 'Negotiate seller/vendor financing', detail: `Ask the other party to finance the deal. They get long-term revenue, you get favorable terms. Creative but requires trust and negotiation skill.`, effect: { score: this.randInt(14, 20), money: Math.round(needed * 0.6), financialRisk: this.randInt(3, 8), knowledge: this.randInt(8, 12) } }
+        ]
+      })
+    ];
+    return this.pick(scenarios)();
+  }
+
+  _expenseGreyAreaScenario(persona, day, state) {
+    const labels = { farmer: 'farm', banker: 'bank', businessman: 'business' };
+    const biz = labels[persona];
+    const amount = this.randMoney(500, 5000, 250);
+    const scenarios = [
+      () => {
+        const item = this.pick([
+          { name: 'home office renovation', pct: 40 },
+          { name: 'vehicle used for both personal and business', pct: 60 },
+          { name: 'dinner with potential clients (also friends)', pct: 50 },
+          { name: 'conference trip with family vacation attached', pct: 45 },
+          { name: 'tech equipment used for work and personal', pct: 55 },
+          { name: 'phone and internet (shared use)', pct: 65 }
+        ]);
+        return {
+          title: 'Business vs Personal Expense',
+          description: `You spent ${this.dollar(amount)} on a ${item.name}. It's genuinely both business and personal. The IRS allows partial deductions for mixed-use expenses, but the exact split is subjective. How do you categorize it?`,
+          options: [
+            { label: `Claim ${item.pct}% as business (reasonable split)`, detail: `Deduct ${this.dollar(Math.round(amount * item.pct / 100))}. This is a defensible, proportional split. Standard practice if audited.`, effect: { score: this.randInt(12, 18), money: Math.round(amount * item.pct / 100), knowledge: this.randInt(5, 8) } },
+            { label: 'Claim 100% as business', detail: `Deduct the full ${this.dollar(amount)}. Aggressive. Saves the most but hard to defend the personal portion in an audit.`, effect: { score: this.randInt(8, 12), money: amount, auditRisk: this.randInt(8, 18), knowledge: this.randInt(2, 4) } },
+            { label: 'Claim nothing — keep it personal', detail: `Don't deduct any of it. You lose the tax benefit but have zero risk. Conservative to a fault.`, effect: { score: this.randInt(6, 10), knowledge: this.randInt(2, 4), satisfaction: this.randInt(1, 3) } },
+            { label: 'Document thoroughly and claim fair share', detail: `Spend time creating a log of business vs personal use. Claim ${item.pct + 10}% with documentation. Slightly aggressive but defensible with records.`, effect: { score: this.randInt(14, 20), money: Math.round(amount * (item.pct + 10) / 100), auditRisk: this.randInt(2, 6), knowledge: this.randInt(8, 12) } }
           ]
         };
       }
