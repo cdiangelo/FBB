@@ -565,8 +565,8 @@
    ============================================ */
 
 /* Scene scaling for higher levels */
-.scene-display.scene-expanded { height: 200px; }
-.scene-display.scene-floor2 { height: 260px; }
+.scene-display.scene-expanded { height: 220px; }
+.scene-display.scene-floor2 { height: 320px; }
 
 /* Staff container — positioned around the manager */
 .scene-staff {
@@ -574,52 +574,65 @@
   overflow: hidden;
 }
 
-/* Individual NPC staff member */
+/* Individual NPC staff member — larger, grounded */
 .npc {
-  position: absolute; bottom: 0; width: 16px; height: 32px; z-index: 2;
+  position: absolute; bottom: 0; width: 22px; height: 44px; z-index: 2;
 }
 .npc-body {
   position: absolute; bottom: 0; width: 100%; height: 100%;
 }
 .npc-head {
-  width: 10px; height: 8px; border-radius: 4px 4px 2px 2px;
+  width: 14px; height: 11px; border-radius: 5px 5px 3px 3px;
   margin: 0 auto; position: relative;
 }
 .npc-torso {
-  width: 12px; height: 10px; border-radius: 2px;
+  width: 16px; height: 14px; border-radius: 2px;
   margin: 1px auto 0;
 }
 .npc-legs {
   display: flex; gap: 2px; justify-content: center; margin-top: 0;
 }
-.npc-leg { width: 4px; height: 8px; border-radius: 1px; }
+.npc-leg { width: 5px; height: 12px; border-radius: 1px; }
 
-/* NPC animation — idle movement + talking */
-@keyframes npcWalk {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(6px); }
-  50% { transform: translateX(3px); }
-  75% { transform: translateX(-3px); }
+/* NPC animations — feet stay grounded, motion is subtle upper body + tiny lateral shift */
+@keyframes npcSway {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  20% { transform: translateX(3px) rotate(1deg); }
+  50% { transform: translateX(-2px) rotate(-1deg); }
+  80% { transform: translateX(4px) rotate(0.5deg); }
 }
-@keyframes npcBob {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-2px); }
+@keyframes npcShift {
+  0%, 100% { transform: translateX(0); }
+  30% { transform: translateX(5px); }
+  70% { transform: translateX(-4px); }
 }
 @keyframes npcTalk {
-  0%, 40%, 100% { transform: scaleY(1); }
-  20% { transform: scaleY(0.92); }
-  60% { transform: scaleY(0.95); }
+  0%, 40%, 100% { transform: scaleY(1) rotate(0deg); }
+  15% { transform: scaleY(0.94) rotate(-2deg); }
+  55% { transform: scaleY(0.96) rotate(1deg); }
+  80% { transform: scaleY(0.98) rotate(-1deg); }
 }
 @keyframes npcGesture {
+  0%, 100% { transform: rotate(0deg) translateX(0); }
+  20% { transform: rotate(-8deg) translateX(1px); }
+  50% { transform: rotate(6deg) translateX(-1px); }
+  75% { transform: rotate(-4deg) translateX(2px); }
+}
+@keyframes npcHeadTurn {
   0%, 100% { transform: rotate(0deg); }
-  30% { transform: rotate(-12deg); }
-  60% { transform: rotate(8deg); }
+  25% { transform: rotate(-6deg); }
+  60% { transform: rotate(5deg); }
 }
 
-.npc.npc-walking { animation: npcWalk 4s ease-in-out infinite; }
-.npc.npc-bobbing { animation: npcBob 2.5s ease-in-out infinite; }
-.npc.npc-talking .npc-head { animation: npcTalk 1.8s ease-in-out infinite; }
+/* Apply animations to upper body only — legs/feet stay fixed */
+.npc.npc-walking .npc-torso { animation: npcSway 5s ease-in-out infinite; }
+.npc.npc-walking .npc-head { animation: npcHeadTurn 4s ease-in-out infinite; }
+.npc.npc-bobbing .npc-torso { animation: npcShift 6s ease-in-out infinite; }
+.npc.npc-bobbing .npc-head { animation: npcHeadTurn 3.5s ease-in-out infinite; }
+.npc.npc-talking .npc-head { animation: npcTalk 2s ease-in-out infinite; }
+.npc.npc-talking .npc-torso { animation: npcGesture 4s ease-in-out infinite; }
 .npc.npc-gesturing .npc-torso { animation: npcGesture 3s ease-in-out infinite; }
+.npc.npc-gesturing .npc-head { animation: npcHeadTurn 2.8s ease-in-out infinite; }
 
 /* NPC outfit palette */
 .npc-outfit-1 .npc-torso { background: linear-gradient(180deg, #5C6BC0, #3F51B5); }
@@ -653,149 +666,378 @@
   overflow: hidden;
 }
 
-/* Decor items — small intricate cubic shapes */
+/* Decor items — intricate cubic shapes, slightly larger */
 .decor-item {
   position: absolute; bottom: 0;
 }
 
 /* Bookshelf */
 .decor-bookshelf {
-  width: 14px; height: 28px;
+  width: 18px; height: 36px;
   background: linear-gradient(180deg, #5D4037, #4E342E);
   border-radius: 1px;
 }
 .decor-bookshelf::before {
   content: '';
-  position: absolute; top: 2px; left: 1px; right: 1px; height: 4px;
+  position: absolute; top: 3px; left: 2px; right: 2px; height: 6px;
   background: repeating-linear-gradient(90deg,
-    #E53935 0px, #E53935 2px, #1565C0 2px, #1565C0 4px,
-    #4CAF50 4px, #4CAF50 6px, #FF8F00 6px, #FF8F00 8px,
-    #7B1FA2 8px, #7B1FA2 10px);
+    #E53935 0px, #E53935 3px, #1565C0 3px, #1565C0 6px,
+    #4CAF50 6px, #4CAF50 9px, #FF8F00 9px, #FF8F00 12px,
+    #7B1FA2 12px, #7B1FA2 14px);
 }
 .decor-bookshelf::after {
   content: '';
-  position: absolute; top: 10px; left: 1px; right: 1px; height: 4px;
+  position: absolute; top: 14px; left: 2px; right: 2px; height: 6px;
   background: repeating-linear-gradient(90deg,
-    #42A5F5 0px, #42A5F5 2px, #FFC107 2px, #FFC107 4px,
-    #66BB6A 4px, #66BB6A 6px, #EF5350 6px, #EF5350 8px);
+    #42A5F5 0px, #42A5F5 3px, #FFC107 3px, #FFC107 6px,
+    #66BB6A 6px, #66BB6A 9px, #EF5350 9px, #EF5350 12px);
 }
 
 /* Filing cabinet */
 .decor-cabinet {
-  width: 10px; height: 22px;
+  width: 14px; height: 28px;
   background: linear-gradient(180deg, #78909C, #607D8B, #546E7A);
   border-radius: 1px;
 }
 .decor-cabinet::before {
   content: '';
-  position: absolute; top: 3px; left: 2px; right: 2px;
-  height: 2px; background: #455A64; border-radius: 1px;
-  box-shadow: 0 5px 0 #455A64, 0 10px 0 #455A64;
+  position: absolute; top: 4px; left: 3px; right: 3px;
+  height: 3px; background: #455A64; border-radius: 1px;
+  box-shadow: 0 7px 0 #455A64, 0 14px 0 #455A64;
 }
 
 /* Coffee machine */
 .decor-coffee {
-  width: 8px; height: 12px;
+  width: 12px; height: 16px;
   background: linear-gradient(180deg, #424242, #212121);
   border-radius: 1px 1px 0 0;
 }
 .decor-coffee::before {
   content: '';
-  position: absolute; top: -2px; left: 1px;
-  width: 6px; height: 3px; background: #616161; border-radius: 2px 2px 0 0;
+  position: absolute; top: -3px; left: 1px;
+  width: 10px; height: 4px; background: #616161; border-radius: 2px 2px 0 0;
 }
 .decor-coffee::after {
   content: '';
   position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
-  width: 5px; height: 4px; background: #37474F; border-radius: 0 0 1px 1px;
+  width: 8px; height: 5px; background: #37474F; border-radius: 0 0 2px 2px;
 }
 
 /* Wall art / framed picture */
 .decor-art {
-  width: 12px; height: 8px; bottom: auto;
-  background: #1a1a2e; border: 1px solid #444;
+  width: 16px; height: 11px; bottom: auto;
+  background: #1a1a2e; border: 1.5px solid #444;
   border-radius: 1px;
 }
 .decor-art::before {
   content: '';
-  position: absolute; inset: 1px;
+  position: absolute; inset: 2px;
   background: linear-gradient(135deg, #1565C0, #42A5F5, #90CAF9);
   border-radius: 0;
 }
 
 /* Award/trophy */
 .decor-trophy {
-  width: 6px; height: 10px;
+  width: 8px; height: 14px;
 }
 .decor-trophy::before {
   content: '';
   position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
-  width: 4px; height: 3px; background: #795548; border-radius: 0 0 1px 1px;
+  width: 6px; height: 4px; background: #795548; border-radius: 0 0 2px 2px;
 }
 .decor-trophy::after {
   content: '';
-  position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%);
-  width: 5px; height: 6px; background: linear-gradient(180deg, #FFD54F, #FFC107, #FFB300);
+  position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%);
+  width: 7px; height: 8px; background: linear-gradient(180deg, #FFD54F, #FFC107, #FFB300);
   border-radius: 2px 2px 0 0;
   clip-path: polygon(20% 0, 80% 0, 100% 30%, 70% 100%, 30% 100%, 0% 30%);
 }
 
 /* Small desk for staff */
 .decor-sdesk {
-  width: 18px; height: 8px;
+  width: 24px; height: 12px;
   background: linear-gradient(180deg, #5D4037, #4E342E);
   border-radius: 1px 1px 0 0;
 }
 
 /* Whiteboard */
 .decor-whiteboard {
-  width: 16px; height: 10px; bottom: auto;
-  background: #f5f5f5; border: 1px solid #9E9E9E; border-radius: 1px;
+  width: 22px; height: 14px; bottom: auto;
+  background: #f5f5f5; border: 1.5px solid #9E9E9E; border-radius: 1px;
 }
 .decor-whiteboard::before {
   content: '';
-  position: absolute; top: 2px; left: 2px;
-  width: 8px; height: 1px; background: #1565C0;
-  box-shadow: 0 3px 0 #E53935, 4px 3px 0 #4CAF50;
+  position: absolute; top: 3px; left: 3px;
+  width: 12px; height: 2px; background: #1565C0;
+  box-shadow: 0 4px 0 #E53935, 6px 4px 0 #4CAF50;
 }
 
 /* Water cooler */
 .decor-cooler {
-  width: 6px; height: 14px;
+  width: 10px; height: 20px;
   background: linear-gradient(180deg, #90CAF9, #42A5F5);
-  border-radius: 2px 2px 0 0;
+  border-radius: 3px 3px 0 0;
 }
 .decor-cooler::after {
   content: '';
-  position: absolute; bottom: 0; left: -1px;
-  width: 8px; height: 4px; background: #BDBDBD; border-radius: 0 0 1px 1px;
+  position: absolute; bottom: 0; left: -2px;
+  width: 14px; height: 6px; background: #BDBDBD; border-radius: 0 0 2px 2px;
 }
 
 /* Rug */
 .decor-rug {
-  width: 40px; height: 4px;
+  width: 50px; height: 5px;
   background: linear-gradient(90deg, #4A148C, #7B1FA2, #4A148C);
-  border-radius: 2px; opacity: .3;
+  border-radius: 3px; opacity: .3;
 }
 
 /* Conference table */
 .decor-conf-table {
-  width: 30px; height: 10px;
+  width: 40px; height: 14px;
   background: linear-gradient(180deg, #5D4037, #3E2723);
-  border-radius: 3px 3px 0 0;
+  border-radius: 4px 4px 0 0;
 }
 
 /* Partition/divider */
 .decor-partition {
-  width: 2px; height: 24px;
-  background: linear-gradient(180deg, rgba(255,255,255,.1), rgba(255,255,255,.05));
+  width: 2px; height: 32px;
+  background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.05));
 }
 
-/* Second floor line */
+/* Bean bag chair */
+.decor-beanbag {
+  width: 16px; height: 12px;
+  background: radial-gradient(ellipse at 50% 70%, #7B1FA2, #4A148C);
+  border-radius: 50% 50% 40% 40%;
+}
+
+/* TV / monitor on wall */
+.decor-tv {
+  width: 20px; height: 12px; bottom: auto;
+  background: #0a0a0a; border: 1.5px solid #333; border-radius: 1px;
+}
+.decor-tv::before {
+  content: '';
+  position: absolute; inset: 2px;
+  background: linear-gradient(135deg, #0d47a1, #1565c0, #1e88e5);
+  opacity: .6;
+}
+.decor-tv::after {
+  content: '';
+  position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%);
+  width: 2px; height: 4px; background: #333;
+}
+
+/* Coat rack */
+.decor-coatrack {
+  width: 4px; height: 30px;
+  background: linear-gradient(180deg, #5D4037, #3E2723);
+  border-radius: 2px;
+}
+.decor-coatrack::before {
+  content: '';
+  position: absolute; top: 0; left: -4px;
+  width: 12px; height: 3px; background: #4E342E; border-radius: 2px;
+}
+.decor-coatrack::after {
+  content: '';
+  position: absolute; top: 4px; left: -2px;
+  width: 3px; height: 8px; background: #37474F; border-radius: 1px;
+  box-shadow: 5px 0 0 #455A64;
+}
+
+/* Couch / sofa */
+.decor-couch {
+  width: 28px; height: 14px;
+  background: linear-gradient(180deg, #37474F, #263238);
+  border-radius: 3px 3px 1px 1px;
+}
+.decor-couch::before {
+  content: '';
+  position: absolute; top: 0; left: 0;
+  width: 4px; height: 100%; background: #455A64; border-radius: 3px 0 0 1px;
+}
+.decor-couch::after {
+  content: '';
+  position: absolute; top: 0; right: 0;
+  width: 4px; height: 100%; background: #455A64; border-radius: 0 3px 1px 0;
+}
+
+/* Stairs between floors */
+.decor-stairs {
+  width: 20px; height: 50%; bottom: auto; top: 50%;
+  background: repeating-linear-gradient(180deg,
+    #3E2723 0px, #3E2723 3px,
+    #5D4037 3px, #5D4037 6px);
+  border: 1px solid rgba(255,255,255,.06);
+}
+.decor-stairs::before {
+  content: '';
+  position: absolute; top: -3px; left: -2px; right: -2px;
+  height: 3px; background: #5D4037; border-radius: 2px 2px 0 0;
+}
+.decor-stairs::after {
+  content: '';
+  position: absolute; left: 50%; top: 0; bottom: 0; width: 1px;
+  background: rgba(255,255,255,.06);
+}
+
+/* Coffee bar (post-owner) */
+.decor-coffeebar {
+  width: 36px; height: 16px;
+  background: linear-gradient(180deg, #5D4037, #3E2723);
+  border-radius: 2px 2px 0 0;
+}
+.decor-coffeebar::before {
+  content: '';
+  position: absolute; top: 2px; left: 3px;
+  width: 8px; height: 6px; background: linear-gradient(180deg, #424242, #212121);
+  border-radius: 1px;
+}
+.decor-coffeebar::after {
+  content: '';
+  position: absolute; top: 2px; right: 3px;
+  width: 6px; height: 5px; border-radius: 50%;
+  background: radial-gradient(circle, #8D6E63, #5D4037);
+  box-shadow: -8px 0 0 0 #6D4C41;
+}
+
+/* Tennis court (post-owner, miniature) */
+.decor-tennis {
+  width: 44px; height: 8px;
+  background: linear-gradient(180deg, #2E7D32, #1B5E20);
+  border: 1px solid #fff; border-radius: 1px;
+}
+.decor-tennis::before {
+  content: '';
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 1px; height: 100%; background: #fff;
+}
+.decor-tennis::after {
+  content: '';
+  position: absolute; top: 50%; left: 0; right: 0; transform: translateY(-50%);
+  height: 1px; background: rgba(255,255,255,.5);
+}
+
+/* ---- FLOOR LINES — thick, visible ---- */
+/* Ground floor line */
+.scene-display::after {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0;
+  height: 3px; background: #000; z-index: 10;
+}
+
+/* Second floor — bold black divider + floor2 item positioning */
 .scene-floor2 {
   display: none; position: absolute; left: 0; right: 0;
-  top: 45%; height: 2px; z-index: 6;
-  background: linear-gradient(90deg, transparent 5%, rgba(255,255,255,.08) 15%, rgba(255,255,255,.12) 50%, rgba(255,255,255,.08) 85%, transparent 95%);
+  top: 48%; height: 4px; z-index: 6;
+  background: #000;
+  box-shadow: 0 -1px 0 rgba(255,255,255,.06), 0 1px 0 rgba(255,255,255,.06);
 }
 .scene-display.scene-has-floor2 .scene-floor2 { display: block; }
-.scene-display.scene-has-floor2 .scene-staff .npc.floor2 { bottom: auto; top: 48%; }
+
+/* Floor 2 NPC positioning */
+.scene-display.scene-has-floor2 .scene-staff .npc.floor2 {
+  bottom: auto; top: 2%;
+}
+
+/* Floor 2 decor positioning */
+.decor-floor2 { bottom: auto !important; top: 50%; transform: translateY(-100%); }
+.decor-floor2.decor-art, .decor-floor2.decor-whiteboard, .decor-floor2.decor-tv { transform: none; }
+.decor-floor2.decor-barista { top: auto; bottom: 52%; transform: none; }
+
+/* ============================================
+   ANIMATED BARISTA — coffee making cycle
+   ============================================ */
+.decor-barista {
+  width: 18px; height: 38px; z-index: 3;
+}
+
+/* Barista body */
+.decor-barista::before {
+  content: '';
+  position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 14px; height: 28px;
+  background:
+    /* head */
+    radial-gradient(ellipse 10px 9px at 50% 4px, #D2A679 0%, #D2A679 95%, transparent 100%),
+    /* apron */
+    linear-gradient(180deg, transparent 26%, #f5f5f5 26%, #f5f5f5 70%, transparent 70%),
+    /* shirt */
+    linear-gradient(180deg, transparent 22%, #1B5E20 22%, #1B5E20 75%, transparent 75%),
+    /* legs */
+    linear-gradient(180deg, transparent 75%, #37474F 75%);
+}
+
+/* Arms + coffee activity — animated pour/shake/steam cycle */
+.decor-barista::after {
+  content: '';
+  position: absolute; bottom: 10px; left: 0; right: 0;
+  height: 16px;
+  animation: baristaBrew 8s ease-in-out infinite;
+}
+
+@keyframes baristaBrew {
+  /* Phase 1: Pouring (0-25%) — arm tilting, pouring motion */
+  0%   { background: linear-gradient(135deg, transparent 30%, #5D4037 30%, #5D4037 34%, transparent 34%);
+         transform: rotate(0deg); }
+  8%   { background: linear-gradient(135deg, transparent 30%, #5D4037 30%, #5D4037 34%, transparent 34%);
+         transform: rotate(-15deg) translateX(-2px); }
+  15%  { background: linear-gradient(135deg, transparent 30%, #5D4037 30%, #5D4037 34%, transparent 34%);
+         transform: rotate(-25deg) translateX(-3px); }
+  20%  { transform: rotate(-10deg) translateX(-1px); }
+  25%  { transform: rotate(0deg); }
+
+  /* Phase 2: Shaking (25-50%) — cocktail shaker motion */
+  30%  { background: linear-gradient(90deg, transparent 20%, #9E9E9E 20%, #9E9E9E 30%, transparent 30%);
+         transform: translateY(0); }
+  33%  { transform: translateY(-3px) rotate(5deg); }
+  36%  { transform: translateY(0) rotate(-5deg); }
+  39%  { transform: translateY(-3px) rotate(4deg); }
+  42%  { transform: translateY(0) rotate(-4deg); }
+  45%  { transform: translateY(-2px) rotate(2deg); }
+  50%  { transform: translateY(0) rotate(0deg); }
+
+  /* Phase 3: Steaming/frothing (50-75%) — steam wand motion */
+  55%  { background: linear-gradient(90deg, transparent 35%, #BDBDBD 35%, #BDBDBD 38%, transparent 38%);
+         transform: rotate(0deg); }
+  60%  { transform: rotate(-3deg) translateY(-1px); }
+  65%  { transform: rotate(3deg) translateY(0); }
+  70%  { transform: rotate(-2deg) translateY(-1px); }
+  75%  { transform: rotate(0deg); }
+
+  /* Phase 4: Serving/presenting (75-100%) */
+  80%  { background: linear-gradient(90deg, transparent 25%, #795548 25%, #795548 40%, transparent 40%);
+         transform: translateX(2px); }
+  90%  { transform: translateX(4px) translateY(-1px); }
+  95%  { transform: translateX(2px); }
+  100% { transform: translateX(0); }
+}
+
+/* Steam particles rising from coffee bar */
+@keyframes steamRise {
+  0%   { opacity: .6; transform: translateY(0) scale(1); }
+  50%  { opacity: .3; transform: translateY(-8px) scale(1.4); }
+  100% { opacity: 0; transform: translateY(-16px) scale(1.8); }
+}
+
+.decor-coffeebar::before {
+  animation: none; /* override for clarity */
+}
+
+/* Add steam to coffee bar via extra pseudo on parent decor container */
+.decor-coffeebar {
+  overflow: visible;
+}
+/* Steam wisps rendered via box-shadow trick on ::after */
+.decor-coffeebar::after {
+  content: '';
+  position: absolute; top: -6px; left: 6px;
+  width: 3px; height: 3px; border-radius: 50%;
+  background: rgba(255,255,255,.25);
+  box-shadow:
+    6px -2px 0 rgba(255,255,255,.2),
+    12px -1px 0 rgba(255,255,255,.15),
+    3px -4px 0 rgba(255,255,255,.18),
+    9px -5px 0 rgba(255,255,255,.12);
+  animation: steamRise 3s ease-out infinite;
+}

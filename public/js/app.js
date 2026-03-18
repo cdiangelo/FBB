@@ -482,45 +482,72 @@ function setWorking(active) {
 //  SCENE EVOLUTION — Staff & Decor
 // ===============================
 
-// Level index → staff count mapping
-// L0=0, L1=2, L2=5(manager), L3=5, L4=10(director), L5=15(owner), L6=20(conglomerate), L7=25(baron), L8=30(monopolist)
-const STAFF_COUNTS = [0, 2, 5, 5, 10, 15, 20, 25, 30];
+// Level index → staff count mapping (3x scale)
+// L0=0, L1=6, L2=15(manager), L3=15, L4=30(director), L5=45(owner), L6=60(conglomerate), L7=75(baron), L8=90(monopolist)
+const STAFF_COUNTS = [0, 6, 15, 15, 30, 45, 60, 75, 90];
 
 // Decor configurations by level tier
 const DECOR_TIERS = [
   // L0: Startup — bare minimum
-  [{ type: 'coffee', x: '8%' }],
-  // L1: Junior — add a bookshelf
-  [{ type: 'coffee', x: '8%' }, { type: 'bookshelf', x: '90%' }],
-  // L2: Manager — conference setup
-  [{ type: 'coffee', x: '6%' }, { type: 'bookshelf', x: '92%' }, { type: 'cabinet', x: '88%' },
-   { type: 'whiteboard', x: '15%', top: '12%' }, { type: 'rug', x: '35%' }],
-  // L3: Manager+ — art, trophies
+  [{ type: 'coffee', x: '8%' }, { type: 'coatrack', x: '92%' }],
+  // L1: Junior — basics
+  [{ type: 'coffee', x: '8%' }, { type: 'bookshelf', x: '90%' }, { type: 'coatrack', x: '95%' },
+   { type: 'cooler', x: '3%' }],
+  // L2: Manager — conference setup, lounge area
   [{ type: 'coffee', x: '6%' }, { type: 'bookshelf', x: '92%' }, { type: 'cabinet', x: '88%' },
    { type: 'whiteboard', x: '15%', top: '12%' }, { type: 'rug', x: '35%' },
-   { type: 'art', x: '70%', top: '8%' }, { type: 'trophy', x: '82%' }],
-  // L4: Director — full office
+   { type: 'cooler', x: '3%' }, { type: 'coatrack', x: '96%' }, { type: 'beanbag', x: '10%' },
+   { type: 'sdesk', x: '20%' }, { type: 'sdesk', x: '72%' }],
+  // L3: Manager+ — art, trophies, TV
+  [{ type: 'coffee', x: '6%' }, { type: 'bookshelf', x: '92%' }, { type: 'cabinet', x: '88%' },
+   { type: 'whiteboard', x: '15%', top: '12%' }, { type: 'rug', x: '35%' },
+   { type: 'art', x: '70%', top: '8%' }, { type: 'trophy', x: '82%' },
+   { type: 'cooler', x: '3%' }, { type: 'coatrack', x: '96%' }, { type: 'beanbag', x: '10%' },
+   { type: 'tv', x: '78%', top: '6%' }, { type: 'couch', x: '74%' },
+   { type: 'sdesk', x: '18%' }, { type: 'sdesk', x: '26%' }, { type: 'sdesk', x: '68%' }],
+  // L4: Director — full office, lounge
   [{ type: 'coffee', x: '5%' }, { type: 'bookshelf', x: '93%' }, { type: 'cabinet', x: '3%' },
    { type: 'whiteboard', x: '18%', top: '10%' }, { type: 'rug', x: '30%' },
    { type: 'art', x: '70%', top: '6%' }, { type: 'art', x: '78%', top: '10%' },
-   { type: 'trophy', x: '85%' }, { type: 'cooler', x: '10%' }, { type: 'conf-table', x: '20%' }],
+   { type: 'trophy', x: '85%' }, { type: 'cooler', x: '10%' }, { type: 'conf-table', x: '20%' },
+   { type: 'coatrack', x: '96%' }, { type: 'coatrack', x: '1%' },
+   { type: 'beanbag', x: '8%' }, { type: 'beanbag', x: '88%' },
+   { type: 'tv', x: '65%', top: '5%' }, { type: 'couch', x: '70%' }, { type: 'couch', x: '12%' },
+   { type: 'sdesk', x: '15%' }, { type: 'sdesk', x: '25%' }, { type: 'sdesk', x: '68%' }, { type: 'sdesk', x: '78%' }],
   // L5: Owner — premium decor
   [{ type: 'coffee', x: '4%' }, { type: 'bookshelf', x: '94%' }, { type: 'bookshelf', x: '3%' },
    { type: 'cabinet', x: '8%' }, { type: 'whiteboard', x: '20%', top: '8%' },
    { type: 'rug', x: '28%' }, { type: 'art', x: '65%', top: '5%' }, { type: 'art', x: '75%', top: '9%' },
-   { type: 'trophy', x: '88%' }, { type: 'trophy', x: '84%' }, { type: 'cooler', x: '12%' },
-   { type: 'conf-table', x: '22%' }, { type: 'partition', x: '42%' }],
-  // L6+: Empire — maximalist
-  [{ type: 'coffee', x: '3%' }, { type: 'bookshelf', x: '95%' }, { type: 'bookshelf', x: '2%' },
-   { type: 'cabinet', x: '7%' }, { type: 'cabinet', x: '91%' },
+   { type: 'trophy', x: '88%' }, { type: 'trophy', x: '84%' }, { type: 'cooler', x: '12%' }, { type: 'cooler', x: '90%' },
+   { type: 'conf-table', x: '22%' }, { type: 'partition', x: '42%' },
+   { type: 'coatrack', x: '97%' }, { type: 'coatrack', x: '1%' },
+   { type: 'beanbag', x: '6%' }, { type: 'beanbag', x: '86%' }, { type: 'beanbag', x: '92%' },
+   { type: 'tv', x: '30%', top: '6%' }, { type: 'tv', x: '68%', top: '5%' },
+   { type: 'couch', x: '66%' }, { type: 'couch', x: '10%' },
+   { type: 'sdesk', x: '14%' }, { type: 'sdesk', x: '22%' }, { type: 'sdesk', x: '30%' },
+   { type: 'sdesk', x: '64%' }, { type: 'sdesk', x: '72%' }, { type: 'sdesk', x: '80%' }],
+  // L6+: Empire — maximalist, both floors
+  [{ type: 'coffee', x: '3%' }, { type: 'coffee', x: '80%' },
+   { type: 'bookshelf', x: '95%' }, { type: 'bookshelf', x: '2%' }, { type: 'bookshelf', x: '70%', floor: 2 },
+   { type: 'cabinet', x: '7%' }, { type: 'cabinet', x: '91%' }, { type: 'cabinet', x: '5%', floor: 2 },
    { type: 'whiteboard', x: '22%', top: '6%' }, { type: 'whiteboard', x: '68%', top: '8%' },
-   { type: 'rug', x: '25%' }, { type: 'rug', x: '60%' },
+   { type: 'whiteboard', x: '25%', floor: 2, top: '4%' },
+   { type: 'rug', x: '25%' }, { type: 'rug', x: '60%' }, { type: 'rug', x: '30%', floor: 2 },
    { type: 'art', x: '55%', top: '4%' }, { type: 'art', x: '75%', top: '4%' }, { type: 'art', x: '85%', top: '7%' },
+   { type: 'art', x: '40%', floor: 2, top: '2%' },
    { type: 'trophy', x: '90%' }, { type: 'trophy', x: '87%' }, { type: 'trophy', x: '93%' },
-   { type: 'cooler', x: '11%' }, { type: 'cooler', x: '88%' },
-   { type: 'conf-table', x: '18%' }, { type: 'conf-table', x: '65%' },
+   { type: 'cooler', x: '11%' }, { type: 'cooler', x: '88%' }, { type: 'cooler', x: '15%', floor: 2 },
+   { type: 'conf-table', x: '18%' }, { type: 'conf-table', x: '65%' }, { type: 'conf-table', x: '50%', floor: 2 },
    { type: 'partition', x: '44%' }, { type: 'partition', x: '55%' },
-   { type: 'sdesk', x: '15%' }, { type: 'sdesk', x: '25%' }, { type: 'sdesk', x: '70%' }, { type: 'sdesk', x: '80%' }]
+   { type: 'coatrack', x: '97%' }, { type: 'coatrack', x: '1%' }, { type: 'coatrack', x: '92%', floor: 2 },
+   { type: 'beanbag', x: '6%' }, { type: 'beanbag', x: '86%' }, { type: 'beanbag', x: '10%', floor: 2 },
+   { type: 'tv', x: '32%', top: '5%' }, { type: 'tv', x: '72%', top: '4%' }, { type: 'tv', x: '60%', floor: 2, top: '2%' },
+   { type: 'couch', x: '8%' }, { type: 'couch', x: '74%' }, { type: 'couch', x: '20%', floor: 2 },
+   { type: 'sdesk', x: '15%' }, { type: 'sdesk', x: '25%' }, { type: 'sdesk', x: '70%' }, { type: 'sdesk', x: '80%' },
+   { type: 'sdesk', x: '30%', floor: 2 }, { type: 'sdesk', x: '45%', floor: 2 }, { type: 'sdesk', x: '65%', floor: 2 },
+   { type: 'stairs', x: '48%' },
+   { type: 'coffeebar', x: '82%', floor: 2 }, { type: 'barista', x: '85%', floor: 2 },
+   { type: 'tennis', x: '35%', floor: 2 }]
 ];
 
 const NPC_SKIN_POOL = ['npc-skin-1','npc-skin-2','npc-skin-3','npc-skin-4','npc-skin-5','npc-skin-6'];
@@ -585,9 +612,10 @@ function updateSceneForLevel() {
   decorContainer.innerHTML = '';
   for (const d of decor) {
     const el = document.createElement('div');
-    el.className = `decor-item decor-${d.type}`;
+    el.className = `decor-item decor-${d.type}${d.floor === 2 ? ' decor-floor2' : ''}`;
     el.style.left = d.x;
-    if (d.top) { el.style.bottom = 'auto'; el.style.top = d.top; }
+    if (d.top && !d.floor) { el.style.bottom = 'auto'; el.style.top = d.top; }
+    if (d.floor === 2 && d.top) { el.style.top = d.top; }
     decorContainer.appendChild(el);
   }
 }
