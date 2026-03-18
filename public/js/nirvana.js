@@ -28,14 +28,14 @@ const CLUB_LIGHT_COLORS = [
   [50, 220, 200], [255, 80, 180], [120, 80, 255],
   [255, 50, 50], [50, 255, 200], [200, 100, 255]
 ];
-// Floating color orbs — each drifts around with gentle bouncy movement
+// Floating color orbs — many small ones for fine, detailed coverage
 const CLUB_ORBS = [];
-for (let i = 0; i < 7; i++) {
+for (let i = 0; i < 20; i++) {
   CLUB_ORBS.push({
     x: Math.random(), y: Math.random(), // normalized 0-1
-    vx: (Math.random() - 0.5) * 0.002,
-    vy: (Math.random() - 0.5) * 0.002,
-    r: 0.15 + Math.random() * 0.25, // radius as fraction of canvas
+    vx: (Math.random() - 0.5) * 0.0015,
+    vy: (Math.random() - 0.5) * 0.0015,
+    r: 0.04 + Math.random() * 0.08, // much smaller radius
     colorIdx: i % CLUB_LIGHT_COLORS.length,
     nextColorIdx: (i + 4) % CLUB_LIGHT_COLORS.length,
     blend: Math.random(),
@@ -43,15 +43,15 @@ for (let i = 0; i < 7; i++) {
     phase: Math.random() * Math.PI * 2 // for wobble
   });
 }
-// Geometry pattern nodes — triangles/hexagons that respond to nearby orb colors
+// Geometry pattern nodes — dense field of tiny shapes covering the whole screen
 const CLUB_GEO = [];
-for (let i = 0; i < 18; i++) {
+for (let i = 0; i < 80; i++) {
   CLUB_GEO.push({
     x: Math.random(), y: Math.random(),
     rot: Math.random() * Math.PI * 2,
-    rotSpeed: (Math.random() - 0.5) * 0.008,
-    size: 0.04 + Math.random() * 0.06,
-    sides: Math.random() > 0.5 ? 3 : 6, // triangles and hexagons
+    rotSpeed: (Math.random() - 0.5) * 0.012,
+    size: 0.008 + Math.random() * 0.018, // very small
+    sides: [3, 4, 5, 6][Math.floor(Math.random() * 4)], // triangles, squares, pentagons, hexagons
     phase: Math.random() * Math.PI * 2
   });
 }
@@ -91,8 +91,8 @@ function drawMiniPerson(ctx, x, y, size, skin, accent, label) {
 // Fluid color blobs that drift and merge + transparent geometry wireframes
 // that pick up nearby colors. No rigid grid — organic and bouncy.
 let _clubLightCanvas = null;
-const _OVERLAY_W = 480;
-const _OVERLAY_H = 320;
+const _OVERLAY_W = 960;
+const _OVERLAY_H = 640;
 
 function _createClubLightOverlay() {
   if (_clubLightOverlay) return;
@@ -167,31 +167,35 @@ function _updateClubLightOverlay() {
     ctx.restore();
   }
 
-  // --- Pass 2: Transparent geometry patterns ---
+  // --- Pass 2: Dense fine geometry patterns covering entire screen ---
   for (const geo of CLUB_GEO) {
     geo.rot += geo.rotSpeed;
-    // Find nearest orb to pick up its color
-    let nearOrb = CLUB_ORBS[0], nearDist = 999;
+    // Blend color from two nearest orbs for richer tinting
+    let near1 = CLUB_ORBS[0], near1d = 999, near2 = CLUB_ORBS[1], near2d = 999;
     for (const orb of CLUB_ORBS) {
       const d = Math.hypot(geo.x - orb.x, geo.y - orb.y);
-      if (d < nearDist) { nearDist = d; nearOrb = orb; }
+      if (d < near1d) { near2 = near1; near2d = near1d; near1 = orb; near1d = d; }
+      else if (d < near2d) { near2 = orb; near2d = d; }
     }
-    // Interpolate nearest orb color
-    const c1 = CLUB_LIGHT_COLORS[nearOrb.colorIdx];
-    const c2 = CLUB_LIGHT_COLORS[nearOrb.nextColorIdx];
-    const ease = nearOrb.blend * nearOrb.blend * (3 - 2 * nearOrb.blend);
-    const cr = Math.round(c1[0] + (c2[0] - c1[0]) * ease);
-    const cg = Math.round(c1[1] + (c2[1] - c1[1]) * ease);
-    const cb = Math.round(c1[2] + (c2[2] - c1[2]) * ease);
+    // Blend the two nearest orb colors
+    const mix = near1d / (near1d + near2d + 0.001);
+    function _orbColor(orb) {
+      const c1 = CLUB_LIGHT_COLORS[orb.colorIdx], c2 = CLUB_LIGHT_COLORS[orb.nextColorIdx];
+      const e = orb.blend * orb.blend * (3 - 2 * orb.blend);
+      return [c1[0] + (c2[0] - c1[0]) * e, c1[1] + (c2[1] - c1[1]) * e, c1[2] + (c2[2] - c1[2]) * e];
+    }
+    const co1 = _orbColor(near1), co2 = _orbColor(near2);
+    const cr = Math.round(co1[0] * (1 - mix) + co2[0] * mix);
+    const cg = Math.round(co1[1] * (1 - mix) + co2[1] * mix);
+    const cb = Math.round(co1[2] * (1 - mix) + co2[2] * mix);
 
-    // Geometry responds: closer to orb = brighter, pulsing
-    const proximity = Math.max(0, 1 - nearDist * 2.5);
-    const breathe = 0.5 + Math.sin(_clubLightTime * 0.025 + geo.phase) * 0.5;
-    const alpha = _clubLightOpacity * (0.08 + proximity * 0.35) * breathe;
-    if (alpha < 0.01) continue;
+    // Always visible but brighter near orbs, with gentle pulse
+    const proximity = Math.max(0, 1 - near1d * 3);
+    const breathe = 0.6 + Math.sin(_clubLightTime * 0.03 + geo.phase) * 0.4;
+    const alpha = _clubLightOpacity * (0.12 + proximity * 0.45) * breathe;
 
     const gx = geo.x * W, gy = geo.y * H;
-    const gs = geo.size * Math.min(W, H) * (0.9 + proximity * 0.4);
+    const gs = geo.size * Math.min(W, H) * (0.85 + proximity * 0.3);
     const sides = geo.sides;
 
     ctx.save();
@@ -199,7 +203,9 @@ function _updateClubLightOverlay() {
     ctx.rotate(geo.rot);
     ctx.globalAlpha = alpha;
     ctx.strokeStyle = `rgb(${cr},${cg},${cb})`;
-    ctx.lineWidth = 1 + proximity;
+    ctx.lineWidth = 0.5 + proximity * 0.5; // very thin lines
+
+    // Outer shape
     ctx.beginPath();
     for (let i = 0; i <= sides; i++) {
       const a = (i / sides) * Math.PI * 2;
@@ -208,10 +214,39 @@ function _updateClubLightOverlay() {
     }
     ctx.closePath();
     ctx.stroke();
+
+    // Inner detail: smaller concentric shape + spokes from center to vertices
+    ctx.globalAlpha = alpha * 0.5;
+    ctx.lineWidth = 0.3 + proximity * 0.3;
+    const innerR = gs * 0.5;
+    ctx.beginPath();
+    for (let i = 0; i <= sides; i++) {
+      const a = (i / sides) * Math.PI * 2;
+      const px = Math.cos(a) * innerR, py = Math.sin(a) * innerR;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.stroke();
+    // Spokes
+    for (let i = 0; i < sides; i++) {
+      const a = (i / sides) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(a) * gs, Math.sin(a) * gs);
+      ctx.stroke();
+    }
+
     // Faint fill when close to orb
-    if (proximity > 0.3) {
-      ctx.globalAlpha = alpha * 0.2;
+    if (proximity > 0.2) {
+      ctx.globalAlpha = alpha * 0.12;
       ctx.fillStyle = `rgb(${cr},${cg},${cb})`;
+      ctx.beginPath();
+      for (let i = 0; i <= sides; i++) {
+        const a = (i / sides) * Math.PI * 2;
+        const px = Math.cos(a) * gs, py = Math.sin(a) * gs;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
       ctx.fill();
     }
     ctx.restore();
