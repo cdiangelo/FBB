@@ -2370,16 +2370,16 @@ let _skeeballCelebLights = []; // { timer, color, x, y }
 
 function initSkeeball() {
   _skeeball = {
-    ball: { x: 400, y: 430, vx: 0, vy: 0, r: 12, rolling: false, airborne: false },
+    ball: { x: 400, y: 430, vx: 0, vy: 0, r: 10, rolling: false, airborne: false },
     holes: [
-      { x: 400, y: 75, r: 18, points: 100, label: '100', color: '#FFD700' },
-      { x: 340, y: 110, r: 18, points: 50, label: '50', color: '#E53935' },
-      { x: 460, y: 110, r: 18, points: 50, label: '50', color: '#E53935' },
-      { x: 300, y: 150, r: 20, points: 30, label: '30', color: '#1565C0' },
-      { x: 500, y: 150, r: 20, points: 30, label: '30', color: '#1565C0' },
-      { x: 340, y: 195, r: 22, points: 20, label: '20', color: '#4CAF50' },
-      { x: 460, y: 195, r: 22, points: 20, label: '20', color: '#4CAF50' },
-      { x: 400, y: 245, r: 26, points: 10, label: '10', color: '#FF8F00' }
+      { x: 400, y: 60, r: 16, points: 100, label: '100', color: '#FFD700' },
+      { x: 340, y: 90, r: 16, points: 50, label: '50', color: '#E53935' },
+      { x: 460, y: 90, r: 16, points: 50, label: '50', color: '#E53935' },
+      { x: 290, y: 125, r: 18, points: 30, label: '30', color: '#1565C0' },
+      { x: 510, y: 125, r: 18, points: 30, label: '30', color: '#1565C0' },
+      { x: 340, y: 165, r: 18, points: 20, label: '20', color: '#4CAF50' },
+      { x: 460, y: 165, r: 18, points: 20, label: '20', color: '#4CAF50' },
+      { x: 400, y: 210, r: 18, points: 10, label: '10', color: '#FF8F00' }
     ],
     score: 0,
     ballsLeft: 9,
@@ -2389,8 +2389,8 @@ function initSkeeball() {
     cpuScore: 0,
     state: 'aiming', // aiming | rolling | rimBounce | gutterRoll | scored | done
     message: 'Drag backward from ball to roll!',
-    rampTop: 260,   // where ramp lip is — ball launches into air here
-    gutterY: 265,   // gutter catch zone (between ramp lip and backboard bottom)
+    rampTop: 290,   // ramp lip much further down — big gap to scoring area
+    gutterY: 295,   // gutter catch zone
     rimBounce: null, // { hole, angle, bounces, timer } when ball hits a rim
     scoredAnim: null, // { hole, timer } when ball sinks
     celebTimer: 0
@@ -2425,11 +2425,11 @@ function skeeballRelease() {
   const dx = b.x - _nirvanaMouse.x, dy = b.y - _nirvanaMouse.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
   if (dist < 5) return;
-  const power = Math.min(12, dist * 0.08);
+  const power = Math.min(14, dist * 0.09);
   // Direction determines horizontal aim; power determines how high the ball launches
   const angle = Math.atan2(dy, dx);
   b.vx = Math.cos(angle) * power * 0.35;
-  b.vy = -power; // strong upward launch
+  b.vy = -power * 1.1; // strong upward launch
   b.rolling = true;
   b.airborne = false;
   s.state = 'rolling';
@@ -2499,17 +2499,17 @@ function updateSkeeball() {
   // Phase 1: Rolling up the ramp (y > rampTop)
   if (!b.airborne && b.y > s.rampTop) {
     b.x += b.vx; b.y += b.vy;
-    b.vx *= 0.99;
-    b.vy *= 0.98; // ramp friction slows upward
-    b.vy += 0.04; // gravity on ramp
+    b.vx *= 0.995;
+    b.vy *= 0.995; // very little ramp friction — preserve momentum
+    b.vy += 0.02; // light gravity on ramp
     // Side walls on ramp
     if (b.x < 210) { b.x = 210; b.vx = Math.abs(b.vx) * 0.3; }
     if (b.x > 590) { b.x = 590; b.vx = -Math.abs(b.vx) * 0.3; }
     // Ball reaches ramp lip — launch into air!
     if (b.y <= s.rampTop && b.vy < 0) {
       b.airborne = true;
-      // Boost: the faster it hits the lip, the higher it flies
-      b.vy *= 1.15;
+      // Big boost off the lip — ball jumps high into scoring area
+      b.vy *= 1.35;
     }
     // Ball ran out of steam on ramp
     if (b.vy >= 0 && b.y > s.rampTop + 20) {
@@ -2523,8 +2523,8 @@ function updateSkeeball() {
   // Phase 2: Airborne over scoring area
   b.airborne = true;
   b.x += b.vx; b.y += b.vy;
-  b.vx *= 0.995;
-  b.vy += 0.06; // arc gravity — ball follows parabolic trajectory
+  b.vx *= 0.998;
+  b.vy += 0.035; // gentle arc gravity — ball floats higher, reaching top holes
   // Side walls in scoring area
   if (b.x < 210) { b.x = 210; b.vx = Math.abs(b.vx) * 0.3; }
   if (b.x > 590) { b.x = 590; b.vx = -Math.abs(b.vx) * 0.3; }
@@ -2532,19 +2532,30 @@ function updateSkeeball() {
   if (b.y < 45) { b.y = 45; b.vy = Math.abs(b.vy) * 0.3; }
 
   // Check holes — determine if ball enters cleanly or catches the rim
+  // Ball must be moving downward (vy > 0) or slow to enter a hole.
+  // Fast upward-moving balls skip over lower holes.
   const speed = Math.hypot(b.vx, b.vy);
   for (const hole of s.holes) {
     const hd = Math.hypot(b.x - hole.x, b.y - hole.y);
     if (hd < hole.r + b.r) {
+      // Skip holes if ball is moving upward fast — it flies over them
+      if (b.vy < -2) {
+        // Only glancing deflect if very close to center while passing through
+        if (hd < hole.r * 0.4) {
+          const nx = (b.x - hole.x) / hd, ny = (b.y - hole.y) / hd;
+          b.vx += nx * 0.5; b.vy += ny * 0.3;
+        }
+        continue;
+      }
       // How centered is the approach?
       const centeredness = 1 - (hd / (hole.r + b.r));
-      if (centeredness > 0.55 && speed < 8) {
+      if (centeredness > 0.5 && speed < 7) {
         // Clean entry — ball drops right in
         _skeeballScoreHole(hole);
         return;
       } else if (centeredness > 0.2) {
         // Rim hit — might go in or bounce out
-        const sinkChance = centeredness * 0.8 + (speed < 4 ? 0.2 : 0);
+        const sinkChance = centeredness * 0.85 + (speed < 3.5 ? 0.15 : 0);
         const sinks = Math.random() < sinkChance;
         const bounceTime = 15 + Math.floor(Math.random() * 15);
         s.rimBounce = {
@@ -2560,7 +2571,7 @@ function updateSkeeball() {
       }
       // Glancing hit — deflect
       const nx = (b.x - hole.x) / hd, ny = (b.y - hole.y) / hd;
-      b.vx += nx * 1.5; b.vy += ny * 1.5;
+      b.vx += nx * 1.2; b.vy += ny * 1.2;
     }
   }
 
@@ -2629,7 +2640,7 @@ function _skeeballResetBall() {
     }
   } else {
     s.state = 'aiming';
-    s.ball = { x: 400, y: 430, vx: 0, vy: 0, r: 12, rolling: false, airborne: false };
+    s.ball = { x: 400, y: 430, vx: 0, vy: 0, r: 10, rolling: false, airborne: false };
   }
 }
 
@@ -2772,16 +2783,18 @@ function drawSkeeball(ctx) {
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist > 0) {
       // Show predicted arc
-      const power = Math.min(12, dist * 0.08);
+      const power = Math.min(14, dist * 0.09);
       const angle = Math.atan2(dy, dx);
       const pvx = Math.cos(angle) * power * 0.35;
-      const pvy = -power;
+      const pvy = -power * 1.1;
       ctx.beginPath(); ctx.moveTo(b.x, b.y);
       let px = b.x, py = b.y, tvx = pvx, tvy = pvy;
-      for (let i = 0; i < 30; i++) {
+      let launched = false;
+      for (let i = 0; i < 40; i++) {
         px += tvx; py += tvy;
-        tvy += (py > s.rampTop) ? 0.04 : 0.06;
-        tvx *= 0.995;
+        if (!launched && py <= s.rampTop) { launched = true; tvy *= 1.35; }
+        tvy += launched ? 0.035 : 0.02;
+        tvx *= 0.998;
         if (py < 40) break;
         ctx.lineTo(px, py);
       }
