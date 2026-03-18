@@ -16,26 +16,30 @@ let _nirvanaMouse = { x: 0, y: 0, down: false, startX: 0, startY: 0 };
 let _nirvanaTouch = false;
 
 // ---- CLUB LIGHTING (DOM overlay — follows into all games) ----
-// Grid-based cubular pattern: 3x2 cells that transition between colors
+// Layered canvas architecture: separate overlay canvas composited on top
+// with proper save/restore isolation and globalAlpha management.
 let _clubLightsOn = true;
 let _clubLightOpacity = 0.25;
 let _clubLightTime = 0;
-let _clubLightOverlay = null; // DOM element
+let _clubLightOverlay = null; // DOM canvas element
+const CLUB_GRID_COLS = 4;
+const CLUB_GRID_ROWS = 3;
 const CLUB_LIGHT_COLORS = [
   [180, 60, 220], [60, 180, 255], [255, 120, 60],
   [100, 255, 140], [255, 200, 60], [220, 50, 120],
-  [50, 220, 200], [255, 80, 180], [120, 80, 255]
+  [50, 220, 200], [255, 80, 180], [120, 80, 255],
+  [255, 50, 50], [50, 255, 200], [200, 100, 255]
 ];
-// 3x2 grid cells, each with a color index and transition speed
+// 4x3 grid cells, each with independent color transition state
 const CLUB_GRID = [];
-for (let row = 0; row < 2; row++) {
-  for (let col = 0; col < 3; col++) {
+for (let row = 0; row < CLUB_GRID_ROWS; row++) {
+  for (let col = 0; col < CLUB_GRID_COLS; col++) {
     CLUB_GRID.push({
       col, row,
-      colorIdx: (row * 3 + col) % CLUB_LIGHT_COLORS.length,
-      nextColorIdx: (row * 3 + col + 3) % CLUB_LIGHT_COLORS.length,
-      blend: 0,
-      speed: 0.004 + Math.random() * 0.006 // each cell transitions at a different rate
+      colorIdx: (row * CLUB_GRID_COLS + col) % CLUB_LIGHT_COLORS.length,
+      nextColorIdx: (row * CLUB_GRID_COLS + col + 5) % CLUB_LIGHT_COLORS.length,
+      blend: Math.random() * 0.5, // stagger start
+      speed: 0.003 + Math.random() * 0.005
     });
   }
 }
@@ -71,23 +75,31 @@ function drawMiniPerson(ctx, x, y, size, skin, accent, label) {
   }
 }
 
-// ---- CLUB LIGHT DOM OVERLAY (full browser overlay, pointer-events:none) ----
-// Uses a canvas to render a 3x2 cubular grid of color cells that smoothly
-// transition between colors, covering the entire screen.
+// ---- CLUB LIGHT DOM OVERLAY ----
+// Layered canvas overlay stacked on top of everything (like a grid overlay canvas
+// in the reference arch). Renders at proper resolution with save/restore isolation,
+// globalAlpha management, grid lines for cubular definition, and screen blend.
 let _clubLightCanvas = null;
+const _OVERLAY_W = 480;
+const _OVERLAY_H = 320;
+
 function _createClubLightOverlay() {
   if (_clubLightOverlay) return;
   const el = document.createElement('canvas');
   el.id = 'club-light-overlay';
-  el.width = 6; el.height = 4; // tiny — will be stretched full screen for soft blocks
-  el.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;mix-blend-mode:screen;opacity:1;image-rendering:auto;';
+  el.width = _OVERLAY_W;
+  el.height = _OVERLAY_H;
+  el.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;' +
+    'pointer-events:none;z-index:9999;mix-blend-mode:screen;opacity:1;';
   document.body.appendChild(el);
   _clubLightOverlay = el;
   _clubLightCanvas = el.getContext('2d');
 }
+
 function _removeClubLightOverlay() {
   if (_clubLightOverlay) { _clubLightOverlay.remove(); _clubLightOverlay = null; _clubLightCanvas = null; }
 }
+
 function _updateClubLightOverlay() {
   if (!_clubLightCanvas || !_clubLightOverlay) return;
   if (!_clubLightsOn) { _clubLightOverlay.style.opacity = '0'; return; }
@@ -95,36 +107,79 @@ function _updateClubLightOverlay() {
   _clubLightTime++;
 
   const ctx = _clubLightCanvas;
-  const W = 6, H = 4; // 3x2 grid mapped to 6x4 pixels (each cell = 2x2 px for soft interpolation)
+  const W = _OVERLAY_W, H = _OVERLAY_H;
+  const cellW = W / CLUB_GRID_COLS;
+  const cellH = H / CLUB_GRID_ROWS;
+
+  // Clear to transparent
   ctx.clearRect(0, 0, W, H);
 
-  // Advance each grid cell's color blend
+  // --- Render each grid cell with save/restore isolation ---
   for (const cell of CLUB_GRID) {
+    // Advance color transition
     cell.blend += cell.speed;
     if (cell.blend >= 1) {
       cell.blend = 0;
       cell.colorIdx = cell.nextColorIdx;
-      // Pick a new target color (different from current)
       let next;
       do { next = Math.floor(Math.random() * CLUB_LIGHT_COLORS.length); } while (next === cell.colorIdx);
       cell.nextColorIdx = next;
     }
-    // Interpolate colors
+
+    // Interpolate colors (smooth hermite ease)
     const c1 = CLUB_LIGHT_COLORS[cell.colorIdx];
     const c2 = CLUB_LIGHT_COLORS[cell.nextColorIdx];
-    const t = cell.blend;
-    // Smooth ease
-    const ease = t * t * (3 - 2 * t);
+    const ease = cell.blend * cell.blend * (3 - 2 * cell.blend);
     const r = Math.round(c1[0] + (c2[0] - c1[0]) * ease);
     const g = Math.round(c1[1] + (c2[1] - c1[1]) * ease);
     const b = Math.round(c1[2] + (c2[2] - c1[2]) * ease);
-    // Pulse
-    const pulse = 0.85 + Math.sin(_clubLightTime * 0.025 + cell.col * 1.5 + cell.row * 2.3) * 0.15;
-    const alpha = _clubLightOpacity * pulse;
-    // Draw 2x2 block in the tiny canvas (bilinear filtering when stretched = soft edges)
-    ctx.fillStyle = `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
-    ctx.fillRect(cell.col * 2, cell.row * 2, 2, 2);
+
+    // Per-cell pulse for organic movement
+    const pulse = 0.8 + Math.sin(_clubLightTime * 0.02 + cell.col * 1.7 + cell.row * 2.5) * 0.2;
+    // Depth variation: center cells slightly brighter than edges
+    const cx = (cell.col + 0.5) / CLUB_GRID_COLS;
+    const cy = (cell.row + 0.5) / CLUB_GRID_ROWS;
+    const centerDist = Math.sqrt((cx - 0.5) ** 2 + (cy - 0.5) ** 2);
+    const depthFactor = 1 - centerDist * 0.25;
+
+    const x = cell.col * cellW;
+    const y = cell.row * cellH;
+
+    ctx.save();
+    // Set globalAlpha before drawing, will be reset by restore
+    ctx.globalAlpha = _clubLightOpacity * pulse * depthFactor;
+    ctx.globalCompositeOperation = 'source-over';
+
+    // Fill cell with radial gradient for soft inner glow
+    const grd = ctx.createRadialGradient(
+      x + cellW / 2, y + cellH / 2, 0,
+      x + cellW / 2, y + cellH / 2, Math.max(cellW, cellH) * 0.7
+    );
+    grd.addColorStop(0, `rgb(${r},${g},${b})`);
+    grd.addColorStop(0.6, `rgba(${r},${g},${b},0.7)`);
+    grd.addColorStop(1, `rgba(${r},${g},${b},0.15)`);
+    ctx.fillStyle = grd;
+    ctx.fillRect(x, y, cellW, cellH);
+
+    ctx.restore(); // globalAlpha reset to 1
   }
+
+  // --- Grid lines between cells for cubular definition ---
+  ctx.save();
+  ctx.globalAlpha = 0.08;
+  ctx.strokeStyle = 'rgba(255,255,255,1)';
+  ctx.lineWidth = 1;
+  // Vertical grid lines
+  for (let c = 1; c < CLUB_GRID_COLS; c++) {
+    const lx = c * cellW;
+    ctx.beginPath(); ctx.moveTo(lx, 0); ctx.lineTo(lx, H); ctx.stroke();
+  }
+  // Horizontal grid lines
+  for (let r = 1; r < CLUB_GRID_ROWS; r++) {
+    const ly = r * cellH;
+    ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(W, ly); ctx.stroke();
+  }
+  ctx.restore(); // globalAlpha reset to 1
 }
 
 // ---- HUB WORLD ----
