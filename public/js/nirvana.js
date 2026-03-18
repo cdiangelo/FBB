@@ -1072,22 +1072,50 @@ function drawHorses(ctx) {
    ============================================================ */
 let _movies = {};
 let _popcornAnim = { reclined: false, timer: 0, munchTimer: 0, eating: false };
-const CLASSIC_MOVIES = [
-  { title: 'The Godfather', year: 1972, genre: 'Crime', desc: '"I\'m gonna make him an offer he can\'t refuse."', color: '#8B0000', runtime: '2h 55m' },
-  { title: 'Casablanca', year: 1942, genre: 'Romance', desc: '"Here\'s looking at you, kid."', color: '#2c3e50', runtime: '1h 42m' },
-  { title: 'Citizen Kane', year: 1941, genre: 'Drama', desc: '"Rosebud..."', color: '#34495e', runtime: '1h 59m' },
-  { title: '2001: A Space Odyssey', year: 1968, genre: 'Sci-Fi', desc: '"Open the pod bay doors, HAL."', color: '#1a237e', runtime: '2h 29m' },
-  { title: 'Gone with the Wind', year: 1939, genre: 'Epic', desc: '"Frankly, my dear, I don\'t give a damn."', color: '#b71c1c', runtime: '3h 58m' },
-  { title: 'Rear Window', year: 1954, genre: 'Thriller', desc: 'A photographer spies on his neighbors from his apartment.', color: '#37474f', runtime: '1h 52m' },
-  { title: 'Some Like It Hot', year: 1959, genre: 'Comedy', desc: '"Well, nobody\'s perfect."', color: '#e65100', runtime: '2h 1m' },
-  { title: 'Psycho', year: 1960, genre: 'Horror', desc: '"A boy\'s best friend is his mother."', color: '#212121', runtime: '1h 49m' },
-  { title: 'Singin\' in the Rain', year: 1952, genre: 'Musical', desc: 'The most joyful musical ever made.', color: '#1565C0', runtime: '1h 43m' },
-  { title: 'It\'s a Wonderful Life', year: 1946, genre: 'Fantasy', desc: '"Every time a bell rings, an angel gets his wings."', color: '#1b5e20', runtime: '2h 10m' }
-];
+
+// ---- ADMIN-SAVED LINKS (localStorage) ----
+// These replace the classic movie list as preset YouTube options
+const LINK_COLORS = ['#8B0000','#2c3e50','#1a237e','#b71c1c','#37474f','#e65100','#212121','#1565C0','#1b5e20','#4a148c','#0277BD','#880E4F'];
+function _loadSavedLinks() {
+  try { return JSON.parse(localStorage.getItem('fbb_club_links') || '[]'); } catch(e) { return []; }
+}
+function _saveSavedLinks(links) {
+  try { localStorage.setItem('fbb_club_links', JSON.stringify(links)); } catch(e) {}
+}
+function _openLinkAdmin() {
+  const links = _loadSavedLinks();
+  let msg = 'CLUB THEATER LINKS\n\nCurrent saved links:\n';
+  if (links.length === 0) msg += '(none)\n';
+  else links.forEach((l, i) => { msg += `${i + 1}. ${l.title} — ${l.url}\n`; });
+  msg += '\nEnter command:\n  add — Add new link\n  remove N — Remove link #N\n  done — Close';
+  const cmd = prompt(msg);
+  if (!cmd) return;
+  const trimmed = cmd.trim().toLowerCase();
+  if (trimmed === 'add') {
+    const title = prompt('Link title (e.g. "Lo-Fi Beats"):');
+    if (!title) return;
+    const url = prompt('YouTube URL:');
+    if (!url) return;
+    const vid = _extractYoutubeId(url);
+    if (!vid) { alert('Invalid YouTube URL'); return; }
+    links.push({ title: title.trim(), url: url.trim(), videoId: vid });
+    _saveSavedLinks(links);
+    _openLinkAdmin(); // re-open to show updated list
+  } else if (trimmed.startsWith('remove')) {
+    const idx = parseInt(trimmed.split(/\s+/)[1]) - 1;
+    if (idx >= 0 && idx < links.length) {
+      links.splice(idx, 1);
+      _saveSavedLinks(links);
+    }
+    _openLinkAdmin();
+  }
+  // 'done' or anything else just closes
+}
 
 function initMovies() {
+  const savedLinks = _loadSavedLinks();
   _movies = {
-    list: CLASSIC_MOVIES,
+    savedLinks: savedLinks, // admin-saved YouTube presets
     selected: -1,
     watching: false,
     watchTimer: 0,
@@ -1099,7 +1127,6 @@ function initMovies() {
     inputFocused: false
   };
   _popcornAnim = { reclined: false, timer: 0, munchTimer: 0, eating: false };
-  // Remove any leftover iframe
   _removeYoutubeEmbed();
 }
 
@@ -1337,13 +1364,15 @@ function moviesClick() {
     _theaterHubClick();
     return;
   }
-  if (m.watching) {
-    if (m.watchTimer >= m.watchDuration) { m.watching = false; m.selected = -1; }
+  // Admin button (top-right)
+  if (_nirvanaMouse.x >= 700 && _nirvanaMouse.x <= 785 && _nirvanaMouse.y >= 35 && _nirvanaMouse.y <= 55) {
+    _openLinkAdmin();
+    // Reload saved links after admin
+    m.savedLinks = _loadSavedLinks();
     return;
   }
-  // YouTube URL input click (focus)
-  if (_nirvanaMouse.x >= 320 && _nirvanaMouse.x <= 700 && _nirvanaMouse.y >= 395 && _nirvanaMouse.y <= 420) {
-    m.inputFocused = true;
+  // YouTube URL input click (custom URL)
+  if (_nirvanaMouse.x >= 320 && _nirvanaMouse.x <= 700 && _nirvanaMouse.y >= 425 && _nirvanaMouse.y <= 450) {
     const url = prompt('Enter a YouTube URL:');
     if (url) {
       m.youtubeUrl = url;
@@ -1351,24 +1380,25 @@ function moviesClick() {
       if (vid) {
         m.youtubeActive = true;
         _showYoutubeEmbed(vid);
-        // Switch to hub so canvas draws the club
-        _nirvanaState = 'movies'; // stay in movies state but draw hub
       }
     }
-    m.inputFocused = false;
     return;
   }
-  // Movie list on left side
-  for (let i = 0; i < m.list.length; i++) {
+  // Click a saved link to select it
+  const links = m.savedLinks || [];
+  for (let i = 0; i < links.length; i++) {
     const y = 90 + i * 38 - m.scroll;
-    if (_nirvanaMouse.x >= 30 && _nirvanaMouse.x <= 280 && _nirvanaMouse.y >= y && _nirvanaMouse.y <= y + 34) {
+    if (_nirvanaMouse.x >= 30 && _nirvanaMouse.x <= 350 && _nirvanaMouse.y >= y && _nirvanaMouse.y <= y + 34) {
       m.selected = i;
     }
   }
-  // Watch button (classic animated view)
-  if (m.selected >= 0 && _nirvanaMouse.x >= 560 && _nirvanaMouse.x <= 700 && _nirvanaMouse.y >= 430 && _nirvanaMouse.y <= 465) {
-    m.watching = true;
-    m.watchTimer = 0;
+  // Play button — launch selected saved link
+  if (m.selected >= 0 && m.selected < links.length && _nirvanaMouse.x >= 560 && _nirvanaMouse.x <= 700 && _nirvanaMouse.y >= 430 && _nirvanaMouse.y <= 465) {
+    const link = links[m.selected];
+    if (link.videoId) {
+      m.youtubeActive = true;
+      _showYoutubeEmbed(link.videoId);
+    }
   }
 }
 
@@ -1487,102 +1517,79 @@ function drawMovies(ctx) {
   const m = _movies;
   ctx.fillStyle = '#0a0a14'; ctx.fillRect(0, 28, 800, 472);
 
-  if (m.watching) {
-    // Full theater view
-    const movie = m.list[m.selected];
-    m.watchTimer++;
-    // Screen
-    const progress = m.watchTimer / m.watchDuration;
-    ctx.fillStyle = '#222'; roundRect(ctx, 80, 50, 640, 300, 8); ctx.fill();
-    // Movie "playing" — animated color fields
-    const hue = (m.watchTimer * 2) % 360;
-    ctx.fillStyle = `hsl(${hue}, 40%, 15%)`;
-    ctx.fillRect(85, 55, 630, 290);
-    // Film grain effect
-    for (let i = 0; i < 30; i++) {
-      ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.08})`;
-      ctx.fillRect(85 + Math.random() * 630, 55 + Math.random() * 290, Math.random() * 20, 1);
-    }
-    // Title on screen
-    ctx.fillStyle = `rgba(255,255,255,${0.3 + Math.sin(m.watchTimer * 0.05) * 0.2})`;
-    ctx.font = 'bold 28px serif'; ctx.textAlign = 'center';
-    ctx.fillText(movie.title, 400, 180);
-    ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.font = 'italic 16px serif';
-    ctx.fillText(movie.desc, 400, 220);
-    ctx.fillStyle = '#aaa'; ctx.font = '12px sans-serif';
-    ctx.fillText(`${movie.year} \u2022 ${movie.genre} \u2022 ${movie.runtime}`, 400, 250);
-    // Progress bar
-    ctx.fillStyle = '#333'; ctx.fillRect(100, 335, 600, 4);
-    ctx.fillStyle = '#e53935'; ctx.fillRect(100, 335, 600 * progress, 4);
-    // Audience silhouettes
-    for (let i = 0; i < m.audience.length; i++) {
-      const ax = 120 + i * 75, ay = 420;
-      drawMiniPerson(ctx, ax, ay, 18, m.audience[i].skin, m.audience[i].accent, null);
-    }
-    if (m.watchTimer >= m.watchDuration) {
-      ctx.fillStyle = 'rgba(0,0,0,.6)'; roundRect(ctx, 250, 370, 300, 40, 6); ctx.fill();
-      ctx.fillStyle = '#FFD54F'; ctx.font = 'bold 14px sans-serif';
-      ctx.fillText('THE END \u2014 Click to continue', 400, 395);
-    }
-    return;
-  }
-
   // YouTube active: draw full functional hub with movies greyed out
   if (m.youtubeActive) {
     _drawTheaterHub(ctx);
     return;
   }
 
-  // Movie list (left)
+  // Admin button (top-right)
+  const adminHover = _nirvanaMouse.x >= 700 && _nirvanaMouse.x <= 785 && _nirvanaMouse.y >= 35 && _nirvanaMouse.y <= 55;
+  ctx.fillStyle = adminHover ? 'rgba(255,213,79,.2)' : 'rgba(255,255,255,.06)';
+  roundRect(ctx, 700, 35, 85, 20, 4); ctx.fill();
+  ctx.fillStyle = adminHover ? '#FFD54F' : '#888';
+  ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('\u2699 Manage Links', 742, 49);
+
+  // Saved links list (left)
+  const links = m.savedLinks || [];
   ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText('NOW SHOWING', 155, 65);
-  for (let i = 0; i < m.list.length; i++) {
-    const movie = m.list[i];
+  ctx.fillText('SAVED LINKS', 190, 65);
+  if (links.length === 0) {
+    ctx.fillStyle = '#555'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('No saved links yet.', 190, 120);
+    ctx.fillText('Click "Manage Links" to add YouTube URLs', 190, 140);
+    ctx.fillText('that always appear here.', 190, 156);
+  }
+  for (let i = 0; i < links.length; i++) {
+    const link = links[i];
     const y = 90 + i * 38 - m.scroll;
     const sel = i === m.selected;
-    ctx.fillStyle = sel ? movie.color : 'rgba(255,255,255,.06)';
-    roundRect(ctx, 30, y, 250, 34, 4); ctx.fill();
-    if (sel) { ctx.strokeStyle = '#FFD54F'; ctx.lineWidth = 2; roundRect(ctx, 30, y, 250, 34, 4); ctx.stroke(); }
+    const color = LINK_COLORS[i % LINK_COLORS.length];
+    ctx.fillStyle = sel ? color : 'rgba(255,255,255,.06)';
+    roundRect(ctx, 30, y, 320, 34, 4); ctx.fill();
+    if (sel) { ctx.strokeStyle = '#FFD54F'; ctx.lineWidth = 2; roundRect(ctx, 30, y, 320, 34, 4); ctx.stroke(); }
     ctx.fillStyle = sel ? '#fff' : '#aaa';
     ctx.font = `${sel ? 'bold ' : ''}11px sans-serif`; ctx.textAlign = 'left';
-    ctx.fillText(`${movie.title} (${movie.year})`, 40, y + 15);
-    ctx.fillStyle = '#888'; ctx.font = '9px sans-serif';
-    ctx.fillText(`${movie.genre} \u2022 ${movie.runtime}`, 40, y + 28);
+    ctx.fillText(link.title, 40, y + 15);
+    ctx.fillStyle = '#666'; ctx.font = '8px sans-serif';
+    ctx.fillText(link.url.length > 45 ? link.url.substring(0, 45) + '...' : link.url, 40, y + 28);
+    // Play icon
+    ctx.fillStyle = '#FF0000'; ctx.font = '14px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText('\u25B6', 345, y + 20);
   }
 
-  // YouTube URL input bar
+  // Custom YouTube URL input bar
   ctx.fillStyle = 'rgba(255,255,255,.06)';
-  roundRect(ctx, 320, 395, 380, 25, 4); ctx.fill();
+  roundRect(ctx, 320, 425, 380, 25, 4); ctx.fill();
   ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 1;
-  roundRect(ctx, 320, 395, 380, 25, 4); ctx.stroke();
+  roundRect(ctx, 320, 425, 380, 25, 4); ctx.stroke();
   ctx.fillStyle = '#888'; ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
-  ctx.fillText(m.youtubeUrl || 'Click to enter a YouTube URL...', 330, 412);
+  ctx.fillText(m.youtubeUrl || 'Click to enter a custom YouTube URL...', 330, 442);
   ctx.fillStyle = '#FF0000'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'right';
-  ctx.fillText('\u25B6 YouTube', 695, 412);
+  ctx.fillText('\u25B6 YouTube', 695, 442);
 
-  // Preview (right)
-  if (m.selected >= 0) {
-    const movie = m.list[m.selected];
-    ctx.fillStyle = movie.color; roundRect(ctx, 320, 80, 440, 300, 8); ctx.fill();
-    // Poster area
-    ctx.fillStyle = 'rgba(0,0,0,.3)'; roundRect(ctx, 340, 100, 180, 240, 6); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 16px serif'; ctx.textAlign = 'center';
-    ctx.fillText(movie.title, 430, 200);
-    ctx.fillStyle = '#ccc'; ctx.font = '12px sans-serif';
-    ctx.fillText(movie.year, 430, 225);
-    // Info
-    ctx.fillStyle = '#fff'; ctx.font = 'italic 13px serif'; ctx.textAlign = 'left';
-    wrapText(ctx, movie.desc, 540, 130, 200, 18);
-    ctx.fillStyle = '#FFD54F'; ctx.font = 'bold 12px sans-serif';
-    ctx.fillText(`Genre: ${movie.genre}`, 540, 210);
-    ctx.fillText(`Runtime: ${movie.runtime}`, 540, 230);
-    // Watch button (animated preview)
+  // Preview (right) — selected saved link
+  if (m.selected >= 0 && m.selected < links.length) {
+    const link = links[m.selected];
+    const color = LINK_COLORS[m.selected % LINK_COLORS.length];
+    ctx.fillStyle = color; roundRect(ctx, 380, 80, 380, 240, 8); ctx.fill();
+    // Thumbnail area
+    ctx.fillStyle = 'rgba(0,0,0,.3)'; roundRect(ctx, 395, 100, 200, 120, 6); ctx.fill();
+    ctx.fillStyle = '#FF0000'; ctx.font = '40px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('\u25B6', 495, 175);
+    // Title
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif';
+    ctx.fillText(link.title, 570, 130);
+    ctx.fillStyle = '#ccc'; ctx.font = '10px sans-serif';
+    wrapText(ctx, link.url, 400, 240, 350, 14);
+    // Play button
     ctx.fillStyle = '#e53935'; roundRect(ctx, 560, 430, 140, 35, 6); ctx.fill();
     ctx.fillStyle = '#fff'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText('\u{1F3AC} WATCH', 630, 452);
-  } else {
+    ctx.fillText('\u25B6 PLAY', 630, 452);
+  } else if (links.length > 0) {
     ctx.fillStyle = '#555'; ctx.font = '14px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText('Select a movie or paste a YouTube link', 540, 250);
+    ctx.fillText('Select a saved link or enter a URL', 570, 200);
   }
   drawBackButton(ctx);
 }
