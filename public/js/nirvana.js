@@ -1115,29 +1115,32 @@ function _showYoutubeEmbed(videoId) {
 }
 
 // ---- THEATER SPLIT-SCREEN LAYOUT ----
-// Left half: theater pane (video + popcorn persona below)
-// Right half: hub canvas (with Movie Theater greyed out)
+// Side-by-side: theater pane (left) | game canvas (right)
+// Achieved by switching .nirvana-wrapper to flex-row and widening it
 function _enterTheaterSplitScreen(videoId) {
   const wrapper = document.querySelector('.nirvana-wrapper');
   if (!wrapper) return;
   // Hide the controls row during split
   const controls = wrapper.querySelector('.nirvana-controls');
   if (controls) controls.style.display = 'none';
-  // Create split container
-  const splitDiv = document.createElement('div');
-  splitDiv.id = 'nirvana-theater-split';
-  splitDiv.style.cssText = 'display:flex;gap:8px;width:100%;max-width:1100px;align-items:stretch;padding:0 .5rem;';
-  // ---- LEFT: Theater column ----
+  // Switch wrapper to horizontal layout, widen
+  wrapper.style.flexDirection = 'row';
+  wrapper.style.maxWidth = '1200px';
+  wrapper.style.alignItems = 'flex-start';
+  wrapper.style.gap = '10px';
+
+  // ---- LEFT: Theater column (inserted before canvas) ----
   const theaterCol = document.createElement('div');
-  theaterCol.style.cssText = 'flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;';
-  // Video iframe (or classic movie canvas)
+  theaterCol.id = 'nirvana-theater-split';
+  theaterCol.style.cssText = 'flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;max-width:50%;';
+  // Video iframe
   if (videoId) {
     const iframe = document.createElement('iframe');
     iframe.id = 'nirvana-youtube';
     iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
     iframe.allow = 'autoplay; encrypted-media';
     iframe.allowFullscreen = true;
-    iframe.style.cssText = 'width:100%;flex:1;min-height:200px;aspect-ratio:16/9;border:2px solid rgba(255,213,79,.3);border-radius:6px;background:#000;';
+    iframe.style.cssText = 'width:100%;aspect-ratio:16/9;border:2px solid rgba(255,213,79,.3);border-radius:6px;background:#000;';
     theaterCol.appendChild(iframe);
   }
   // Popcorn persona canvas (small, below video, never clipped)
@@ -1147,7 +1150,7 @@ function _enterTheaterSplitScreen(videoId) {
   popcornCanvas.height = 80;
   popcornCanvas.style.cssText = 'width:100%;max-height:80px;border-radius:4px;background:#0a0a14;flex-shrink:0;';
   theaterCol.appendChild(popcornCanvas);
-  // Opacity slider for theater pane
+  // Opacity slider
   const sliderRow = document.createElement('div');
   sliderRow.style.cssText = 'display:flex;align-items:center;gap:6px;padding:0 4px;flex-shrink:0;';
   const sliderLabel = document.createElement('span');
@@ -1172,14 +1175,18 @@ function _enterTheaterSplitScreen(videoId) {
   closeBtn.style.cssText = 'background:#e53935;color:#fff;border:none;padding:5px 14px;border-radius:5px;cursor:pointer;font-weight:bold;font-size:11px;align-self:center;flex-shrink:0;';
   closeBtn.onclick = () => { _exitTheaterSplitScreen(); };
   theaterCol.appendChild(closeBtn);
-  splitDiv.appendChild(theaterCol);
-  // ---- RIGHT: Canvas (hub with movie greyed) ----
-  // The existing canvas stays, we just shrink it to 50%
+
+  // ---- RIGHT: Canvas takes the other half ----
   const canvas = document.getElementById('nirvana-canvas');
-  if (canvas) canvas.style.maxWidth = '50%';
-  // Insert split before canvas
-  wrapper.insertBefore(splitDiv, canvas);
-  // Mark theater active and flag for hub drawing
+  if (canvas) {
+    canvas.style.flex = '1';
+    canvas.style.maxWidth = '50%';
+    canvas.style.width = '50%';
+  }
+  // Insert theater column before canvas
+  wrapper.insertBefore(theaterCol, canvas);
+
+  // Mark theater active
   _movies.youtubeActive = true;
   _movies._theaterSplit = true;
   // Start popcorn animation
@@ -1192,15 +1199,23 @@ function _exitTheaterSplitScreen() {
   _movies._theaterSplit = false;
   _popcornAnim.eating = false;
   _removeYoutubeEmbed();
-  // Restore canvas and controls
-  const canvas = document.getElementById('nirvana-canvas');
-  if (canvas) canvas.style.maxWidth = '800px';
+  // Restore wrapper to column layout
   const wrapper = document.querySelector('.nirvana-wrapper');
   if (wrapper) {
+    wrapper.style.flexDirection = '';
+    wrapper.style.maxWidth = '';
+    wrapper.style.alignItems = '';
+    wrapper.style.gap = '';
     const controls = wrapper.querySelector('.nirvana-controls');
     if (controls) controls.style.display = '';
   }
-  // Return to hub
+  // Restore canvas sizing
+  const canvas = document.getElementById('nirvana-canvas');
+  if (canvas) {
+    canvas.style.flex = '';
+    canvas.style.maxWidth = '800px';
+    canvas.style.width = '';
+  }
   _nirvanaState = 'hub';
 }
 
@@ -1210,12 +1225,15 @@ function _removeYoutubeEmbed() {
   const split = document.getElementById('nirvana-theater-split');
   if (split) split.remove();
   _popcornAnim.eating = false;
-  // Restore canvas width
+  // Restore canvas and wrapper to default column layout
   const canvas = document.getElementById('nirvana-canvas');
-  if (canvas) canvas.style.maxWidth = '800px';
-  // Restore controls
+  if (canvas) { canvas.style.maxWidth = '800px'; canvas.style.flex = ''; canvas.style.width = ''; }
   const wrapper = document.querySelector('.nirvana-wrapper');
   if (wrapper) {
+    wrapper.style.flexDirection = '';
+    wrapper.style.maxWidth = '';
+    wrapper.style.alignItems = '';
+    wrapper.style.gap = '';
     const controls = wrapper.querySelector('.nirvana-controls');
     if (controls) controls.style.display = '';
   }
