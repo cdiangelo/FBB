@@ -997,7 +997,16 @@ body {
 .option-pane.imp-life:hover { border-color: rgba(233,30,99,.6); }
 
 /* Larger tags in decision result */
+/* Larger tags in decision result — colored by implication */
 .strat-tag-lg { display: inline-flex; align-items: center; gap: 3px; font-size: .7rem; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,.06); color: var(--text-secondary); }
+.strat-tag-lg.tag-cash { background: rgba(244,67,54,.15); }
+.strat-tag-lg.tag-cash-in { background: rgba(76,175,80,.15); }
+.strat-tag-lg.tag-risk { background: rgba(255,152,0,.15); }
+.strat-tag-lg.tag-audit { background: rgba(156,39,176,.15); }
+.strat-tag-lg.tag-growth { background: rgba(33,150,243,.15); }
+.strat-tag-lg.tag-asset { background: rgba(255,193,7,.15); }
+.strat-tag-lg.tag-life { background: rgba(233,30,99,.15); }
+.strat-tag-lg.tag-life-up { background: rgba(76,175,80,.15); }
 
 /* Life event badge */
 .life-event-badge {

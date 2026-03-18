@@ -57,11 +57,11 @@
 
 /* Task content animations */
 .task-scroll-area { animation: fadeInUp .4s ease; }
-.option-btn { animation: fadeInUp .3s ease backwards; }
-.option-btn:nth-child(1) { animation-delay: .05s; }
-.option-btn:nth-child(2) { animation-delay: .1s; }
-.option-btn:nth-child(3) { animation-delay: .15s; }
-.option-btn:nth-child(4) { animation-delay: .2s; }
+.option-pane { animation: fadeInUp .3s ease backwards; }
+.option-pane:nth-child(1) { animation-delay: .05s; }
+.option-pane:nth-child(2) { animation-delay: .1s; }
+.option-pane:nth-child(3) { animation-delay: .15s; }
+.option-pane:nth-child(4) { animation-delay: .2s; }
 
 /* Progress bar animation */
 @keyframes progressFill { from { width: 0; } }

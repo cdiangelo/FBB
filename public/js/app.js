@@ -392,6 +392,8 @@ function enterGameScreen() {
   updateInterpersonalPanel();
   setScene();
   setWorking(true);
+  _lastSceneLevelIndex = -1; // force scene rebuild on game start
+  updateSceneForLevel();
   loadNextTask();
 }
 
@@ -474,6 +476,120 @@ function setScene() {
 function setWorking(active) {
   els.sceneDisplay.classList.toggle('robot-working', active);
   els.deskLight.classList.toggle('on', active);
+}
+
+// ===============================
+//  SCENE EVOLUTION — Staff & Decor
+// ===============================
+
+// Level index → staff count mapping
+// L0=0, L1=2, L2=5(manager), L3=5, L4=10(director), L5=15(owner), L6=20(conglomerate), L7=25(baron), L8=30(monopolist)
+const STAFF_COUNTS = [0, 2, 5, 5, 10, 15, 20, 25, 30];
+
+// Decor configurations by level tier
+const DECOR_TIERS = [
+  // L0: Startup — bare minimum
+  [{ type: 'coffee', x: '8%' }],
+  // L1: Junior — add a bookshelf
+  [{ type: 'coffee', x: '8%' }, { type: 'bookshelf', x: '90%' }],
+  // L2: Manager — conference setup
+  [{ type: 'coffee', x: '6%' }, { type: 'bookshelf', x: '92%' }, { type: 'cabinet', x: '88%' },
+   { type: 'whiteboard', x: '15%', top: '12%' }, { type: 'rug', x: '35%' }],
+  // L3: Manager+ — art, trophies
+  [{ type: 'coffee', x: '6%' }, { type: 'bookshelf', x: '92%' }, { type: 'cabinet', x: '88%' },
+   { type: 'whiteboard', x: '15%', top: '12%' }, { type: 'rug', x: '35%' },
+   { type: 'art', x: '70%', top: '8%' }, { type: 'trophy', x: '82%' }],
+  // L4: Director — full office
+  [{ type: 'coffee', x: '5%' }, { type: 'bookshelf', x: '93%' }, { type: 'cabinet', x: '3%' },
+   { type: 'whiteboard', x: '18%', top: '10%' }, { type: 'rug', x: '30%' },
+   { type: 'art', x: '70%', top: '6%' }, { type: 'art', x: '78%', top: '10%' },
+   { type: 'trophy', x: '85%' }, { type: 'cooler', x: '10%' }, { type: 'conf-table', x: '20%' }],
+  // L5: Owner — premium decor
+  [{ type: 'coffee', x: '4%' }, { type: 'bookshelf', x: '94%' }, { type: 'bookshelf', x: '3%' },
+   { type: 'cabinet', x: '8%' }, { type: 'whiteboard', x: '20%', top: '8%' },
+   { type: 'rug', x: '28%' }, { type: 'art', x: '65%', top: '5%' }, { type: 'art', x: '75%', top: '9%' },
+   { type: 'trophy', x: '88%' }, { type: 'trophy', x: '84%' }, { type: 'cooler', x: '12%' },
+   { type: 'conf-table', x: '22%' }, { type: 'partition', x: '42%' }],
+  // L6+: Empire — maximalist
+  [{ type: 'coffee', x: '3%' }, { type: 'bookshelf', x: '95%' }, { type: 'bookshelf', x: '2%' },
+   { type: 'cabinet', x: '7%' }, { type: 'cabinet', x: '91%' },
+   { type: 'whiteboard', x: '22%', top: '6%' }, { type: 'whiteboard', x: '68%', top: '8%' },
+   { type: 'rug', x: '25%' }, { type: 'rug', x: '60%' },
+   { type: 'art', x: '55%', top: '4%' }, { type: 'art', x: '75%', top: '4%' }, { type: 'art', x: '85%', top: '7%' },
+   { type: 'trophy', x: '90%' }, { type: 'trophy', x: '87%' }, { type: 'trophy', x: '93%' },
+   { type: 'cooler', x: '11%' }, { type: 'cooler', x: '88%' },
+   { type: 'conf-table', x: '18%' }, { type: 'conf-table', x: '65%' },
+   { type: 'partition', x: '44%' }, { type: 'partition', x: '55%' },
+   { type: 'sdesk', x: '15%' }, { type: 'sdesk', x: '25%' }, { type: 'sdesk', x: '70%' }, { type: 'sdesk', x: '80%' }]
+];
+
+const NPC_SKIN_POOL = ['npc-skin-1','npc-skin-2','npc-skin-3','npc-skin-4','npc-skin-5','npc-skin-6'];
+const NPC_OUTFIT_POOL = ['npc-outfit-1','npc-outfit-2','npc-outfit-3','npc-outfit-4','npc-outfit-5','npc-outfit-6','npc-outfit-7','npc-outfit-8'];
+const NPC_ANIMS = ['npc-walking', 'npc-bobbing', 'npc-talking', 'npc-gesturing'];
+
+let _lastSceneLevelIndex = -1;
+
+function updateSceneForLevel() {
+  const levelIndex = engine.getLevelIndex();
+  if (levelIndex === _lastSceneLevelIndex) return;
+  _lastSceneLevelIndex = levelIndex;
+
+  const staffContainer = document.getElementById('scene-staff');
+  const decorContainer = document.getElementById('scene-decor');
+  const sceneDisplay = document.getElementById('scene-display');
+  if (!staffContainer || !decorContainer) return;
+
+  // Scene height scaling
+  sceneDisplay.classList.remove('scene-expanded', 'scene-has-floor2');
+  if (levelIndex >= 6) {
+    sceneDisplay.classList.add('scene-has-floor2');
+    sceneDisplay.style.height = '260px';
+  } else if (levelIndex >= 4) {
+    sceneDisplay.classList.add('scene-expanded');
+    sceneDisplay.style.height = '200px';
+  } else {
+    sceneDisplay.style.height = '';
+  }
+
+  // Staff NPCs
+  const staffCount = STAFF_COUNTS[Math.min(levelIndex, STAFF_COUNTS.length - 1)];
+  staffContainer.innerHTML = '';
+  const managerZone = { left: 38, right: 62 }; // % — private space for player
+
+  for (let i = 0; i < staffCount; i++) {
+    const skin = NPC_SKIN_POOL[i % NPC_SKIN_POOL.length];
+    const outfit = NPC_OUTFIT_POOL[i % NPC_OUTFIT_POOL.length];
+    const anim = NPC_ANIMS[i % NPC_ANIMS.length];
+    const animDelay = (i * 0.7 + Math.random() * 2).toFixed(1);
+
+    // Position: avoid the center manager zone
+    let xPct;
+    const isFloor2 = levelIndex >= 6 && i >= Math.floor(staffCount * 0.6);
+    if (i < staffCount / 2) {
+      xPct = 2 + (i / (staffCount / 2)) * (managerZone.left - 5);
+    } else {
+      xPct = managerZone.right + 2 + ((i - staffCount / 2) / (staffCount / 2)) * (95 - managerZone.right);
+    }
+
+    const npc = document.createElement('div');
+    npc.className = `npc ${skin} ${outfit} ${anim}${isFloor2 ? ' floor2' : ''}`;
+    npc.style.left = `${xPct}%`;
+    npc.style.animationDelay = `${animDelay}s`;
+    npc.innerHTML = `<div class="npc-body"><div class="npc-head"></div><div class="npc-torso"></div><div class="npc-legs"><div class="npc-leg"></div><div class="npc-leg"></div></div></div>`;
+    staffContainer.appendChild(npc);
+  }
+
+  // Decor
+  const decorTier = Math.min(levelIndex, DECOR_TIERS.length - 1);
+  const decor = DECOR_TIERS[decorTier];
+  decorContainer.innerHTML = '';
+  for (const d of decor) {
+    const el = document.createElement('div');
+    el.className = `decor-item decor-${d.type}`;
+    el.style.left = d.x;
+    if (d.top) { el.style.bottom = 'auto'; el.style.top = d.top; }
+    decorContainer.appendChild(el);
+  }
 }
 
 // ===============================
@@ -1305,6 +1421,7 @@ function updateAll() {
   updateLogPanel();
   updateInterpersonalPanel();
   updateStrategyButton();
+  updateSceneForLevel();
 }
 
 // ===============================
