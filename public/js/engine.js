@@ -154,9 +154,9 @@ class GameEngine {
       overdueCount: 0
     };
 
-    // Daily action tracking — 3 regular decisions per day (commentary/events don't count)
+    // Daily action tracking — 6 decisions per day (2 full ops/mgmt/finance cycles), then sunrise/sunset
     this.actionsToday = 0;
-    this.maxActionsPerDay = 3;
+    this.maxActionsPerDay = 6;
     this.categoriesUsedToday = new Set();
 
     // Standing orders — persistent policies that auto-execute each day
@@ -303,7 +303,7 @@ class GameEngine {
       },
       marketDataMode: saveData.marketDataMode || 'simulated',
       actionsToday: saveData.actionsToday || 0,
-      maxActionsPerDay: 3,
+      maxActionsPerDay: 6,
       categoriesUsedToday: new Set(saveData.categoriesUsedToday || []),
       _lastLevelIndex: saveData._lastLevelIndex || 0,
       _profitShareAccum: saveData._profitShareAccum || 0,
@@ -1307,8 +1307,9 @@ class GameEngine {
       return { type: 'decision', scenario: this._buildDependencyScenario(urgentReqs[0]) };
     }
 
-    // Regular scenario — prefer categories from today's domain focus
-    const todayDomain = this.getDayDomain();
+    // Rotate through all 3 domains across 6 actions (2 cycles of ops → finance → management)
+    const actionDomainIndex = this.actionsToday % 3;
+    const todayDomain = this._domainOrder[actionDomainIndex];
     const domainCats = this._getCategoriesForDomain(todayDomain)
       .filter(c => !this.categoriesUsedToday.has(c));
 

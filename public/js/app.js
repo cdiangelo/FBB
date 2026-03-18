@@ -647,8 +647,11 @@ function updateSceneForLevel() {
 function updateStatusBar() {
   els.statusPersona.textContent = capitalize(engine.persona);
   els.statusPersona.style.color = getComputedStyle(document.documentElement).getPropertyValue('--accent');
-  const domainLabel = engine.getDayDomainLabel ? engine.getDayDomainLabel() : '';
-  els.statusDay.textContent = `Day ${engine.day} (${engine.actionsToday || 0}/${engine.maxActionsPerDay})${domainLabel ? ' \u2022 ' + domainLabel : ''}`;
+  const domainLabels = { operations: 'Operations', finance: 'Finance', management: 'Management' };
+  const currentDomain = engine._domainOrder ? engine._domainOrder[(engine.actionsToday || 0) % 3] : '';
+  const domainLabel = domainLabels[currentDomain] || '';
+  const cycleNum = Math.floor((engine.actionsToday || 0) / 3) + 1;
+  els.statusDay.textContent = `Day ${engine.day} (${engine.actionsToday || 0}/${engine.maxActionsPerDay})${domainLabel ? ' \u2022 ' + domainLabel + ' (cycle ' + cycleNum + ')' : ''}`;
   els.statusMoney.textContent = engine.getMoney();
   els.statusLevel.textContent = engine.getLevel().name;
   els.statusSatisfaction.innerHTML = `&#9829; ${engine.satisfaction}`;
