@@ -28,33 +28,39 @@ const CLUB_LIGHT_COLORS = [
   [50, 220, 200], [255, 80, 180], [120, 80, 255],
   [255, 50, 50], [50, 255, 200], [200, 100, 255]
 ];
-// Floating color orbs — many small ones for fine, detailed coverage
+// Floating color orbs — wash zones for coloring the geometry field
 const CLUB_ORBS = [];
 for (let i = 0; i < 30; i++) {
   CLUB_ORBS.push({
-    x: Math.random(), y: Math.random(), // normalized 0-1
-    vx: (Math.random() - 0.5) * 0.001,
-    vy: (Math.random() - 0.5) * 0.001,
-    r: 0.25 + Math.random() * 0.35, // very large radius for even wash coverage
+    x: Math.random(), y: Math.random(),
+    vx: (Math.random() - 0.5) * 0.002,
+    vy: (Math.random() - 0.5) * 0.002,
+    r: 0.25 + Math.random() * 0.35,
     colorIdx: i % CLUB_LIGHT_COLORS.length,
     nextColorIdx: (i + 4) % CLUB_LIGHT_COLORS.length,
     blend: Math.random(),
-    speed: 0.001 + Math.random() * 0.002, // slower color transitions
-    phase: Math.random() * Math.PI * 2 // for wobble
-  });
-}
-// Geometry pattern nodes — massive dense field of tiny shapes covering the whole screen
-const CLUB_GEO = [];
-for (let i = 0; i < 600; i++) {
-  CLUB_GEO.push({
-    x: (i % 25) / 25 + (Math.random() - 0.5) * 0.04, // semi-grid with jitter
-    y: Math.floor(i / 25) / 24 + (Math.random() - 0.5) * 0.04,
-    rot: Math.random() * Math.PI * 2,
-    rotSpeed: (Math.random() - 0.5) * 0.006,
-    size: 0.002 + Math.random() * 0.005, // extremely tiny
-    sides: 6 + Math.floor(Math.random() * 7), // 6-12 sides — nearly circular, less defined edges
+    speed: 0.005 + Math.random() * 0.006, // faster color cycling
     phase: Math.random() * Math.PI * 2
   });
+}
+// Geometry pattern — wall-to-wall tiny transparent shapes filling every pixel
+const CLUB_GEO = [];
+{
+  // Dense grid that tiles the entire screen with no gaps
+  const cols = 50, rows = 34;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      CLUB_GEO.push({
+        x: (c + 0.5) / cols + (Math.random() - 0.5) * 0.008,
+        y: (r + 0.5) / rows + (Math.random() - 0.5) * 0.008,
+        rot: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 0.008,
+        size: 0.009 + Math.random() * 0.004, // just big enough to overlap neighbors
+        sides: 5 + Math.floor(Math.random() * 6), // 5-10 sides — soft but still geometric
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+  }
 }
 
 // ---- CPU OPPONENTS ----
@@ -122,9 +128,8 @@ function _updateClubLightOverlay() {
   const W = _OVERLAY_W, H = _OVERLAY_H;
   ctx.clearRect(0, 0, W, H);
 
-  // --- Pass 1: Broad color wash — large overlapping zones, no spotlight ---
+  // --- Advance orb colors (not drawn — they just drive the color field) ---
   for (const orb of CLUB_ORBS) {
-    // Advance color slowly
     orb.blend += orb.speed;
     if (orb.blend >= 1) {
       orb.blend = 0;
@@ -133,88 +138,81 @@ function _updateClubLightOverlay() {
       do { next = Math.floor(Math.random() * CLUB_LIGHT_COLORS.length); } while (next === orb.colorIdx);
       orb.nextColorIdx = next;
     }
-    // Slow drift
-    orb.phase += 0.008;
-    orb.x += orb.vx + Math.sin(orb.phase) * 0.0004;
-    orb.y += orb.vy + Math.cos(orb.phase * 0.7) * 0.0003;
-    if (orb.x < -0.2) { orb.x = -0.2; orb.vx = Math.abs(orb.vx) * 0.6 + 0.0003; }
-    if (orb.x > 1.2) { orb.x = 1.2; orb.vx = -Math.abs(orb.vx) * 0.6 - 0.0003; }
-    if (orb.y < -0.2) { orb.y = -0.2; orb.vy = Math.abs(orb.vy) * 0.6 + 0.0003; }
-    if (orb.y > 1.2) { orb.y = 1.2; orb.vy = -Math.abs(orb.vy) * 0.6 - 0.0003; }
-
-    const c1 = CLUB_LIGHT_COLORS[orb.colorIdx];
-    const c2 = CLUB_LIGHT_COLORS[orb.nextColorIdx];
-    const ease = orb.blend * orb.blend * (3 - 2 * orb.blend);
-    const cr = Math.round(c1[0] + (c2[0] - c1[0]) * ease);
-    const cg = Math.round(c1[1] + (c2[1] - c1[1]) * ease);
-    const cb = Math.round(c1[2] + (c2[2] - c1[2]) * ease);
-
-    const px = orb.x * W, py = orb.y * H;
-    const pr = orb.r * Math.max(W, H);
-
-    // Very flat gradient — even wash, no hot center
-    ctx.save();
-    ctx.globalAlpha = _clubLightOpacity * 0.35;
-    const grd = ctx.createRadialGradient(px, py, pr * 0.15, px, py, pr);
-    grd.addColorStop(0, `rgba(${cr},${cg},${cb},0.4)`);
-    grd.addColorStop(0.5, `rgba(${cr},${cg},${cb},0.2)`);
-    grd.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
-    ctx.fillStyle = grd;
-    ctx.fillRect(px - pr, py - pr, pr * 2, pr * 2);
-    ctx.restore();
+    orb.phase += 0.015;
+    orb.x += orb.vx + Math.sin(orb.phase) * 0.0006;
+    orb.y += orb.vy + Math.cos(orb.phase * 0.7) * 0.0005;
+    if (orb.x < -0.2) { orb.x = -0.2; orb.vx = Math.abs(orb.vx) * 0.6 + 0.0004; }
+    if (orb.x > 1.2) { orb.x = 1.2; orb.vx = -Math.abs(orb.vx) * 0.6 - 0.0004; }
+    if (orb.y < -0.2) { orb.y = -0.2; orb.vy = Math.abs(orb.vy) * 0.6 + 0.0004; }
+    if (orb.y > 1.2) { orb.y = 1.2; orb.vy = -Math.abs(orb.vy) * 0.6 - 0.0004; }
   }
 
-  // Helper: get blended orb color at a position
-  function _orbColorAt(nx, ny) {
-    let tr = 0, tg = 0, tb = 0, tw = 0;
-    for (const orb of CLUB_ORBS) {
-      const d = Math.hypot(nx - orb.x, ny - orb.y);
-      const w = 1 / (d * d + 0.01); // inverse-square falloff
-      const c1 = CLUB_LIGHT_COLORS[orb.colorIdx], c2 = CLUB_LIGHT_COLORS[orb.nextColorIdx];
-      const e = orb.blend * orb.blend * (3 - 2 * orb.blend);
-      tr += (c1[0] + (c2[0] - c1[0]) * e) * w;
-      tg += (c1[1] + (c2[1] - c1[1]) * e) * w;
-      tb += (c1[2] + (c2[2] - c1[2]) * e) * w;
-      tw += w;
+  // --- Wall-to-wall transparent geometry field ---
+  // Pre-cache the 4 nearest orb colors in a coarse grid to avoid N*M distance checks
+  const _colorGrid = 12;
+  const _cgColors = new Array(_colorGrid * _colorGrid);
+  for (let gy = 0; gy < _colorGrid; gy++) {
+    for (let gx = 0; gx < _colorGrid; gx++) {
+      const nx = (gx + 0.5) / _colorGrid, ny = (gy + 0.5) / _colorGrid;
+      let tr = 0, tg = 0, tb = 0, tw = 0;
+      for (const orb of CLUB_ORBS) {
+        const d = Math.hypot(nx - orb.x, ny - orb.y);
+        const w = 1 / (d * d + 0.008);
+        const c1 = CLUB_LIGHT_COLORS[orb.colorIdx], c2 = CLUB_LIGHT_COLORS[orb.nextColorIdx];
+        const e = orb.blend * orb.blend * (3 - 2 * orb.blend);
+        tr += (c1[0] + (c2[0] - c1[0]) * e) * w;
+        tg += (c1[1] + (c2[1] - c1[1]) * e) * w;
+        tb += (c1[2] + (c2[2] - c1[2]) * e) * w;
+        tw += w;
+      }
+      _cgColors[gy * _colorGrid + gx] = [Math.round(tr / tw), Math.round(tg / tw), Math.round(tb / tw)];
     }
-    return [Math.round(tr / tw), Math.round(tg / tw), Math.round(tb / tw)];
   }
 
-  // --- Pass 2: Massive field of tiny pixel-like shapes ---
   for (const geo of CLUB_GEO) {
     geo.rot += geo.rotSpeed;
 
-    // Color from surrounding wash — smooth blend of all nearby orbs
-    const [cr, cg, cb] = _orbColorAt(geo.x, geo.y);
+    // Look up color from coarse grid (fast)
+    const cgx = Math.min(_colorGrid - 1, Math.max(0, Math.floor(geo.x * _colorGrid)));
+    const cgy = Math.min(_colorGrid - 1, Math.max(0, Math.floor(geo.y * _colorGrid)));
+    const [cr, cg, cb] = _cgColors[cgy * _colorGrid + cgx];
 
-    // Subtle shimmer — mostly uniform with gentle breathing
-    const breathe = 0.75 + Math.sin(_clubLightTime * 0.02 + geo.phase) * 0.25;
-    const alpha = _clubLightOpacity * 0.55 * breathe;
+    // Gentle shimmer
+    const breathe = 0.8 + Math.sin(_clubLightTime * 0.03 + geo.phase) * 0.2;
+    const alpha = _clubLightOpacity * 0.6 * breathe;
 
-    const gx = geo.x * W, gy = geo.y * H;
+    const px = geo.x * W, py = geo.y * H;
     const gs = geo.size * Math.min(W, H);
     const sides = geo.sides;
 
     ctx.save();
-    ctx.translate(gx, gy);
+    ctx.translate(px, py);
     ctx.rotate(geo.rot);
 
-    // Filled tiny shape — acts like a tinted pixel
-    ctx.globalAlpha = alpha * 0.5;
-    ctx.fillStyle = `rgb(${cr},${cg},${cb})`;
+    // Transparent wireframe only — see-through, slightly distorts beneath
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = `rgb(${cr},${cg},${cb})`;
+    ctx.lineWidth = 0.4;
     ctx.beginPath();
     for (let i = 0; i <= sides; i++) {
       const a = (i / sides) * Math.PI * 2;
-      const px = Math.cos(a) * gs, py = Math.sin(a) * gs;
-      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      const sx = Math.cos(a) * gs, sy = Math.sin(a) * gs;
+      if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
     }
     ctx.closePath();
-    ctx.fill();
+    ctx.stroke();
 
-    // Hairline stroke — barely visible edges
-    ctx.globalAlpha = alpha * 0.3;
-    ctx.strokeStyle = `rgb(${cr},${cg},${cb})`;
-    ctx.lineWidth = 0.3;
+    // Inner concentric ring — adds density without blocking
+    ctx.globalAlpha = alpha * 0.4;
+    ctx.lineWidth = 0.25;
+    const innerR = gs * 0.45;
+    ctx.beginPath();
+    for (let i = 0; i <= sides; i++) {
+      const a = (i / sides) * Math.PI * 2 + geo.rot * 0.3;
+      const sx = Math.cos(a) * innerR, sy = Math.sin(a) * innerR;
+      if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+    }
+    ctx.closePath();
     ctx.stroke();
 
     ctx.restore();
