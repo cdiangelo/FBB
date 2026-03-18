@@ -25,6 +25,10 @@ class GameEngine {
     this.celebrationShown100 = false;
     this.soldOff = false;
     this.previousPeriod = null; // for commentary business summary
+    this.budgetPeriod = null; // budget baseline per period
+    this.cumulativeActuals = { revenue: 0, costs: 0, netIncome: 0 };
+    this.cumulativeBudget = { revenue: 0, costs: 0, netIncome: 0 };
+    this.cumulativePriorYear = { revenue: 0, costs: 0, netIncome: 0 };
 
     // Workforce culture
     this.culturePriorities = []; // top 3 dimension IDs
@@ -75,6 +79,10 @@ class GameEngine {
     this.celebrationShown100 = false;
     this.soldOff = false;
     this.previousPeriod = null;
+    this.budgetPeriod = null;
+    this.cumulativeActuals = { revenue: 0, costs: 0, netIncome: 0 };
+    this.cumulativeBudget = { revenue: 0, costs: 0, netIncome: 0 };
+    this.cumulativePriorYear = { revenue: 0, costs: 0, netIncome: 0 };
     this.state = JSON.parse(JSON.stringify(GAME_DATA.startingState[persona]));
 
     // Culture defaults
@@ -200,6 +208,10 @@ class GameEngine {
       _celebrationMonopoly: saveData._celebrationMonopoly || false,
       soldOff: saveData.soldOff || false,
       previousPeriod: saveData.previousPeriod || null,
+      budgetPeriod: saveData.budgetPeriod || null,
+      cumulativeActuals: saveData.cumulativeActuals || { revenue: 0, costs: 0, netIncome: 0 },
+      cumulativeBudget: saveData.cumulativeBudget || { revenue: 0, costs: 0, netIncome: 0 },
+      cumulativePriorYear: saveData.cumulativePriorYear || { revenue: 0, costs: 0, netIncome: 0 },
       culturePriorities: saveData.culturePriorities || ['integrity', 'accountability', 'efficiency'],
       micromanagerLevel: saveData.micromanagerLevel ?? 50,
       employeeSatisfaction: saveData.employeeSatisfaction ?? 70,
@@ -267,6 +279,10 @@ class GameEngine {
       _celebrationMonopoly: this._celebrationMonopoly || false,
       soldOff: this.soldOff,
       previousPeriod: this.previousPeriod,
+      budgetPeriod: this.budgetPeriod,
+      cumulativeActuals: { ...(this.cumulativeActuals || {}) },
+      cumulativeBudget: { ...(this.cumulativeBudget || {}) },
+      cumulativePriorYear: { ...(this.cumulativePriorYear || {}) },
       culturePriorities: this.culturePriorities,
       micromanagerLevel: this.micromanagerLevel,
       employeeSatisfaction: this.employeeSatisfaction,
@@ -1278,6 +1294,34 @@ class GameEngine {
       });
     }
 
+    // Exhibit E: Budget vs Actual vs Prior Year — always included
+    const ca = this.cumulativeActuals || {};
+    const cb = this.cumulativeBudget || {};
+    const cp = this.cumulativePriorYear || {};
+    const budExhibitRows = [
+      ['Revenue', '$' + (ca.revenue || 0).toLocaleString(), '$' + (cb.revenue || 0).toLocaleString(),
+        (ca.revenue || 0) - (cb.revenue || 0) >= 0 ? 'Favorable' : 'Unfavorable',
+        '$' + (cp.revenue || 0).toLocaleString(),
+        (ca.revenue || 0) - (cp.revenue || 0) >= 0 ? 'Up' : 'Down'],
+      ['Costs', '$' + (ca.costs || 0).toLocaleString(), '$' + (cb.costs || 0).toLocaleString(),
+        (ca.costs || 0) - (cb.costs || 0) <= 0 ? 'Favorable' : 'Unfavorable',
+        '$' + (cp.costs || 0).toLocaleString(),
+        (ca.costs || 0) - (cp.costs || 0) <= 0 ? 'Down' : 'Up'],
+      ['Net Income', '$' + (ca.netIncome || 0).toLocaleString(), '$' + (cb.netIncome || 0).toLocaleString(),
+        (ca.netIncome || 0) - (cb.netIncome || 0) >= 0 ? 'Favorable' : 'Unfavorable',
+        '$' + (cp.netIncome || 0).toLocaleString(),
+        (ca.netIncome || 0) - (cp.netIncome || 0) >= 0 ? 'Up' : 'Down']
+    ];
+    exhibits.push({
+      id: 'budget-comparison',
+      title: 'Exhibit E — Budget vs Actual vs PY',
+      icon: '\u{1F4C8}',
+      type: 'table',
+      headers: ['Metric', 'Actual (Cum)', 'Budget (Cum)', 'vs Bud', 'Prior Year', 'vs PY'],
+      rows: budExhibitRows,
+      footnote: 'Budget assumes moderate growth targets. Prior year estimated from historical trajectory.'
+    });
+
     return exhibits;
   }
 
@@ -1325,9 +1369,46 @@ class GameEngine {
       debt: 0, equity: current.equity * 0.9, cashOnHand: current.cashOnHand * 0.85
     };
 
+    // Budget: moderate growth target based on prior period (or baseline)
+    const budgetBase = this.previousPeriod || current;
+    const budget = this.budgetPeriod || {
+      revenue: Math.round(budgetBase.revenue * 1.1) || Math.round(current.cashOnHand * 0.08),
+      costs: Math.round(budgetBase.costs * 1.05) || Math.round(current.cashOnHand * 0.05),
+      netIncome: Math.round((budgetBase.revenue * 1.1 - budgetBase.costs * 1.05)) || Math.round(current.cashOnHand * 0.03),
+      assets: Math.round(budgetBase.assets * 1.05) || current.assets,
+      cashOnHand: Math.round(budgetBase.cashOnHand * 1.08) || current.cashOnHand
+    };
+
+    // Prior year: simulate as prior period scaled down (representing same period last year)
+    const priorYear = {
+      revenue: Math.round(prev.revenue * 0.85) || Math.round(current.cashOnHand * 0.04),
+      costs: Math.round(prev.costs * 0.80) || Math.round(current.cashOnHand * 0.03),
+      netIncome: Math.round((prev.revenue * 0.85) - (prev.costs * 0.80)) || Math.round(current.cashOnHand * 0.01),
+      assets: Math.round(prev.assets * 0.88) || Math.round(current.assets * 0.85),
+      cashOnHand: Math.round(prev.cashOnHand * 0.82) || Math.round(current.cashOnHand * 0.8)
+    };
+
+    // Update cumulative trackers
+    this.cumulativeActuals.revenue += current.revenue;
+    this.cumulativeActuals.costs += current.costs;
+    this.cumulativeActuals.netIncome += current.netIncome;
+    this.cumulativeBudget.revenue += budget.revenue;
+    this.cumulativeBudget.costs += budget.costs;
+    this.cumulativeBudget.netIncome += budget.netIncome;
+    this.cumulativePriorYear.revenue += priorYear.revenue;
+    this.cumulativePriorYear.costs += priorYear.costs;
+    this.cumulativePriorYear.netIncome += priorYear.netIncome;
+
     const summary = {
       current,
       previous: prev,
+      budget,
+      priorYear,
+      cumulative: {
+        actuals: { ...this.cumulativeActuals },
+        budget: { ...this.cumulativeBudget },
+        priorYear: { ...this.cumulativePriorYear }
+      },
       changes: {
         revenue: current.revenue - prev.revenue,
         costs: current.costs - prev.costs,
@@ -1339,8 +1420,15 @@ class GameEngine {
       forecast: this._getForecast()
     };
 
-    // Save current as previous for next period
+    // Save current as previous for next period; set next budget
     this.previousPeriod = { ...current };
+    this.budgetPeriod = {
+      revenue: Math.round(current.revenue * 1.1) || Math.round(current.cashOnHand * 0.08),
+      costs: Math.round(current.costs * 1.05) || Math.round(current.cashOnHand * 0.05),
+      netIncome: Math.round(current.revenue * 1.1 - current.costs * 1.05) || Math.round(current.cashOnHand * 0.03),
+      assets: Math.round(current.assets * 1.05),
+      cashOnHand: Math.round(current.cashOnHand * 1.08)
+    };
     // Reset period accumulators
     this.state.revenue = 0;
     this.state.costs = 0;
@@ -1595,7 +1683,7 @@ class GameEngine {
     if (this.log.length > 50) this.log.pop();
   }
 
-  addPeriodAction(type, detail, effect) {
+  addPeriodAction(type, detail, effect, implication) {
     // Build inline flags for notable impacts
     const flags = [];
     if (effect) {
@@ -1651,7 +1739,7 @@ class GameEngine {
           : { code: 'SQ-', label: 'Quality Down', cls: 'flag-warn' });
       }
     }
-    this.periodActions.push({ type, detail, day: this.day, flags });
+    this.periodActions.push({ type, detail, day: this.day, flags, implication: implication || 'balanced' });
   }
 
   flushPeriodActions() {

@@ -574,65 +574,75 @@
   overflow: hidden;
 }
 
-/* Individual NPC staff member — larger, grounded */
+/* Individual NPC staff member — larger, grounded, flex column keeps head locked to torso */
 .npc {
   position: absolute; bottom: 0; width: 22px; height: 44px; z-index: 2;
 }
 .npc-body {
   position: absolute; bottom: 0; width: 100%; height: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
 }
 .npc-head {
   width: 14px; height: 11px; border-radius: 5px 5px 3px 3px;
-  margin: 0 auto; position: relative;
+  flex-shrink: 0;
+  transform-origin: bottom center;
 }
 .npc-torso {
   width: 16px; height: 14px; border-radius: 2px;
-  margin: 1px auto 0;
+  flex-shrink: 0;
+  transform-origin: bottom center;
 }
 .npc-legs {
-  display: flex; gap: 2px; justify-content: center; margin-top: 0;
+  display: flex; gap: 2px; justify-content: center; flex-shrink: 0;
 }
 .npc-leg { width: 5px; height: 12px; border-radius: 1px; }
 
-/* NPC animations — feet stay grounded, motion is subtle upper body + tiny lateral shift */
+/* NPC animations — natural idle motion: head & torso move together, legs stay fixed */
+/* Breathing/weight-shift — very subtle, torso only */
 @keyframes npcSway {
-  0%, 100% { transform: translateX(0) rotate(0deg); }
-  20% { transform: translateX(3px) rotate(1deg); }
-  50% { transform: translateX(-2px) rotate(-1deg); }
-  80% { transform: translateX(4px) rotate(0.5deg); }
+  0%, 100% { transform: rotate(0deg); }
+  30% { transform: rotate(0.8deg); }
+  70% { transform: rotate(-0.6deg); }
 }
 @keyframes npcShift {
-  0%, 100% { transform: translateX(0); }
-  30% { transform: translateX(5px); }
-  70% { transform: translateX(-4px); }
+  0%, 100% { transform: translateX(0) scaleY(1); }
+  40% { transform: translateX(1px) scaleY(0.98); }
+  80% { transform: translateX(-1px) scaleY(1); }
 }
+/* Talking — head nods slightly, torso leans */
 @keyframes npcTalk {
-  0%, 40%, 100% { transform: scaleY(1) rotate(0deg); }
-  15% { transform: scaleY(0.94) rotate(-2deg); }
-  55% { transform: scaleY(0.96) rotate(1deg); }
-  80% { transform: scaleY(0.98) rotate(-1deg); }
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  15% { transform: rotate(-2deg) translateY(0.5px); }
+  40% { transform: rotate(1deg) translateY(0); }
+  65% { transform: rotate(-1.5deg) translateY(0.3px); }
+  85% { transform: rotate(0.5deg) translateY(0); }
 }
 @keyframes npcGesture {
-  0%, 100% { transform: rotate(0deg) translateX(0); }
-  20% { transform: rotate(-8deg) translateX(1px); }
-  50% { transform: rotate(6deg) translateX(-1px); }
-  75% { transform: rotate(-4deg) translateX(2px); }
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-3deg); }
+  50% { transform: rotate(2deg); }
+  75% { transform: rotate(-1.5deg); }
 }
 @keyframes npcHeadTurn {
-  0%, 100% { transform: rotate(0deg); }
-  25% { transform: rotate(-6deg); }
-  60% { transform: rotate(5deg); }
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  25% { transform: rotate(-3deg) translateY(0); }
+  60% { transform: rotate(2.5deg) translateY(0); }
+}
+/* Idle breathing — gentle vertical pulse */
+@keyframes npcBreathe {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.97); }
 }
 
-/* Apply animations to upper body only — legs/feet stay fixed */
+/* Apply animations — torso/head only, legs anchored */
 .npc.npc-walking .npc-torso { animation: npcSway 5s ease-in-out infinite; }
 .npc.npc-walking .npc-head { animation: npcHeadTurn 4s ease-in-out infinite; }
-.npc.npc-bobbing .npc-torso { animation: npcShift 6s ease-in-out infinite; }
-.npc.npc-bobbing .npc-head { animation: npcHeadTurn 3.5s ease-in-out infinite; }
-.npc.npc-talking .npc-head { animation: npcTalk 2s ease-in-out infinite; }
+.npc.npc-bobbing .npc-torso { animation: npcBreathe 4s ease-in-out infinite; }
+.npc.npc-bobbing .npc-head { animation: npcHeadTurn 5s ease-in-out infinite; }
+.npc.npc-talking .npc-head { animation: npcTalk 2.5s ease-in-out infinite; }
 .npc.npc-talking .npc-torso { animation: npcGesture 4s ease-in-out infinite; }
 .npc.npc-gesturing .npc-torso { animation: npcGesture 3s ease-in-out infinite; }
-.npc.npc-gesturing .npc-head { animation: npcHeadTurn 2.8s ease-in-out infinite; }
+.npc.npc-gesturing .npc-head { animation: npcHeadTurn 3s ease-in-out infinite; }
 
 /* NPC outfit palette */
 .npc-outfit-1 .npc-torso { background: linear-gradient(180deg, #5C6BC0, #3F51B5); }
@@ -935,9 +945,9 @@
 }
 .scene-display.scene-has-floor2 .scene-floor2 { display: block; }
 
-/* Floor 2 NPC positioning */
+/* Floor 2 NPC positioning — stand on floor2 line, not floating */
 .scene-display.scene-has-floor2 .scene-staff .npc.floor2 {
-  bottom: auto; top: 2%;
+  bottom: auto; top: 4%;
 }
 
 /* Floor 2 decor positioning */

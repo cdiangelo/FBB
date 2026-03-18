@@ -580,10 +580,33 @@ function updateSceneForLevel() {
     sceneDisplay.style.height = '';
   }
 
-  // Staff NPCs
+  // Staff NPCs — spaced out with manager zone gap, floor2 gets its own distribution
   const staffCount = STAFF_COUNTS[Math.min(levelIndex, STAFF_COUNTS.length - 1)];
   staffContainer.innerHTML = '';
-  const managerZone = { left: 38, right: 62 }; // % — private space for player
+  const managerZone = { left: 42, right: 58 }; // % — private space for player avatar
+
+  // Split into floor1 and floor2 groups
+  const floor2Count = levelIndex >= 6 ? Math.floor(staffCount * 0.4) : 0;
+  const floor1Count = staffCount - floor2Count;
+
+  // Distribute positions evenly across left and right zones with spacing
+  function distributeNPCs(count, excludeCenter) {
+    const positions = [];
+    const leftSlots = Math.ceil(count / 2);
+    const rightSlots = count - leftSlots;
+    const leftMin = 3, leftMax = excludeCenter ? managerZone.left - 4 : 48;
+    const rightMin = excludeCenter ? managerZone.right + 4 : 52, rightMax = 97;
+    for (let j = 0; j < leftSlots; j++) {
+      positions.push(leftMin + (j / Math.max(1, leftSlots - 1)) * (leftMax - leftMin));
+    }
+    for (let j = 0; j < rightSlots; j++) {
+      positions.push(rightMin + (j / Math.max(1, rightSlots - 1)) * (rightMax - rightMin));
+    }
+    return positions;
+  }
+
+  const floor1Positions = distributeNPCs(floor1Count, true);
+  const floor2Positions = distributeNPCs(floor2Count, false);
 
   for (let i = 0; i < staffCount; i++) {
     const skin = NPC_SKIN_POOL[i % NPC_SKIN_POOL.length];
@@ -591,18 +614,12 @@ function updateSceneForLevel() {
     const anim = NPC_ANIMS[i % NPC_ANIMS.length];
     const animDelay = (i * 0.7 + Math.random() * 2).toFixed(1);
 
-    // Position: avoid the center manager zone
-    let xPct;
-    const isFloor2 = levelIndex >= 6 && i >= Math.floor(staffCount * 0.6);
-    if (i < staffCount / 2) {
-      xPct = 2 + (i / (staffCount / 2)) * (managerZone.left - 5);
-    } else {
-      xPct = managerZone.right + 2 + ((i - staffCount / 2) / (staffCount / 2)) * (95 - managerZone.right);
-    }
+    const isFloor2 = i >= floor1Count;
+    const xPct = isFloor2 ? floor2Positions[i - floor1Count] : floor1Positions[i];
 
     const npc = document.createElement('div');
     npc.className = `npc ${skin} ${outfit} ${anim}${isFloor2 ? ' floor2' : ''}`;
-    npc.style.left = `${xPct}%`;
+    npc.style.left = `${xPct.toFixed(1)}%`;
     npc.style.animationDelay = `${animDelay}s`;
     npc.innerHTML = `<div class="npc-body"><div class="npc-head"></div><div class="npc-torso"></div><div class="npc-legs"><div class="npc-leg"></div><div class="npc-leg"></div></div></div>`;
     staffContainer.appendChild(npc);
@@ -978,14 +995,14 @@ function showCommentaryTask(scenario) {
     els.taskBizSummary.innerHTML = '<details class="collapsible-section"><summary>Business Summary</summary><div class="collapsible-body">' + buildBizSummaryHTML(scenario.businessSummary) + '</div></details>';
   }
 
-  // Action history as collapsible section
+  // Action history as collapsible section with view toggle
   const actions = scenario.periodActions || [];
   let actionsHtml = '';
   if (actions.length > 0) {
-    // Count flagged actions for summary
     const flaggedCount = actions.filter(a => a.flags && a.flags.length > 0).length;
     const summaryBadge = flaggedCount > 0 ? ` <span class="flag-summary-badge">${flaggedCount} flagged</span>` : '';
 
+    // List view (default)
     const actionRows = actions.map(a => {
       const icon = a.type === 'decision' ? '&#9654;' : a.type === 'event' ? '&#9889;' : '&#9733;';
       let flagsHtml = '';
@@ -996,7 +1013,35 @@ function showCommentaryTask(scenario) {
       }
       return `<div class="action-history-row${a.flags && a.flags.length ? ' action-flagged' : ''}"><span class="action-day">Day ${a.day}</span><span class="action-icon">${icon}</span><span class="action-detail">${a.detail}</span>${flagsHtml}</div>`;
     }).join('');
-    actionsHtml = `<details class="collapsible-section"><summary>Actions This Period (${actions.length})${summaryBadge}</summary><div class="collapsible-body action-history">${actionRows}</div></details>`;
+
+    // Grouped-by-implication bar view
+    const impGroups = { safe: [], growth: [], balanced: [], risky: [], costly: [], life: [] };
+    const impLabels = { safe: 'Conservative', growth: 'Growth', balanced: 'Balanced', risky: 'Risky', costly: 'Costly', life: 'Life Impact' };
+    const impColors = { safe: '#2196F3', growth: '#00BCD4', balanced: '#9C27B0', risky: '#FF9800', costly: '#F44336', life: '#E91E63' };
+    actions.forEach(a => {
+      const imp = a.implication || 'balanced';
+      if (impGroups[imp]) impGroups[imp].push(a);
+      else impGroups.balanced.push(a);
+    });
+    let barsHtml = '<div class="action-imp-bars">';
+    for (const [key, items] of Object.entries(impGroups)) {
+      if (items.length === 0) continue;
+      const pct = Math.round(items.length / actions.length * 100);
+      barsHtml += `<div class="action-imp-col">
+        <div class="action-imp-bar" style="height:${Math.max(8, pct)}%;background:${impColors[key]}" title="${impLabels[key]}: ${items.length}"></div>
+        <span class="action-imp-label">${impLabels[key]}</span>
+        <span class="action-imp-count">${items.length}</span>
+        <div class="action-imp-items">${items.map(a => `<div class="action-imp-item">${a.detail}</div>`).join('')}</div>
+      </div>`;
+    }
+    barsHtml += '</div>';
+
+    actionsHtml = `<details class="collapsible-section"><summary>Actions This Period (${actions.length})${summaryBadge}
+      <button class="btn-tiny action-view-toggle" onclick="event.stopPropagation();toggleActionView(this)" style="float:right;font-size:.55rem;padding:1px 6px;border:1px solid var(--border);border-radius:3px;background:transparent;color:var(--accent);cursor:pointer;margin-right:.3rem">By Type</button>
+    </summary><div class="collapsible-body">
+      <div class="action-list-view action-history">${actionRows}</div>
+      <div class="action-bars-view" style="display:none">${barsHtml}</div>
+    </div></details>`;
   }
 
   // Commentary input in scrollable area — highlight defined terms in prompt
@@ -1024,37 +1069,94 @@ function showCommentaryTask(scenario) {
   speakScenario(scenario.title, scenario.description);
 }
 
+let _bizSummaryViewMode = 'period'; // 'period' or 'cumulative'
+window._lastBizSummary = null;
+
+function toggleBizSummaryView() {
+  _bizSummaryViewMode = _bizSummaryViewMode === 'period' ? 'cumulative' : 'period';
+  if (window._lastBizSummary) {
+    const container = document.querySelector('.biz-summary');
+    if (container) container.outerHTML = buildBizSummaryHTML(window._lastBizSummary);
+  }
+}
+
 function buildBizSummaryHTML(summary) {
+  window._lastBizSummary = summary;
   const c = summary.current;
   const ch = summary.changes;
   const cap = summary.capitalAllocation;
   const fc = summary.forecast;
+  const bud = summary.budget || {};
+  const py = summary.priorYear || {};
+  const cum = summary.cumulative || {};
+  const isCum = _bizSummaryViewMode === 'cumulative';
 
   const changeCls = (v) => v >= 0 ? 'positive' : 'negative';
   const changeStr = (v) => (v >= 0 ? '+$' : '-$') + Math.abs(v).toLocaleString();
+  const varStr = (act, comp) => {
+    const d = act - comp;
+    return (d >= 0 ? '+$' : '-$') + Math.abs(d).toLocaleString();
+  };
+  const varCls = (act, comp, invert) => {
+    const d = act - comp;
+    return invert ? (d <= 0 ? 'positive' : 'negative') : (d >= 0 ? 'positive' : 'negative');
+  };
+
+  // Pick period or cumulative data
+  const actRev = isCum ? (cum.actuals?.revenue || 0) : c.revenue;
+  const actCost = isCum ? (cum.actuals?.costs || 0) : c.costs;
+  const actNI = isCum ? (cum.actuals?.netIncome || 0) : c.netIncome;
+  const budRev = isCum ? (cum.budget?.revenue || 0) : (bud.revenue || 0);
+  const budCost = isCum ? (cum.budget?.costs || 0) : (bud.costs || 0);
+  const budNI = isCum ? (cum.budget?.netIncome || 0) : (bud.netIncome || 0);
+  const pyRev = isCum ? (cum.priorYear?.revenue || 0) : (py.revenue || 0);
+  const pyCost = isCum ? (cum.priorYear?.costs || 0) : (py.costs || 0);
+  const pyNI = isCum ? (cum.priorYear?.netIncome || 0) : (py.netIncome || 0);
+
+  const viewLabel = isCum ? 'Cumulative' : 'Period';
+  const toggleLabel = isCum ? 'Period' : 'Cumulative';
 
   return `<div class="biz-summary">
-    <h4>Business Summary — Period Review</h4>
-    <div class="biz-summary-grid">
-      <div class="biz-summary-item">
-        <span class="biz-label">Revenue</span>
-        <span class="biz-value">$${c.revenue.toLocaleString()}</span>
-        <span class="biz-change ${changeCls(ch.revenue)}">${changeStr(ch.revenue)} vs prior</span>
-      </div>
-      <div class="biz-summary-item">
-        <span class="biz-label">Costs</span>
-        <span class="biz-value">$${c.costs.toLocaleString()}</span>
-        <span class="biz-change ${changeCls(-ch.costs)}">${changeStr(ch.costs)} vs prior</span>
-      </div>
-      <div class="biz-summary-item">
-        <span class="biz-label">Net Income</span>
-        <span class="biz-value" style="color:${c.netIncome >= 0 ? '#4CAF50' : '#f44336'}">$${c.netIncome.toLocaleString()}</span>
-        <span class="biz-change ${changeCls(ch.netIncome)}">${changeStr(ch.netIncome)}</span>
-      </div>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h4>Business Summary — ${viewLabel} Review</h4>
+      <button class="btn-tiny" onclick="toggleBizSummaryView()" style="font-size:.65rem;padding:2px 8px;border:1px solid var(--border);border-radius:3px;background:transparent;color:var(--accent);cursor:pointer">Show ${toggleLabel}</button>
+    </div>
+    <table class="biz-comparison-table">
+      <thead>
+        <tr><th></th><th>Actual</th><th>Budget</th><th>vs Bud</th><th>PY</th><th>vs PY</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="biz-row-label">Revenue</td>
+          <td class="biz-val">$${actRev.toLocaleString()}</td>
+          <td class="biz-val biz-dim">$${budRev.toLocaleString()}</td>
+          <td class="biz-val ${varCls(actRev, budRev, false)}">${varStr(actRev, budRev)}</td>
+          <td class="biz-val biz-dim">$${pyRev.toLocaleString()}</td>
+          <td class="biz-val ${varCls(actRev, pyRev, false)}">${varStr(actRev, pyRev)}</td>
+        </tr>
+        <tr>
+          <td class="biz-row-label">Costs</td>
+          <td class="biz-val">$${actCost.toLocaleString()}</td>
+          <td class="biz-val biz-dim">$${budCost.toLocaleString()}</td>
+          <td class="biz-val ${varCls(actCost, budCost, true)}">${varStr(actCost, budCost)}</td>
+          <td class="biz-val biz-dim">$${pyCost.toLocaleString()}</td>
+          <td class="biz-val ${varCls(actCost, pyCost, true)}">${varStr(actCost, pyCost)}</td>
+        </tr>
+        <tr style="font-weight:600;border-top:1px solid var(--border)">
+          <td class="biz-row-label">Net Income</td>
+          <td class="biz-val" style="color:${actNI >= 0 ? '#4CAF50' : '#f44336'}">$${actNI.toLocaleString()}</td>
+          <td class="biz-val biz-dim">$${budNI.toLocaleString()}</td>
+          <td class="biz-val ${varCls(actNI, budNI, false)}">${varStr(actNI, budNI)}</td>
+          <td class="biz-val biz-dim">$${pyNI.toLocaleString()}</td>
+          <td class="biz-val ${varCls(actNI, pyNI, false)}">${varStr(actNI, pyNI)}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="biz-summary-grid" style="margin-top:.6rem">
       <div class="biz-summary-item">
         <span class="biz-label">Cash on Hand</span>
         <span class="biz-value">$${c.cashOnHand.toLocaleString()}</span>
-        <span class="biz-change ${changeCls(ch.cash)}">${changeStr(ch.cash)}</span>
+        <span class="biz-change ${changeCls(ch.cash)}">${changeStr(ch.cash)} vs prior</span>
       </div>
       <div class="biz-summary-item">
         <span class="biz-label">Capital: Debt/Equity</span>
@@ -1334,7 +1436,7 @@ function selectOption(index) {
   }
 
   engine.addLog(`${scenario.title}: chose "${option.label}"`);
-  engine.addPeriodAction('decision', `${scenario.title}: chose "${option.label}"`, option.effect);
+  engine.addPeriodAction('decision', `${scenario.title}: chose "${option.label}"`, option.effect, _getImplicationClass(option).replace('imp-', ''));
 
   const moneyEffect = option.effect.money ? (option.effect.money > 0 ? `+$${option.effect.money.toLocaleString()}` : `-$${Math.abs(option.effect.money).toLocaleString()}`) : '';
   const scoreEffect = `+${Math.round(((option.effect.score || 0) + (option.effect.knowledge || 0)) * engine.getScaleMultiplier())} pts`;
@@ -1646,12 +1748,28 @@ function showFinancialStatement() {
           </tbody>
         </table>
         <table class="fin-stmt-table" style="margin-top:1rem">
-          <thead><tr><th colspan="2" style="text-align:left;border-bottom:1px solid var(--border);padding-bottom:.4rem">Income Summary</th></tr></thead>
+          <thead><tr><th colspan="5" style="text-align:left;border-bottom:1px solid var(--border);padding-bottom:.4rem">Income Summary (Cumulative)</th></tr>
+          <tr style="font-size:.65rem;color:var(--text-dim)"><th style="text-align:left"></th><th style="text-align:right">Actual</th><th style="text-align:right">Budget</th><th style="text-align:right">vs Bud</th><th style="text-align:right">vs PY</th></tr></thead>
           <tbody>
-            <tr><td>Revenue (cumulative)</td><td class="fin-val">$${(s.revenue || 0).toLocaleString()}</td></tr>
-            <tr><td>Costs (cumulative)</td><td class="fin-val" style="color:#ef5350">($${(s.costs || 0).toLocaleString()})</td></tr>
-            <tr style="font-weight:700;border-top:1px solid var(--border)"><td>Net Income</td><td class="fin-val" style="color:${(s.revenue || 0) - (s.costs || 0) >= 0 ? '#4CAF50' : '#ef5350'}">$${((s.revenue || 0) - (s.costs || 0)).toLocaleString()}</td></tr>
-            ${debtService > 0 ? `<tr><td>Debt Service</td><td class="fin-val" style="color:#ef5350">-$${debtService.toLocaleString()}/mo</td></tr>` : ''}
+            ${(() => {
+              const ca = engine.cumulativeActuals || {};
+              const cb = engine.cumulativeBudget || {};
+              const cp = engine.cumulativePriorYear || {};
+              const rev = (s.revenue || 0) + (ca.revenue || 0);
+              const cost = (s.costs || 0) + (ca.costs || 0);
+              const ni = rev - cost;
+              const bRev = cb.revenue || 0;
+              const bCost = cb.costs || 0;
+              const bNI = bRev - bCost;
+              const pRev = cp.revenue || 0;
+              const pCost = cp.costs || 0;
+              const pNI = pRev - pCost;
+              const vf = (a, b, inv) => { const d = a - b; const c = inv ? (d <= 0 ? '#4CAF50' : '#ef5350') : (d >= 0 ? '#4CAF50' : '#ef5350'); return '<span style="color:' + c + '">' + (d >= 0 ? '+$' : '-$') + Math.abs(d).toLocaleString() + '</span>'; };
+              return `<tr><td>Revenue</td><td class="fin-val">$${rev.toLocaleString()}</td><td class="fin-val" style="color:var(--text-dim)">$${bRev.toLocaleString()}</td><td class="fin-val">${vf(rev,bRev,false)}</td><td class="fin-val">${vf(rev,pRev,false)}</td></tr>
+              <tr><td>Costs</td><td class="fin-val" style="color:#ef5350">($${cost.toLocaleString()})</td><td class="fin-val" style="color:var(--text-dim)">($${bCost.toLocaleString()})</td><td class="fin-val">${vf(cost,bCost,true)}</td><td class="fin-val">${vf(cost,pCost,true)}</td></tr>
+              <tr style="font-weight:700;border-top:1px solid var(--border)"><td>Net Income</td><td class="fin-val" style="color:${ni >= 0 ? '#4CAF50' : '#ef5350'}">$${ni.toLocaleString()}</td><td class="fin-val" style="color:var(--text-dim)">$${bNI.toLocaleString()}</td><td class="fin-val">${vf(ni,bNI,false)}</td><td class="fin-val">${vf(ni,pNI,false)}</td></tr>`;
+            })()}
+            ${debtService > 0 ? `<tr><td>Debt Service</td><td class="fin-val" style="color:#ef5350">-$${debtService.toLocaleString()}/mo</td><td></td><td></td><td></td></tr>` : ''}
           </tbody>
         </table>
         <table class="fin-stmt-table" style="margin-top:1rem">
@@ -2085,6 +2203,22 @@ function highlightGlossaryTerms(text) {
       result.slice(r.end);
   }
   return result;
+}
+
+// Toggle action view between list and implication bars
+function toggleActionView(btn) {
+  const body = btn.closest('.collapsible-section').querySelector('.collapsible-body');
+  const listView = body.querySelector('.action-list-view');
+  const barsView = body.querySelector('.action-bars-view');
+  if (listView.style.display === 'none') {
+    listView.style.display = '';
+    barsView.style.display = 'none';
+    btn.textContent = 'By Type';
+  } else {
+    listView.style.display = 'none';
+    barsView.style.display = '';
+    btn.textContent = 'List';
+  }
 }
 
 // Toggle glossary tooltip on click (mobile-friendly)
