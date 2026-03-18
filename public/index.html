@@ -95,6 +95,17 @@
             <p class="toggle-hint">When off, standard scenarios with full advisor access. When on, tougher decisions with more downside risk — advisor limited to reasoning support during quarterly reviews only.</p>
           </div>
           <div class="option-toggle" style="margin-top:.75rem">
+            <label class="toggle-label" style="display:flex;align-items:center;gap:.5rem">
+              <span class="toggle-text" style="flex-shrink:0">Game Mode</span>
+              <select id="select-game-mode" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:3px 8px;font-size:.75rem">
+                <option value="standard">Standard</option>
+                <option value="advanced">Advanced</option>
+                <option value="extreme">Extreme</option>
+              </select>
+            </label>
+            <p class="toggle-hint">Standard: focus on decisions. Advanced: adds quarterly commentary + exhibits. Extreme: deeper analytical layer (future).</p>
+          </div>
+          <div class="option-toggle" style="margin-top:.75rem">
             <label class="toggle-label">
               <input type="checkbox" id="toggle-speech">
               <span class="toggle-switch"></span>
@@ -162,6 +173,7 @@
           </div>
           <div class="top-bar-actions">
             <button class="btn-advisor-toggle" id="btn-advisor" onclick="toggleAdvisor()" style="display:none">Helper &amp; Decision Analysis</button>
+            <button class="btn-map-toggle" id="btn-map" onclick="toggleMapOverlay()">Map</button>
             <button class="btn-financials" id="btn-financials" onclick="showFinancialStatement()">Financials</button>
             <button class="btn-strategy" id="btn-strategy" onclick="showStrategicInitiatives()">Strategy <span id="strategy-count" class="token-badge">3</span></button>
             <button class="btn-advisor-token" id="btn-advisor-token" onclick="useAdvisorToken()" style="display:none">Consult <span id="advisor-token-count" class="token-badge">3</span></button>
@@ -338,6 +350,19 @@
     <div class="mobile-drawer" id="mobile-drawer-stats">
       <button class="mobile-drawer-close" onclick="closeMobileDrawer()">&times;</button>
       <div id="mobile-stats-content"></div>
+    </div>
+
+    <!-- MAP OVERLAY -->
+    <div class="map-overlay" id="map-overlay" style="display:none">
+      <div class="map-panel">
+        <div class="map-header">
+          <h3>US Operations Map</h3>
+          <div class="map-toggles" id="map-toggles"></div>
+          <button class="trend-close" onclick="toggleMapOverlay()">&#10005;</button>
+        </div>
+        <div class="map-container" id="map-container"></div>
+        <div class="map-legend" id="map-legend"></div>
+      </div>
     </div>
 
     <!-- CELEBRATION OVERLAY -->

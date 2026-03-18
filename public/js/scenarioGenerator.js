@@ -32,6 +32,31 @@ class ScenarioGenerator {
   pct(min, max) { return this.randFloat(min, max, 1) + '%'; }
   dollar(n) { return '$' + n.toLocaleString(); }
 
+  // Scale money amounts relative to company size — a $500 decision is meaningless at $1M
+  _getScaleFactor(state) {
+    const money = Math.abs(state?.money || 10000);
+    // Base decisions calibrated for ~$10K. Scale proportionally.
+    if (money < 5000) return 0.5;
+    if (money < 15000) return 1.0;
+    if (money < 50000) return 2.0;
+    if (money < 200000) return 5.0;
+    if (money < 1000000) return 15.0;
+    return 30.0 + Math.floor(money / 1000000) * 10;
+  }
+
+  // Apply scaling to all money effects in a scenario's options
+  _scaleScenarioMoney(scenario, state) {
+    if (!scenario || !scenario.options) return scenario;
+    const factor = this._getScaleFactor(state);
+    if (factor === 1.0) return scenario;
+    for (const opt of scenario.options) {
+      if (opt.effect && opt.effect.money) {
+        opt.effect.money = Math.round(opt.effect.money * factor);
+      }
+    }
+    return scenario;
+  }
+
   // ---- HASH FOR DEDUP ----
   hash(str) {
     let h = 0;
@@ -58,6 +83,8 @@ class ScenarioGenerator {
     if (difficulty === 'hard') {
       scenario = this._applyHardMode(scenario, day);
     }
+    // Scale money amounts to company size
+    scenario = this._scaleScenarioMoney(scenario, state);
     // Inject financial strategy choices for significant decisions
     scenario = this._injectFinancialStrategy(scenario, state);
     return scenario;

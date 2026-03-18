@@ -34,6 +34,7 @@ class GameEngine {
     this.culturePriorities = []; // top 3 dimension IDs
     this.micromanagerLevel = 50; // 0 = hands-off, 100 = micro
     this.employeeSatisfaction = 70;
+    this.departmentMorale = { operations: 70, finance: 70, management: 70 };
     this.cultureEvents = [];
 
     // Debt/equity
@@ -56,6 +57,7 @@ class GameEngine {
     };
     this.marketDataMode = 'simulated';
     this.difficulty = 'easy';
+    this.gameMode = 'standard'; // 'standard', 'advanced', 'extreme'
   }
 
   // ---- NEW GAME ----
@@ -68,6 +70,7 @@ class GameEngine {
     this.satisfactionHistory = [50];
     this.scoreSatisfaction = options.scoreSatisfaction || false;
     this.difficulty = options.difficulty || 'easy';
+    this.gameMode = options.gameMode || 'standard'; // standard, advanced, extreme
     this.playerGender = options.gender || 'male';
     this.playerSkinTone = options.skinTone ?? 0;
     this.log = [];
@@ -89,6 +92,7 @@ class GameEngine {
     this.culturePriorities = ['integrity', 'accountability', 'efficiency'];
     this.micromanagerLevel = 50;
     this.employeeSatisfaction = 70;
+    this.departmentMorale = { operations: 70, finance: 70, management: 70 };
     this.cultureEvents = [];
     this.debtStructure = { totalDebt: 0, debtRate: this.difficulty === 'hard' ? 8.5 : 6.0, equityInvestors: 0, equityGiven: 0 };
     this._hardModeHistory = [];
@@ -150,9 +154,9 @@ class GameEngine {
       overdueCount: 0
     };
 
-    // Daily action tracking
+    // Daily action tracking — 3 regular decisions per day (commentary/events don't count)
     this.actionsToday = 0;
-    this.maxActionsPerDay = 5;
+    this.maxActionsPerDay = 3;
     this.categoriesUsedToday = new Set();
 
     // Compensation tracking
@@ -215,10 +219,12 @@ class GameEngine {
       culturePriorities: saveData.culturePriorities || ['integrity', 'accountability', 'efficiency'],
       micromanagerLevel: saveData.micromanagerLevel ?? 50,
       employeeSatisfaction: saveData.employeeSatisfaction ?? 70,
+      departmentMorale: saveData.departmentMorale || { operations: 70, finance: 70, management: 70 },
       cultureEvents: saveData.cultureEvents || [],
       debtStructure: saveData.debtStructure || { totalDebt: 0, debtRate: 6.0, equityInvestors: 0, equityGiven: 0 },
       interpersonal: saveData.interpersonal || { activeRequests: [], relationships: [], completedRequests: 0, overdueCount: 0 },
       difficulty: saveData.difficulty || 'easy',
+      gameMode: saveData.gameMode || 'standard',
       playerGender: saveData.playerGender || 'male',
       playerSkinTone: saveData.playerSkinTone ?? 0,
       _hardModeHistory: saveData._hardModeHistory || [],
@@ -286,11 +292,13 @@ class GameEngine {
       culturePriorities: this.culturePriorities,
       micromanagerLevel: this.micromanagerLevel,
       employeeSatisfaction: this.employeeSatisfaction,
+      departmentMorale: { ...(this.departmentMorale || {}) },
       cultureEvents: this.cultureEvents,
       debtStructure: { ...this.debtStructure },
       marketData: this.marketTracker ? this.marketTracker.export() : null,
       interpersonal: JSON.parse(JSON.stringify(this.interpersonal)),
       difficulty: this.difficulty,
+      gameMode: this.gameMode || 'standard',
       playerGender: this.playerGender || 'male',
       playerSkinTone: this.playerSkinTone ?? 0,
       _hardModeHistory: this._hardModeHistory || [],
@@ -512,16 +520,40 @@ class GameEngine {
 
   // ---- CULTURE EFFECTS ----
   _applyCultureEffects() {
-    // Micromanager effect on employee satisfaction
+    // More responsive morale — 2x sensitivity to micromanagement
     if (this.micromanagerLevel > 70) {
+      this.employeeSatisfaction = Math.max(10, this.employeeSatisfaction - 2);
+      this.departmentMorale.management = Math.max(10, (this.departmentMorale.management || 70) - 3);
+      this.departmentMorale.operations = Math.max(10, (this.departmentMorale.operations || 70) - 1);
+    } else if (this.micromanagerLevel > 55) {
       this.employeeSatisfaction = Math.max(20, this.employeeSatisfaction - 1);
     } else if (this.micromanagerLevel < 30) {
       this.employeeSatisfaction = Math.min(100, this.employeeSatisfaction + 1);
-      // Non-micromanagers: chance of novel/unique employee-generated ideas
-      if (Math.random() < 0.08) {
+      this.departmentMorale.management = Math.min(100, (this.departmentMorale.management || 70) + 1);
+      if (Math.random() < 0.10) {
         this.cultureEvents.push({ type: 'innovation', day: this.day });
       }
     }
+
+    // Financial risk impacts finance department morale
+    if (this.financialRisk > 60) {
+      this.departmentMorale.finance = Math.max(15, (this.departmentMorale.finance || 70) - 2);
+    } else if (this.financialRisk < 25) {
+      this.departmentMorale.finance = Math.min(100, (this.departmentMorale.finance || 70) + 1);
+    }
+
+    // Satisfaction < 30 drags all departments
+    if (this.satisfaction < 30) {
+      for (const dept of Object.keys(this.departmentMorale)) {
+        this.departmentMorale[dept] = Math.max(10, this.departmentMorale[dept] - 1);
+      }
+    }
+
+    // Average department morale feeds back into overall employee satisfaction
+    const deptValues = Object.values(this.departmentMorale);
+    const avgDeptMorale = Math.round(deptValues.reduce((s, v) => s + v, 0) / deptValues.length);
+    // Blend: 70% current employee sat + 30% department average
+    this.employeeSatisfaction = Math.round(this.employeeSatisfaction * 0.7 + avgDeptMorale * 0.3);
 
     // Micromanager catches issues
     if (this.micromanagerLevel > 70 && Math.random() < 0.12) {
@@ -788,6 +820,7 @@ class GameEngine {
   }
 
   // Profit share: distributed every 10 days based on accumulated revenue
+  // Early tiers get minimal share — difficulty curve should feel earned
   _tickProfitShare() {
     const comp = GAME_DATA.compensation[this.persona];
     if (!comp) return 0;
@@ -795,7 +828,11 @@ class GameEngine {
     if ((this.day - this._lastProfitShareDay) < 10) return 0;
     const tier = this._getCompTierIndex();
     const sharePct = comp.profitSharePct[tier] / 100;
-    const distribution = Math.round(this._profitShareAccum * sharePct);
+    // Cap early-game distributions so first 2 tiers don't generate outsized income
+    let distribution = Math.round(this._profitShareAccum * sharePct);
+    if (tier <= 1) {
+      distribution = Math.min(distribution, Math.round(comp.baseSalary[tier] / 10));
+    }
     if (distribution > 0) {
       this.state.money += distribution;
       this.state.revenue += distribution;
@@ -1094,8 +1131,8 @@ class GameEngine {
       return null; // triggers "End of Day" in app.js
     }
 
-    // Every 5 days: commentary with business summary
-    if (this.day % 5 === 0 && this.actionsToday === 0) {
+    // Every 5 days: commentary with business summary (advanced/extreme modes only)
+    if (this.day % 5 === 0 && this.actionsToday === 0 && (this.gameMode === 'advanced' || this.gameMode === 'extreme')) {
       this.actionsToday++;
       return { type: 'commentary', scenario: this._buildCommentary() };
     }

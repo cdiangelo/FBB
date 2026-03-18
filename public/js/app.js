@@ -370,8 +370,10 @@ function startNewGame(persona) {
   const diffToggle = document.getElementById('toggle-difficulty');
   marketDataMode = (mdToggle && mdToggle.checked) ? 'live' : 'simulated';
   difficultyMode = (diffToggle && diffToggle.checked) ? 'hard' : 'easy';
-  engine.newGame(persona, { scoreSatisfaction: scoreSat, marketDataMode, difficulty: difficultyMode, gender: playerGender, skinTone: playerSkinTone });
-  engine.addLog(`Started new career as a ${capitalize(persona)} on ${difficultyMode} mode.`);
+  const gameModeSelect = document.getElementById('select-game-mode');
+  const gameMode = gameModeSelect ? gameModeSelect.value : 'standard';
+  engine.newGame(persona, { scoreSatisfaction: scoreSat, marketDataMode, difficulty: difficultyMode, gameMode, gender: playerGender, skinTone: playerSkinTone });
+  engine.addLog(`Started new career as a ${capitalize(persona)} on ${difficultyMode} mode (${gameMode}).`);
   enterGameScreen();
 }
 
@@ -717,7 +719,17 @@ function updateCulturePanel() {
   els.microFill.style.width = engine.micromanagerLevel + '%';
   const empSat = engine.employeeSatisfaction;
   const label = empSat > 80 ? 'Highly engaged' : empSat > 60 ? 'Satisfied' : empSat > 40 ? 'Disengaged' : 'At risk';
-  els.empSat.innerHTML = `Team morale: <strong>${empSat}</strong>/100 — ${label}`;
+  // Show department-level morale when employees > 5
+  const dm = engine.departmentMorale || {};
+  let deptHtml = '';
+  if ((engine.state?.employees || 0) > 5 && Object.keys(dm).length > 0) {
+    deptHtml = '<div style="display:flex;gap:6px;margin-top:3px">' +
+      Object.entries(dm).map(([dept, val]) => {
+        const c = val > 65 ? '#4caf50' : val > 40 ? '#ff9800' : '#ef5350';
+        return `<span style="font-size:.55rem;color:${c}" title="${dept}: ${val}/100">${dept.charAt(0).toUpperCase() + dept.slice(1, 3)} ${val}</span>`;
+      }).join(' | ') + '</div>';
+  }
+  els.empSat.innerHTML = `Team morale: <strong>${empSat}</strong>/100 — ${label}${deptHtml}`;
 
   // Legal exposure display (hard mode only)
   const legalContainer = document.getElementById('legal-display');
@@ -1414,8 +1426,9 @@ function selectOption(index) {
     return;
   }
 
-  // Save undo snapshot before applying
+  // Save undo snapshot and current scenario for replay
   engine.createUndoSnapshot();
+  _undoScenario = currentScenario;
 
   engine.applyEffect(option.effect);
   playDing();
@@ -1634,6 +1647,8 @@ document.addEventListener('touchend', () => { _dragState = null; });
 // ===============================
 //  UNDO ACTION
 // ===============================
+let _undoScenario = null; // store the scenario before answering for undo replay
+
 function undoLastAction() {
   if (!engine.hasUndo()) {
     showNotification('Nothing to undo.');
@@ -1642,8 +1657,19 @@ function undoLastAction() {
   engine.applyUndo();
   showNotification('Last action undone.');
   updateAll();
-  // Re-show the scenario as if player hasn't answered yet
-  loadNextTask();
+  // Replay the SAME decision the player just answered
+  if (_undoScenario) {
+    currentScenario = _undoScenario;
+    if (_undoScenario.type === 'commentary') {
+      showCommentaryTask(_undoScenario.scenario);
+    } else if (_undoScenario.type === 'culture') {
+      showDecisionTask(_undoScenario.scenario, 'culture');
+    } else {
+      showDecisionTask(_undoScenario.scenario, _undoScenario.scenario.isLifeEvent ? 'life' : null);
+    }
+  } else {
+    loadNextTask();
+  }
 }
 
 function advanceAndContinue() {
@@ -1817,39 +1843,34 @@ function showFinancialStatement() {
 // ===============================
 function showSellOffOptions() {
   const value = engine.getSellOffValue();
-  setTaskHeader('Sell-Off Opportunity', `Your operation is valued at $${value.toLocaleString()}. A private equity firm is interested. How would you like to proceed?`);
+  setTaskHeader('Buyout Offer', `Your operation is valued at $${value.toLocaleString()}. A private equity firm has made a formal offer. This is a defining moment.`);
   clearTaskFixed();
+
+  const dilutionPct = Math.min(35, Math.round(10 + engine.getLevelIndex() * 3));
+  const partialCash = Math.round(value * dilutionPct / 100);
 
   els.taskBody.innerHTML = `<div class="option-group">
     <button class="option-btn" onclick="executeSellOff('full')">
       <span class="option-key">A</span>
       <span class="option-text">
-        <span class="option-label">Full Sale — $${value.toLocaleString()}</span>
-        <span class="option-detail">Sell everything. Financial freedom. Walk away from your life's work. +50 bonus points.</span>
-        <span class="option-sat">+10 satisfaction (security) / -10 satisfaction (identity loss)</span>
+        <span class="option-label">Accept Buyout — Walk Away with $${value.toLocaleString()}</span>
+        <span class="option-detail">Sell everything. Full financial freedom. Your career ends here with a legacy intact. +50 bonus points.</span>
+        <span class="option-sat">Game ends — final score calculated</span>
       </span>
     </button>
-    <button class="option-btn" onclick="executeSellOff('majority')">
+    <button class="option-btn" onclick="executeSellOff('partial')">
       <span class="option-key">B</span>
       <span class="option-text">
-        <span class="option-label">Majority Sale (65%) — $${Math.round(value * 0.65).toLocaleString()}</span>
-        <span class="option-detail">Sell controlling stake but retain advisory role and minority ownership. +35 bonus points.</span>
-        <span class="option-sat">+5 satisfaction (balance)</span>
-      </span>
-    </button>
-    <button class="option-btn" onclick="executeSellOff('minority')">
-      <span class="option-key">C</span>
-      <span class="option-text">
-        <span class="option-label">Minority Sale (30%) — $${Math.round(value * 0.3).toLocaleString()}</span>
-        <span class="option-detail">Bring in a strategic partner. Retain control. Cash out partially. +20 bonus points.</span>
-        <span class="option-sat">+5 satisfaction</span>
+        <span class="option-label">Partial Acquisition — ${dilutionPct}% Dilution, $${partialCash.toLocaleString()} Cash</span>
+        <span class="option-detail">Accept strategic investment. You keep operating control but dilute ownership by ${dilutionPct}%. Cash infusion lets you scale faster. +20 bonus points.</span>
+        <span class="option-sat">+5 satisfaction | Continue playing with new capital</span>
       </span>
     </button>
     <button class="option-btn" onclick="loadNextTask()">
-      <span class="option-key">D</span>
+      <span class="option-key">C</span>
       <span class="option-text">
         <span class="option-label">Decline — Keep Building</span>
-        <span class="option-detail">No sale. This is your legacy. Continue operating and growing.</span>
+        <span class="option-detail">No sale. This is your legacy. Continue operating and growing on your own terms.</span>
       </span>
     </button>
   </div>`;
@@ -1857,14 +1878,63 @@ function showSellOffOptions() {
 }
 
 function executeSellOff(type) {
-  const value = engine.executeSellOff(type);
-  const labels = { full: 'Full Sale', majority: 'Majority Sale', minority: 'Minority Sale' };
-  engine.addLog(`${labels[type]} executed at $${value.toLocaleString()} valuation.`);
-  engine.addPeriodAction('sell-off', `${labels[type]} executed at $${value.toLocaleString()} valuation.`);
-  showNotification(`${labels[type]} complete!`);
-  updateAll();
-  updateSellOffButton();
-  setTimeout(() => loadNextTask(), 1000);
+  const value = engine.getSellOffValue();
+
+  if (type === 'full') {
+    // Full buyout — game ends
+    engine.soldOff = true;
+    engine.state.money += value;
+    engine.totalScore += 50;
+    engine.addLog(`Full buyout accepted at $${value.toLocaleString()} valuation.`);
+    engine.addPeriodAction('sell-off', `Full buyout executed at $${value.toLocaleString()} valuation.`);
+    showBuyoutEndScreen(value);
+    return;
+  }
+
+  if (type === 'partial') {
+    // Partial acquisition — continue playing with dilution
+    const dilutionPct = Math.min(35, Math.round(10 + engine.getLevelIndex() * 3));
+    const partialCash = Math.round(value * dilutionPct / 100);
+    engine.state.money += partialCash;
+    engine.debtStructure.equityGiven = Math.min(100, (engine.debtStructure.equityGiven || 0) + dilutionPct);
+    engine.debtStructure.equityInvestors++;
+    engine.totalScore += 20;
+    engine.satisfaction = Math.min(100, engine.satisfaction + 5);
+    engine.soldOff = true; // prevent re-offer
+    engine.addLog(`Partial acquisition: ${dilutionPct}% diluted for $${partialCash.toLocaleString()}.`);
+    engine.addPeriodAction('sell-off', `Partial acquisition: ${dilutionPct}% ownership diluted for $${partialCash.toLocaleString()}.`);
+    showNotification(`Partial acquisition complete — $${partialCash.toLocaleString()} added!`);
+    updateAll();
+    updateSellOffButton();
+    setTimeout(() => loadNextTask(), 1000);
+    return;
+  }
+}
+
+function showBuyoutEndScreen(value) {
+  const netWorth = (engine.state.money || 0) + (engine.portfolio?.totalAssetValue || 0) - (engine.debtStructure?.totalDebt || 0);
+
+  setTaskHeader('Congratulations', 'Buyout Complete');
+  clearTaskFixed();
+
+  els.taskBody.innerHTML = `<div class="grade-display" style="border-color:#4CAF50">
+    <div style="font-size:3rem;margin-bottom:.5rem">\u{1F3C6}</div>
+    <div style="font-size:1.5rem;font-weight:900;color:#4CAF50;margin-bottom:.75rem">BUYOUT ACCEPTED</div>
+    <p class="grade-feedback" style="color:var(--text-secondary);margin-bottom:1rem">You sold your operation for $${value.toLocaleString()} and walked away at the top of your game.</p>
+    <div style="font-size:.85rem;color:var(--text-dim);text-align:left;max-width:300px;margin:0 auto">
+      <p>Final Score: <strong>${engine.totalScore} pts</strong></p>
+      <p>Days Played: <strong>${engine.day}</strong></p>
+      <p>Final Net Worth: <strong>$${netWorth.toLocaleString()}</strong></p>
+      <p>Level Reached: <strong>${engine.getLevel().name}</strong></p>
+      <p>Ownership Retained: <strong>${100 - (engine.debtStructure?.equityGiven || 0)}%</strong></p>
+    </div>
+  </div>`;
+
+  els.taskActions.innerHTML = `
+    <button class="btn-primary" onclick="showScreen('title'); loadSavedGamesMenu();">Return to Menu</button>
+  `;
+
+  speakText('Congratulations. Buyout complete. Well played.');
 }
 
 // ===============================
@@ -2254,11 +2324,43 @@ function formatKey(key) { return key.replace(/([A-Z])/g, ' $1').replace(/^./, s 
 //  HELPER & DECISION ANALYSIS (AI ADVISOR)
 // ===============================
 let advisorOpen = false;
+let _advisorHistory = []; // consultations persist through the day/period
+let _advisorHistoryDay = 0;
 
 function toggleAdvisor() {
   advisorOpen = !advisorOpen;
   const panel = document.getElementById('advisor-panel');
   if (panel) panel.classList.toggle('open', advisorOpen);
+  // Restore past consultations when reopening
+  if (advisorOpen) _renderAdvisorHistory();
+}
+
+function _renderAdvisorHistory() {
+  // Clear stale history from previous days
+  if (engine.day !== _advisorHistoryDay) {
+    _advisorHistory = [];
+    _advisorHistoryDay = engine.day;
+  }
+  const output = document.getElementById('advisor-output');
+  if (!output || _advisorHistory.length === 0) return;
+  // Show most recent consultation plus count
+  const latest = _advisorHistory[_advisorHistory.length - 1];
+  let historyNav = '';
+  if (_advisorHistory.length > 1) {
+    historyNav = `<div style="font-size:.6rem;color:var(--text-dim);margin-bottom:.3rem;text-align:center;cursor:pointer" onclick="_showFullAdvisorHistory()">Day ${engine.day}: ${_advisorHistory.length} consultations — tap to view all</div>`;
+  }
+  output.innerHTML = historyNav + `<div class="advisor-response">${latest.advice}</div>`;
+}
+
+function _showFullAdvisorHistory() {
+  const output = document.getElementById('advisor-output');
+  if (!output) return;
+  output.innerHTML = _advisorHistory.map((h, i) =>
+    `<div style="margin-bottom:.5rem;padding-bottom:.5rem;border-bottom:1px solid var(--border)">
+      <div style="font-size:.55rem;color:var(--text-dim)">Consultation ${i + 1} — ${h.question}</div>
+      <div class="advisor-response" style="font-size:.75rem">${h.advice}</div>
+    </div>`
+  ).join('');
 }
 
 async function askAdvisor() {
@@ -2313,7 +2415,9 @@ async function askAdvisor() {
     if (data.error) {
       output.innerHTML = `<div class="advisor-error">${data.error}</div>`;
     } else {
-      output.innerHTML = `<div class="advisor-response">${data.advice}</div>`;
+      _advisorHistory.push({ question: question || 'General analysis', advice: data.advice, day: engine.day });
+      _advisorHistoryDay = engine.day;
+      _renderAdvisorHistory();
     }
   } catch (e) {
     output.innerHTML = '<div class="advisor-error">Unable to reach advisor. Check connection.</div>';
@@ -3157,4 +3261,135 @@ function buildMobileStatsContent() {
   ).join('');
 
   return html;
+}
+
+// ===============================
+//  US MAP OVERLAY — Weather, Advisory, Operations
+// ===============================
+let _mapOpen = false;
+let _mapLayers = { weather: true, operations: true };
+
+function toggleMapOverlay() {
+  _mapOpen = !_mapOpen;
+  const overlay = document.getElementById('map-overlay');
+  if (!overlay) return;
+  overlay.style.display = _mapOpen ? 'flex' : 'none';
+  if (_mapOpen) renderMap();
+}
+
+function toggleMapLayer(layer) {
+  _mapLayers[layer] = !_mapLayers[layer];
+  renderMap();
+}
+
+function renderMap() {
+  const container = document.getElementById('map-container');
+  const toggles = document.getElementById('map-toggles');
+  const legend = document.getElementById('map-legend');
+  if (!container) return;
+
+  const persona = engine.persona;
+
+  // Toggle buttons
+  const layerDefs = [
+    { id: 'weather', label: 'Weather' },
+    { id: 'operations', label: persona === 'farmer' ? 'Crop Zones' : persona === 'banker' ? 'Lending Regions' : 'Market Hubs' }
+  ];
+  if (persona === 'farmer') layerDefs.push({ id: 'prices', label: 'Prices' });
+  if (persona === 'banker') layerDefs.push({ id: 'risk', label: 'Risk Zones' });
+  if (persona === 'businessman') layerDefs.push({ id: 'pipeline', label: 'Pipeline' });
+
+  toggles.innerHTML = layerDefs.map(l =>
+    `<button class="map-toggle-btn${_mapLayers[l.id] ? ' active' : ''}" onclick="toggleMapLayer('${l.id}')">${l.label}</button>`
+  ).join('');
+
+  // Simplified US states with approximate center coordinates (0-100 range)
+  const states = [
+    { id:'WA', x:12, y:10 }, { id:'OR', x:11, y:18 }, { id:'CA', x:9, y:35 },
+    { id:'NV', x:15, y:30 }, { id:'ID', x:18, y:16 }, { id:'MT', x:24, y:11 },
+    { id:'WY', x:26, y:21 }, { id:'UT', x:19, y:28 }, { id:'CO', x:27, y:30 },
+    { id:'AZ', x:18, y:40 }, { id:'NM', x:24, y:40 }, { id:'ND', x:36, y:11 },
+    { id:'SD', x:36, y:18 }, { id:'NE', x:36, y:25 }, { id:'KS', x:37, y:32 },
+    { id:'OK', x:38, y:38 }, { id:'TX', x:36, y:48 }, { id:'MN', x:42, y:13 },
+    { id:'IA', x:44, y:22 }, { id:'MO', x:46, y:30 }, { id:'AR', x:46, y:38 },
+    { id:'LA', x:46, y:48 }, { id:'WI', x:48, y:14 }, { id:'IL', x:50, y:24 },
+    { id:'MS', x:50, y:42 }, { id:'MI', x:55, y:16 }, { id:'IN', x:55, y:25 },
+    { id:'OH', x:60, y:23 }, { id:'KY', x:58, y:30 }, { id:'TN', x:57, y:35 },
+    { id:'AL', x:55, y:42 }, { id:'GA', x:60, y:42 }, { id:'FL', x:63, y:52 },
+    { id:'SC', x:65, y:38 }, { id:'NC', x:67, y:33 }, { id:'VA', x:68, y:28 },
+    { id:'WV', x:64, y:27 }, { id:'PA', x:68, y:20 }, { id:'NY', x:72, y:15 },
+    { id:'NJ', x:73, y:22 }, { id:'DE', x:72, y:25 }, { id:'MD', x:70, y:26 },
+    { id:'CT', x:76, y:17 }, { id:'RI', x:78, y:17 }, { id:'MA', x:77, y:14 },
+    { id:'VT', x:74, y:10 }, { id:'NH', x:76, y:10 }, { id:'ME', x:79, y:7 }
+  ];
+
+  // Weather (simulated from game day)
+  const season = ['Winter','Spring','Summer','Fall'][Math.floor((engine.day % 50) / 12.5)];
+  const weatherPool = { Winter:['Snow','Cold','Frost','Clear'], Spring:['Rain','Storms','Clear','Warm'], Summer:['Hot','Drought','Clear','Humid'], Fall:['Cool','Rain','Clear','Frost'] };
+  const weatherColors = { Snow:'#90CAF9', Cold:'#64B5F6', Frost:'#CE93D8', Clear:'#81C784', Rain:'#78909C', Storms:'#FF8A65', Hot:'#EF5350', Drought:'#FFAB91', Warm:'#FFD54F', Humid:'#FFB74D', Cool:'#80CBC4' };
+
+  const stateData = states.map(s => {
+    const wPool = weatherPool[season];
+    const weather = wPool[Math.floor((s.x * 7 + s.y * 3 + engine.day) % wPool.length)];
+    let roleData = {};
+    if (persona === 'farmer') {
+      roleData.crop = ['Corn','Wheat','Soybeans','Cotton','Rice'][Math.floor((s.x + s.y + engine.day) % 5)];
+      roleData.yield = Math.round(75 + (s.x + s.y) % 30);
+      roleData.price = (4 + ((s.x * 3 + engine.day) % 80) / 10).toFixed(2);
+    } else if (persona === 'banker') {
+      roleData.loanVol = Math.round(50 + (s.x * 3 + engine.day) % 200);
+      roleData.risk = ['Low','Moderate','Elevated','High'][(s.y + engine.day) % 4];
+    } else {
+      roleData.deals = Math.floor(1 + (s.x + engine.day) % 8);
+      roleData.revenue = Math.round(10 + (s.y * 2 + engine.day) % 90) + 'K';
+    }
+    return { ...s, weather, roleData };
+  });
+
+  const W = 600, H = 400;
+  let svg = `<svg viewBox="-10 -5 120 80" class="map-svg" xmlns="http://www.w3.org/2000/svg">`;
+  // Ocean + landmass background
+  svg += `<rect x="-10" y="-5" width="120" height="80" fill="#1a2744" rx="4"/>`;
+  svg += `<path d="M5,5 Q15,3 25,8 Q40,5 55,8 Q65,5 80,10 Q82,15 80,25 Q78,30 75,35 Q72,45 70,55 Q65,60 55,55 Q45,58 35,55 Q25,52 20,48 Q15,42 12,35 Q8,25 5,15 Z" fill="#2a3a5a" stroke="#3a4a6a" stroke-width="0.5" opacity="0.4"/>`;
+
+  stateData.forEach(s => {
+    const baseR = 2.2;
+    if (_mapLayers.weather) {
+      svg += `<circle cx="${s.x}" cy="${s.y}" r="${baseR + 0.8}" fill="${weatherColors[s.weather] || '#888'}" opacity="0.25"/>`;
+    }
+    if (_mapLayers.operations) {
+      let opColor = '#4CAF50';
+      if (persona === 'farmer') opColor = s.roleData.yield > 90 ? '#4CAF50' : s.roleData.yield > 80 ? '#FFB74D' : '#EF5350';
+      else if (persona === 'banker') opColor = s.roleData.risk === 'Low' ? '#4CAF50' : s.roleData.risk === 'Moderate' ? '#FFB74D' : '#EF5350';
+      else opColor = s.roleData.deals > 5 ? '#4CAF50' : s.roleData.deals > 2 ? '#FFB74D' : '#78909C';
+      svg += `<circle cx="${s.x}" cy="${s.y}" r="${baseR}" fill="${opColor}" opacity="0.7" stroke="#fff" stroke-width="0.3"/>`;
+    }
+    if (_mapLayers.prices && persona === 'farmer') {
+      svg += `<text x="${s.x}" y="${s.y + 4}" text-anchor="middle" fill="#FFD54F" font-size="2">$${s.roleData.price}</text>`;
+    }
+    if (_mapLayers.risk && persona === 'banker') {
+      const rc = { Low:'#4CAF50', Moderate:'#FFB74D', Elevated:'#FF9800', High:'#EF5350' }[s.roleData.risk] || '#888';
+      svg += `<circle cx="${s.x}" cy="${s.y}" r="${baseR + 1.2}" fill="none" stroke="${rc}" stroke-width="0.4" stroke-dasharray="1,0.5"/>`;
+    }
+    if (_mapLayers.pipeline && persona === 'businessman' && s.roleData.deals > 4) {
+      svg += `<text x="${s.x}" y="${s.y + 4}" text-anchor="middle" fill="#69f0ae" font-size="2">${s.roleData.revenue}</text>`;
+    }
+    svg += `<text x="${s.x}" y="${s.y - 2.5}" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="1.8" font-weight="600">${s.id}</text>`;
+  });
+
+  svg += `<text x="55" y="72" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="3" font-weight="600">${season} — Day ${engine.day}</text>`;
+  svg += `<text x="-3" y="40" text-anchor="middle" fill="rgba(255,255,255,0.15)" font-size="4" transform="rotate(-90,-3,40)">Pacific</text>`;
+  svg += `<text x="95" y="35" text-anchor="middle" fill="rgba(255,255,255,0.15)" font-size="4" transform="rotate(90,95,35)">Atlantic</text>`;
+  svg += `</svg>`;
+  container.innerHTML = svg;
+
+  // Legend
+  let legendHtml = '';
+  if (_mapLayers.weather) legendHtml += `<span class="map-leg-group">Weather: ${Object.entries(weatherColors).slice(0, 5).map(([k, c]) => `<span style="color:${c}">${k}</span>`).join(' ')}</span>`;
+  if (_mapLayers.operations) {
+    if (persona === 'farmer') legendHtml += '<span class="map-leg-group">Yield: <span style="color:#4CAF50">High</span> <span style="color:#FFB74D">Med</span> <span style="color:#EF5350">Low</span></span>';
+    if (persona === 'banker') legendHtml += '<span class="map-leg-group">Risk: <span style="color:#4CAF50">Low</span> <span style="color:#FFB74D">Mod</span> <span style="color:#EF5350">High</span></span>';
+    if (persona === 'businessman') legendHtml += '<span class="map-leg-group">Deals: <span style="color:#4CAF50">Active</span> <span style="color:#FFB74D">Growing</span> <span style="color:#78909C">Quiet</span></span>';
+  }
+  legend.innerHTML = legendHtml;
 }
