@@ -159,6 +159,11 @@ class GameEngine {
     this.maxActionsPerDay = 3;
     this.categoriesUsedToday = new Set();
 
+    // Standing orders — persistent policies that auto-execute each day
+    this.standingOrders = [];
+    // Passive income sources — accumulated from past decisions
+    this.passiveIncome = { dailyRevenue: 0, dailyKnowledge: 0, sources: [] };
+
     // Compensation tracking
     this._lastLevelIndex = 0;         // track level for promotion detection
     this._profitShareAccum = 0;       // revenue accumulated since last distribution
@@ -190,6 +195,55 @@ class GameEngine {
       this.categories.push('empire', 'ethics', 'legal', 'consolidation');
     }
     this.catPointer = 0;
+
+    // Domain mapping — groups categories into Finance, Operations, Management
+    this._domainMap = this._buildDomainMap();
+    // Domain rotation order
+    this._domainOrder = ['operations', 'finance', 'management'];
+  }
+
+  // Map each category to a domain for domain-focused day scheduling
+  _buildDomainMap() {
+    const shared = {
+      taxStrategy: 'finance', cashFlow: 'finance', capitalAllocation: 'finance',
+      financing: 'finance', expenseGrey: 'finance',
+      techEnablement: 'operations', investment: 'finance',
+      empire: 'management', ethics: 'management', legal: 'management', consolidation: 'management'
+    };
+    const personaMap = {
+      farmer: {
+        morning: 'operations', inputs: 'operations', crops: 'operations',
+        weather: 'operations', market: 'finance', equipment: 'operations',
+        labor: 'management', landUse: 'operations', regulatory: 'management', livestock: 'operations'
+      },
+      banker: {
+        credit: 'operations', investment: 'finance', portfolio: 'finance',
+        regulatory: 'management', deposit: 'operations', riskEvent: 'finance',
+        clientRelation: 'management', capitalPlanning: 'finance'
+      },
+      businessman: {
+        meetings: 'management', market: 'operations', venture: 'finance',
+        partnership: 'management', client: 'operations', pricing: 'finance',
+        hiring: 'management', negotiation: 'operations'
+      }
+    };
+    return { ...shared, ...(personaMap[this.persona] || {}) };
+  }
+
+  // Get the primary domain focus for today based on day rotation
+  getDayDomain() {
+    return this._domainOrder[(this.day - 1) % 3];
+  }
+
+  // Get a display label for the current day's domain
+  getDayDomainLabel() {
+    const labels = { operations: 'Operations', finance: 'Finance', management: 'Management' };
+    return labels[this.getDayDomain()] || 'General';
+  }
+
+  // Get categories for a specific domain
+  _getCategoriesForDomain(domain) {
+    return this.categories.filter(cat => (this._domainMap[cat] || 'operations') === domain);
   }
 
   // ---- LOAD / SAVE ----
@@ -249,11 +303,13 @@ class GameEngine {
       },
       marketDataMode: saveData.marketDataMode || 'simulated',
       actionsToday: saveData.actionsToday || 0,
-      maxActionsPerDay: 5,
+      maxActionsPerDay: 3,
       categoriesUsedToday: new Set(saveData.categoriesUsedToday || []),
       _lastLevelIndex: saveData._lastLevelIndex || 0,
       _profitShareAccum: saveData._profitShareAccum || 0,
-      _lastProfitShareDay: saveData._lastProfitShareDay || 0
+      _lastProfitShareDay: saveData._lastProfitShareDay || 0,
+      standingOrders: saveData.standingOrders || [],
+      passiveIncome: saveData.passiveIncome || { dailyRevenue: 0, dailyKnowledge: 0, sources: [] }
     });
     this.generator = new ScenarioGenerator();
     this.generator.restore(saveData.generatorHashes || []);
@@ -324,6 +380,8 @@ class GameEngine {
       _lastLevelIndex: this._lastLevelIndex || 0,
       _profitShareAccum: this._profitShareAccum || 0,
       _lastProfitShareDay: this._lastProfitShareDay || 0,
+      standingOrders: JSON.parse(JSON.stringify(this.standingOrders || [])),
+      passiveIncome: JSON.parse(JSON.stringify(this.passiveIncome || { dailyRevenue: 0, dailyKnowledge: 0, sources: [] })),
       savedAt: new Date().toISOString()
     };
   }
@@ -792,6 +850,81 @@ class GameEngine {
     }
   }
 
+  // ---- PASSIVE MECHANICS ----
+
+  // Passive income ticks daily — revenue from past investments, tech efficiency, etc.
+  _tickPassiveIncome() {
+    const pi = this.passiveIncome;
+    if (!pi) return;
+    if (pi.dailyRevenue > 0) {
+      this.state.money += pi.dailyRevenue;
+      this.state.revenue += pi.dailyRevenue;
+    }
+    if (pi.dailyKnowledge > 0) {
+      this.scores.knowledge += pi.dailyKnowledge;
+      this.totalScore += pi.dailyKnowledge;
+    }
+    // Tech level generates passive efficiency savings
+    const om = this.operatingModel;
+    if (om.techLevel > 20) {
+      const techSavings = Math.round(om.techLevel * 0.5 * this.generator._getScaleFactor(this.state));
+      this.state.money += techSavings;
+      this.state.revenue += techSavings;
+    }
+    // High employee satisfaction generates passive score (engaged workforce)
+    if (this.employeeSatisfaction > 75 && this.state.employees > 3) {
+      const engagementBonus = Math.round((this.employeeSatisfaction - 70) * 0.1);
+      this.scores.decisions += engagementBonus;
+      this.totalScore += engagementBonus;
+    }
+  }
+
+  // Standing orders: persistent policies set by player that auto-execute
+  _tickStandingOrders() {
+    if (!this.standingOrders || this.standingOrders.length === 0) return;
+    for (const order of this.standingOrders) {
+      if (!order.active) continue;
+      // Apply recurring effect
+      if (order.effect) {
+        if (order.effect.money) { this.state.money += order.effect.money; this.state.revenue += Math.max(0, order.effect.money); }
+        if (order.effect.satisfaction) { this.satisfaction = Math.max(0, Math.min(100, this.satisfaction + order.effect.satisfaction)); }
+        if (order.effect.score) { this.scores.decisions += order.effect.score; this.totalScore += order.effect.score; }
+      }
+      // Expiration
+      if (order.expiresDay && this.day >= order.expiresDay) {
+        order.active = false;
+      }
+    }
+    // Clean expired
+    this.standingOrders = this.standingOrders.filter(o => o.active);
+  }
+
+  // Add a standing order (called from scenario options that set policies)
+  addStandingOrder(order) {
+    this.standingOrders.push({
+      id: order.id || `so_${this.day}_${Math.random().toString(36).slice(2, 6)}`,
+      label: order.label,
+      domain: order.domain || 'operations',
+      effect: order.effect || {},
+      active: true,
+      daySet: this.day,
+      expiresDay: order.duration ? this.day + order.duration : null
+    });
+  }
+
+  // Add passive income source (from investment decisions, etc.)
+  addPassiveIncome(source) {
+    if (!this.passiveIncome) this.passiveIncome = { dailyRevenue: 0, dailyKnowledge: 0, sources: [] };
+    this.passiveIncome.sources.push({
+      label: source.label,
+      dailyRevenue: source.dailyRevenue || 0,
+      dailyKnowledge: source.dailyKnowledge || 0,
+      dayAdded: this.day
+    });
+    this.passiveIncome.dailyRevenue += source.dailyRevenue || 0;
+    this.passiveIncome.dailyKnowledge += source.dailyKnowledge || 0;
+  }
+
   // Check if player meets tech readiness for empire scaling
   isTechReadyForEmpire() {
     const om = this.operatingModel;
@@ -896,6 +1029,10 @@ class GameEngine {
 
     // ---- INCOME: Promotion windfall check ----
     const promotion = this._checkPromotionWindfall();
+
+    // ---- PASSIVE MECHANICS: Standing orders & passive income ----
+    this._tickPassiveIncome();
+    this._tickStandingOrders();
 
     // Debt service
     const debtPayment = this.getDebtService();
@@ -1170,18 +1307,30 @@ class GameEngine {
       return { type: 'decision', scenario: this._buildDependencyScenario(urgentReqs[0]) };
     }
 
-    // Regular scenario — pick a category not yet used today
+    // Regular scenario — prefer categories from today's domain focus
+    const todayDomain = this.getDayDomain();
+    const domainCats = this._getCategoriesForDomain(todayDomain)
+      .filter(c => !this.categoriesUsedToday.has(c));
+
     let category;
-    let attempts = 0;
-    do {
-      category = this.categories[this.catPointer % this.categories.length];
-      this.catPointer++;
-      attempts++;
-    } while (this.categoriesUsedToday.has(category) && attempts < this.categories.length * 2);
+    if (domainCats.length > 0 && Math.random() < 0.75) {
+      // 75% chance to stay within today's domain focus
+      category = domainCats[Math.floor(Math.random() * domainCats.length)];
+    } else {
+      // Fallback: pick any unused category via rotation
+      let attempts = 0;
+      do {
+        category = this.categories[this.catPointer % this.categories.length];
+        this.catPointer++;
+        attempts++;
+      } while (this.categoriesUsedToday.has(category) && attempts < this.categories.length * 2);
+    }
 
     this.actionsToday++;
     this.categoriesUsedToday.add(category);
     const scenario = this.generator.generate(this.persona, this.day, category, this.state, this.difficulty);
+    // Tag scenario with its domain for UI display
+    scenario._domain = this._domainMap[category] || 'operations';
     return { type: 'decision', scenario };
   }
 

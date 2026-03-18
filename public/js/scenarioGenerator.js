@@ -103,6 +103,17 @@ class ScenarioGenerator {
     if (category === 'capitalAllocation') return this._capitalAllocationScenario(persona, day, state);
     if (category === 'financing') return this._financingScenario(persona, day, state);
     if (category === 'expenseGrey') return this._expenseGreyAreaScenario(persona, day, state);
+
+    // Role-specific interaction formats — appear every ~5 days for variety
+    if (day > 3 && day % 5 === 0) {
+      switch (persona) {
+        case 'banker': return this.generateBankerProductSelection(day, state);
+        case 'farmer':
+          return Math.random() < 0.5 ? this.generateFarmerCropAllocation(day, state) : this.generateFarmerMarketDay(day, state);
+        case 'businessman': return this.generateBusinessPriorityRanking(day, state);
+      }
+    }
+
     switch (persona) {
       case 'farmer': return this.genFarmer(category, day, state);
       case 'banker': return this.genBanker(category, day, state);
@@ -1452,6 +1463,148 @@ class ScenarioGenerator {
         { label: `Bring in a third-party mediator`, detail: `${this.pick(['Neutral expert','Mutual contact','Industry advisor'])} to bridge the gap. Cost: ${this.dollar(this.randMoney(2000, 10000, 1000))}. Often unlocks creative solutions.`, effect: { score: this.randInt(12, 18), money: -this.randMoney(2000, 10000, 1000), knowledge: this.randInt(5, 10) } },
         { label: `Walk away — pursue alternatives`, detail: `Your BATNA: ${this.pick(['another deal in the pipeline','organic growth plan','different partnership','redirect resources to existing ventures'])}. Walking away is its own form of leverage.`, effect: { score: this.randInt(8, 16), knowledge: this.randInt(8, 15) } }
       ]
+    };
+  }
+
+  // ============================================================
+  //  ROLE-SPECIFIC INTERACTION FORMATS
+  //  Multi-select for banker, crop picker for farmer, strategy for businessman
+  // ============================================================
+
+  // Banker: Select loan products to offer a client (multi-select style, rendered as pick-N-of-M)
+  generateBankerProductSelection(day, state) {
+    const client = this.pick(NAMES.companyNames) + ' ' + this.pick(NAMES.companySuffixes);
+    const needs = this.pickN([
+      'working capital line', 'equipment financing', 'real estate term loan',
+      'merchant processing', 'treasury management', 'payroll services',
+      'business credit card', 'trade finance facility'
+    ], 5);
+    const budget = this.randMoney(200000, 2000000, 50000);
+
+    return {
+      title: `Product Bundle: ${client}`,
+      description: `${client} is consolidating banking relationships. Budget: ${this.dollar(budget)}/yr in fees. Select the 3 products that best fit their profile. Each product strengthens the relationship differently.`,
+      interactionType: 'selectN',
+      selectCount: 3,
+      options: needs.map(product => {
+        const fee = this.randMoney(2000, 15000, 500);
+        const risk = this.pick(['low', 'moderate', 'elevated']);
+        return {
+          label: product.charAt(0).toUpperCase() + product.slice(1),
+          detail: `Annual fee: ${this.dollar(fee)}. Risk: ${risk}. ${this.pick([
+            'High cross-sell potential', 'Deepens deposit relationship', 'Recurring revenue stream',
+            'Regulatory compliance benefit', 'Competitive differentiator', 'Client retention driver'
+          ])}.`,
+          effect: { score: this.randInt(4, 8), money: fee, knowledge: this.randInt(1, 4) },
+          _productFee: fee,
+          _productRisk: risk
+        };
+      })
+    };
+  }
+
+  // Farmer: Crop allocation with weather-demand context (strategic allocation style)
+  generateFarmerCropAllocation(day, state) {
+    const totalAcres = state.land ? state.land * this.randInt(3, 8) : this.randInt(80, 400);
+    const season = this.pick(FARMER_POOLS.seasons);
+    const weather = this.pick(['drought forecast', 'wet season expected', 'normal conditions', 'early frost risk', 'extended growing season']);
+    const crops = this.pickN(FARMER_POOLS.crops, 4);
+
+    return {
+      title: `${season} Crop Allocation: ${totalAcres} Acres`,
+      description: `Plan your ${season.toLowerCase()} planting across ${totalAcres} acres. Weather outlook: ${weather}. Local demand and futures prices vary — allocate wisely. Your choice sets a standing order for the season.`,
+      interactionType: 'allocate',
+      totalUnits: totalAcres,
+      unitLabel: 'acres',
+      options: crops.map(crop => {
+        const demandLevel = this.pick(['strong', 'moderate', 'weak', 'surging']);
+        const futuresPrice = this.randFloat(2, 12, 2);
+        const yieldPerAcre = this.randFloat(80, 200, 0);
+        const riskNote = weather.includes('drought') && crop.name.includes('Corn') ? 'HIGH RISK in drought' :
+                         weather.includes('frost') && crop.name.includes('Soybean') ? 'Frost-sensitive' : 'Normal risk';
+        return {
+          label: crop.name,
+          detail: `Futures: ${this.dollar(futuresPrice)}/bu. Yield: ${yieldPerAcre} bu/acre. Demand: ${demandLevel}. ${riskNote}.`,
+          effect: { score: this.randInt(8, 16), money: Math.round(futuresPrice * yieldPerAcre * 0.1), knowledge: this.randInt(2, 6) },
+          _demandLevel: demandLevel,
+          _futuresPrice: futuresPrice
+        };
+      }),
+      standingOrder: {
+        domain: 'operations',
+        duration: 15,
+        effect: { money: Math.round(totalAcres * 0.5), score: 1 }
+      }
+    };
+  }
+
+  // Farmer: Farmers market pricing with dynamic demand
+  generateFarmerMarketDay(day, state) {
+    const products = this.pickN([
+      { name: 'Sweet Corn', base: 5 }, { name: 'Tomatoes', base: 4 },
+      { name: 'Strawberries', base: 8 }, { name: 'Pumpkins', base: 6 },
+      { name: 'Honey', base: 12 }, { name: 'Fresh Eggs', base: 7 },
+      { name: 'Herbs Bundle', base: 4 }, { name: 'Peaches', base: 6 }
+    ], 4);
+
+    return {
+      title: `Farmers Market: Pricing Strategy`,
+      description: `Saturday market day. You've got ${products.length} products to price. Foot traffic is ${this.pick(['heavy', 'moderate', 'light'])} and your competitors are ${this.pick(['aggressive on price', 'focused on premium', 'running promotions', 'low on inventory'])}. Set your pricing approach.`,
+      interactionType: 'priceSet',
+      options: products.map(p => {
+        const demand = this.randFloat(0.5, 2.0, 1);
+        const demandLabel = demand > 1.3 ? 'Hot seller' : demand > 0.8 ? 'Steady' : 'Slow mover';
+        const premiumPrice = Math.round(p.base * 1.4);
+        const discountPrice = Math.round(p.base * 0.7);
+        return {
+          label: `${p.name} — ${demandLabel}`,
+          detail: `Base: $${p.base}/unit. Premium: $${premiumPrice} (fewer sales, higher margin). Discount: $${discountPrice} (volume play). Demand multiplier: ${demand}x.`,
+          effect: { score: this.randInt(6, 12), money: Math.round(p.base * demand * this.randInt(5, 20)), knowledge: this.randInt(1, 4) }
+        };
+      })
+    };
+  }
+
+  // Businessman: Strategic priority ranking (rank initiatives by importance)
+  generateBusinessPriorityRanking(day, state) {
+    const quarter = this.pick(['Q1', 'Q2', 'Q3', 'Q4']);
+    const initiatives = this.pickN([
+      { name: 'Revenue Growth', desc: 'Expand client base and increase deal flow' },
+      { name: 'Cost Optimization', desc: 'Streamline operations and reduce overhead' },
+      { name: 'Talent Acquisition', desc: 'Hire key roles to scale capacity' },
+      { name: 'Market Expansion', desc: 'Enter new geographic or sector markets' },
+      { name: 'Product Innovation', desc: 'Develop new service offerings or platforms' },
+      { name: 'Client Retention', desc: 'Deepen existing relationships and reduce churn' },
+      { name: 'Brand Building', desc: 'Invest in reputation and thought leadership' },
+      { name: 'Technology Upgrade', desc: 'Modernize systems and automate workflows' }
+    ], 4);
+
+    return {
+      title: `${quarter} Strategic Priorities`,
+      description: `Board wants your top priority for ${quarter}. Each initiative shapes your standing orders and passive income for the quarter. Choose the direction that best fits your growth stage.`,
+      interactionType: 'priority',
+      options: initiatives.map(init => ({
+        label: init.name,
+        detail: `${init.desc}. ${this.pick([
+          'Sets a 10-day standing order for automated progress.',
+          'Generates passive knowledge gains each day.',
+          'Creates recurring revenue from established systems.',
+          'Builds organizational momentum in this area.'
+        ])}`,
+        effect: { score: this.randInt(10, 18), knowledge: this.randInt(3, 8) },
+        standingOrder: {
+          label: `${quarter} ${init.name} Initiative`,
+          domain: init.name.includes('Revenue') || init.name.includes('Cost') ? 'finance' :
+                  init.name.includes('Talent') || init.name.includes('Client') || init.name.includes('Brand') ? 'management' : 'operations',
+          duration: 10,
+          effect: {
+            money: init.name.includes('Revenue') ? this.randInt(50, 200) :
+                   init.name.includes('Cost') ? this.randInt(30, 100) : 0,
+            score: 1,
+            satisfaction: init.name.includes('Talent') || init.name.includes('Brand') ? 1 : 0
+          }
+        }
+      }))
     };
   }
 }

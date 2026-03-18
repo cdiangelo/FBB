@@ -647,7 +647,8 @@ function updateSceneForLevel() {
 function updateStatusBar() {
   els.statusPersona.textContent = capitalize(engine.persona);
   els.statusPersona.style.color = getComputedStyle(document.documentElement).getPropertyValue('--accent');
-  els.statusDay.textContent = `Day ${engine.day} (${engine.actionsToday || 0}/${engine.maxActionsPerDay})`;
+  const domainLabel = engine.getDayDomainLabel ? engine.getDayDomainLabel() : '';
+  els.statusDay.textContent = `Day ${engine.day} (${engine.actionsToday || 0}/${engine.maxActionsPerDay})${domainLabel ? ' \u2022 ' + domainLabel : ''}`;
   els.statusMoney.textContent = engine.getMoney();
   els.statusLevel.textContent = engine.getLevel().name;
   els.statusSatisfaction.innerHTML = `&#9829; ${engine.satisfaction}`;
@@ -856,6 +857,60 @@ function updateOperatingModelPanel() {
   panel.innerHTML = html;
 }
 
+function updatePassiveMechanicsPanel() {
+  const panel = document.getElementById('passive-mechanics-display');
+  if (!panel || !engine.persona) return;
+
+  const pi = engine.passiveIncome || { dailyRevenue: 0, dailyKnowledge: 0, sources: [] };
+  const so = engine.standingOrders || [];
+  const hasContent = pi.sources.length > 0 || so.length > 0 || pi.dailyRevenue > 0;
+
+  if (!hasContent) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+
+  let html = '<h3>Passive Systems</h3>';
+
+  // Passive income summary
+  if (pi.dailyRevenue > 0 || pi.dailyKnowledge > 0) {
+    html += '<div class="passive-summary">';
+    if (pi.dailyRevenue > 0) html += `<span class="passive-stat">+$${pi.dailyRevenue.toLocaleString()}/day</span>`;
+    if (pi.dailyKnowledge > 0) html += `<span class="passive-stat passive-stat-know">+${pi.dailyKnowledge} pts/day</span>`;
+    html += '</div>';
+  }
+
+  // Tech efficiency bonus
+  const om = engine.operatingModel;
+  if (om.techLevel > 20) {
+    const savings = Math.round(om.techLevel * 0.5 * engine.generator._getScaleFactor(engine.state));
+    html += `<div class="passive-source"><span>Tech efficiency</span><span class="passive-amt">+$${savings.toLocaleString()}/day</span></div>`;
+  }
+
+  // Standing orders
+  if (so.length > 0) {
+    html += '<div class="standing-orders-list">';
+    so.forEach(order => {
+      const remaining = order.expiresDay ? order.expiresDay - engine.day : '\u221E';
+      const effectStr = [];
+      if (order.effect.money) effectStr.push(`$${order.effect.money > 0 ? '+' : ''}${order.effect.money}`);
+      if (order.effect.score) effectStr.push(`+${order.effect.score}pts`);
+      html += `<div class="standing-order-item">
+        <span class="so-label">${order.label}</span>
+        <span class="so-details">${effectStr.join(' ')} \u2022 ${remaining} days</span>
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  // Passive income sources
+  if (pi.sources.length > 0) {
+    pi.sources.slice(0, 5).forEach(s => {
+      html += `<div class="passive-source"><span>${s.label}</span><span class="passive-amt">+$${s.dailyRevenue}/day</span></div>`;
+    });
+  }
+
+  panel.innerHTML = html;
+}
+
 function updateLogPanel() {
   els.logEntries.innerHTML = engine.log.slice(0, 20).map((entry, i) =>
     `<div class="log-entry ${i === 0 ? 'new' : ''}"><strong>Day ${entry.day}</strong> — ${entry.message}</div>`
@@ -936,6 +991,9 @@ function clearTaskFixed() {
   if (mc) mc.innerHTML = '';
 }
 
+// Track multi-select state for selectN interaction type
+let _multiSelectState = [];
+
 function showDecisionTask(scenario, badge) {
   // Ensure at least one option is always affordable — inject a free fallback if needed
   const anyAffordable = scenario.options.some(opt => engine.canAfford(opt));
@@ -950,10 +1008,16 @@ function showDecisionTask(scenario, badge) {
   setTaskHeader(scenario.title, scenario.description);
   clearTaskFixed();
 
-  // Badge
+  // Badge — domain badge from engine for regular decisions
   let badgeHtml = '';
   if (badge === 'life') badgeHtml = '<span class="life-event-badge">Life Event</span>';
-  if (badge === 'culture') badgeHtml = '<span class="culture-event-badge">Workforce Culture</span>';
+  else if (badge === 'culture') badgeHtml = '<span class="culture-event-badge">Workforce Culture</span>';
+  else if (scenario._domain) {
+    const domainColors = { operations: '#3b82f6', finance: '#10b981', management: '#f59e0b' };
+    const domainIcons = { operations: '\u2699', finance: '\u{1F4CA}', management: '\u{1F465}' };
+    const d = scenario._domain;
+    badgeHtml = `<span class="domain-badge" style="background:${domainColors[d] || '#666'}">${domainIcons[d] || ''} ${d.charAt(0).toUpperCase() + d.slice(1)}</span>`;
+  }
 
   // Market ticker strip in fixed area + expandable matrix in scroll area
   renderMarketTicker();
@@ -970,32 +1034,144 @@ function showDecisionTask(scenario, badge) {
     </details>`;
   }
 
-  // Options as compact panes — merged headline with key specs, hover tooltip for detail
-  const optionsHtml = `${badgeHtml}<div class="option-group">${scenario.options.map((opt, i) => {
-    const cost = engine.getOptionCost(opt);
-    const affordable = engine.canAfford(opt);
-    const e = opt.effect || {};
-    // Build merged summary: label + 1-2 key specs if relevant
-    let summary = opt.label;
-    const specs = [];
-    if (cost > 0) specs.push(`$${cost.toLocaleString()}`);
-    if (e.score && e.score > 5) specs.push(`+${e.score}pts`);
-    if (e.satisfaction && e.satisfaction !== 0) specs.push(`${e.satisfaction > 0 ? '+' : ''}${e.satisfaction} sat`);
-    if (specs.length) summary += ` — ${specs.slice(0, 2).join(', ')}`;
-    // Classify implication for color border
-    const impClass = _getImplicationClass(opt);
-    const detailEscaped = opt.detail.replace(/"/g, '&quot;');
-    return `<div class="option-pane ${impClass}${affordable ? '' : ' option-unaffordable'}" onclick="selectOption(${i})" data-detail="${detailEscaped}">
-      <span class="option-key">${String.fromCharCode(65 + i)}</span>
-      <span class="option-label">${summary}</span>
-      ${!affordable ? '<span class="option-cost option-cost-blocked">insufficient $</span>' : ''}
-    </div>`;
-  }).join('')}</div>`;
+  // Handle role-specific interaction types
+  const iType = scenario.interactionType;
 
-  els.taskBody.innerHTML = optionsHtml;
-  els.taskActions.innerHTML = '';
+  if (iType === 'selectN') {
+    // Multi-select: pick N of M (banker product selection style)
+    _multiSelectState = [];
+    const selectCount = scenario.selectCount || 3;
+    const optionsHtml = `${badgeHtml}<div class="select-n-header">Select ${selectCount} of ${scenario.options.length}</div><div class="option-group option-group-multi">${scenario.options.map((opt, i) => {
+      const e = opt.effect || {};
+      const detailEscaped = opt.detail.replace(/"/g, '&quot;');
+      return `<div class="option-pane imp-balanced multi-option" id="multi-opt-${i}" onclick="toggleMultiSelect(${i}, ${selectCount})" data-detail="${detailEscaped}">
+        <span class="option-key multi-check" id="multi-check-${i}">\u25CB</span>
+        <span class="option-label">${opt.label}</span>
+        <span class="option-meta">${opt._productRisk ? opt._productRisk + ' risk' : ''}</span>
+      </div>`;
+    }).join('')}</div>`;
+    els.taskBody.innerHTML = optionsHtml;
+    els.taskActions.innerHTML = `<button class="btn-primary" id="btn-multi-confirm" onclick="confirmMultiSelect()" disabled>Confirm Selection (0/${selectCount})</button>`;
+
+  } else if (iType === 'allocate' || iType === 'priceSet' || iType === 'priority') {
+    // These use the standard single-select but with enhanced presentation
+    const typeLabel = iType === 'allocate' ? 'Allocate' : iType === 'priceSet' ? 'Set Pricing' : 'Set Priority';
+    const optionsHtml = `${badgeHtml}<div class="select-n-header">${typeLabel}</div><div class="option-group">${scenario.options.map((opt, i) => {
+      const cost = engine.getOptionCost(opt);
+      const affordable = engine.canAfford(opt);
+      const e = opt.effect || {};
+      let summary = opt.label;
+      const specs = [];
+      if (cost > 0) specs.push(`$${cost.toLocaleString()}`);
+      if (e.money && e.money > 0) specs.push(`+$${e.money.toLocaleString()}`);
+      if (opt._demandLevel) specs.push(opt._demandLevel + ' demand');
+      if (opt._futuresPrice) specs.push(`$${opt._futuresPrice}/bu`);
+      if (specs.length) summary += ` — ${specs.slice(0, 2).join(', ')}`;
+      const impClass = _getImplicationClass(opt);
+      const detailEscaped = opt.detail.replace(/"/g, '&quot;');
+      return `<div class="option-pane ${impClass}${affordable ? '' : ' option-unaffordable'}" onclick="selectOption(${i})" data-detail="${detailEscaped}">
+        <span class="option-key">${String.fromCharCode(65 + i)}</span>
+        <span class="option-label">${summary}</span>
+        ${opt.standingOrder ? '<span class="standing-order-tag">Sets Policy</span>' : ''}
+        ${!affordable ? '<span class="option-cost option-cost-blocked">insufficient $</span>' : ''}
+      </div>`;
+    }).join('')}</div>`;
+    els.taskBody.innerHTML = optionsHtml;
+    els.taskActions.innerHTML = '';
+
+  } else {
+    // Standard single-select options
+    const optionsHtml = `${badgeHtml}<div class="option-group">${scenario.options.map((opt, i) => {
+      const cost = engine.getOptionCost(opt);
+      const affordable = engine.canAfford(opt);
+      const e = opt.effect || {};
+      let summary = opt.label;
+      const specs = [];
+      if (cost > 0) specs.push(`$${cost.toLocaleString()}`);
+      if (e.score && e.score > 5) specs.push(`+${e.score}pts`);
+      if (e.satisfaction && e.satisfaction !== 0) specs.push(`${e.satisfaction > 0 ? '+' : ''}${e.satisfaction} sat`);
+      if (specs.length) summary += ` — ${specs.slice(0, 2).join(', ')}`;
+      const impClass = _getImplicationClass(opt);
+      const detailEscaped = opt.detail.replace(/"/g, '&quot;');
+      return `<div class="option-pane ${impClass}${affordable ? '' : ' option-unaffordable'}" onclick="selectOption(${i})" data-detail="${detailEscaped}">
+        <span class="option-key">${String.fromCharCode(65 + i)}</span>
+        <span class="option-label">${summary}</span>
+        ${!affordable ? '<span class="option-cost option-cost-blocked">insufficient $</span>' : ''}
+      </div>`;
+    }).join('')}</div>`;
+    els.taskBody.innerHTML = optionsHtml;
+    els.taskActions.innerHTML = '';
+  }
+
   reanimateScroll();
   speakScenario(scenario.title, scenario.description);
+}
+
+// Multi-select toggle for selectN interaction type
+function toggleMultiSelect(index, maxCount) {
+  const pos = _multiSelectState.indexOf(index);
+  if (pos >= 0) {
+    _multiSelectState.splice(pos, 1);
+  } else if (_multiSelectState.length < maxCount) {
+    _multiSelectState.push(index);
+  } else {
+    showNotification(`You can only select ${maxCount} items. Deselect one first.`);
+    return;
+  }
+  // Update visual state
+  const scenario = currentScenario.scenario;
+  scenario.options.forEach((_, i) => {
+    const el = document.getElementById(`multi-opt-${i}`);
+    const check = document.getElementById(`multi-check-${i}`);
+    if (el && check) {
+      const selected = _multiSelectState.includes(i);
+      el.classList.toggle('multi-selected', selected);
+      check.textContent = selected ? '\u25CF' : '\u25CB';
+    }
+  });
+  const btn = document.getElementById('btn-multi-confirm');
+  if (btn) {
+    btn.disabled = _multiSelectState.length !== maxCount;
+    btn.textContent = `Confirm Selection (${_multiSelectState.length}/${maxCount})`;
+  }
+}
+
+// Confirm multi-select and apply combined effects
+function confirmMultiSelect() {
+  const scenario = currentScenario.scenario;
+  engine.createUndoSnapshot();
+  _undoScenario = currentScenario;
+
+  let totalScore = 0, totalMoney = 0, totalKnowledge = 0;
+  const labels = [];
+  for (const idx of _multiSelectState) {
+    const opt = scenario.options[idx];
+    if (opt.effect) {
+      totalScore += opt.effect.score || 0;
+      totalMoney += opt.effect.money || 0;
+      totalKnowledge += opt.effect.knowledge || 0;
+    }
+    labels.push(opt.label);
+  }
+  engine.applyEffect({ score: totalScore, money: totalMoney, knowledge: totalKnowledge });
+  playDing();
+
+  engine.addLog(`${scenario.title}: selected ${labels.join(', ')}`);
+  engine.addPeriodAction('decision', `${scenario.title}: selected ${labels.join(', ')}`, { score: totalScore, money: totalMoney });
+
+  setTaskHeader('Selections Made', `You chose: ${labels.join(', ')}`);
+  clearTaskFixed();
+  const moneyStr = totalMoney > 0 ? `+$${totalMoney.toLocaleString()}` : totalMoney < 0 ? `-$${Math.abs(totalMoney).toLocaleString()}` : '';
+  els.taskBody.innerHTML = `<div class="grade-display">
+    <div style="font-size:1.2rem;margin-bottom:.5rem;color:var(--accent)">+${Math.round((totalScore + totalKnowledge) * engine.getScaleMultiplier())} pts ${moneyStr ? '| ' + moneyStr : ''}</div>
+    <p class="grade-feedback">Bundle configured with ${_multiSelectState.length} products.</p>
+  </div>`;
+  els.taskActions.innerHTML = `
+    <button class="btn-primary" onclick="advanceAndContinue()">Next Day &rarr;</button>
+    <button class="btn-secondary" onclick="loadNextTask()">Stay on Day ${engine.day}</button>
+    ${engine.hasUndo() ? '<button class="btn-undo" onclick="undoLastAction()">Undo</button>' : ''}
+  `;
+  updateAll();
 }
 
 function showCommentaryTask(scenario) {
@@ -1448,6 +1624,17 @@ function selectOption(index) {
     engine.addAsset(option.assetPurchase);
   }
 
+  // Handle standing orders from role-specific scenarios
+  if (option.standingOrder) {
+    engine.addStandingOrder(option.standingOrder);
+    showNotification(`Standing order set: ${option.standingOrder.label || option.label}`);
+  }
+  // Handle scenario-level standing orders (e.g., crop allocation)
+  if (scenario.standingOrder) {
+    engine.addStandingOrder({ ...scenario.standingOrder, label: scenario.title });
+    showNotification(`Policy set for ${scenario.standingOrder.duration || 10} days`);
+  }
+
   engine.addLog(`${scenario.title}: chose "${option.label}"`);
   engine.addPeriodAction('decision', `${scenario.title}: chose "${option.label}"`, option.effect, _getImplicationClass(option).replace('imp-', ''));
 
@@ -1734,6 +1921,7 @@ function updateAll() {
   updateCulturePanel();
   updateRiskProfilePanel();
   updateOperatingModelPanel();
+  updatePassiveMechanicsPanel();
   updateJourneyPanel();
   updateLogPanel();
   updateInterpersonalPanel();
@@ -3392,4 +3580,178 @@ function renderMap() {
     if (persona === 'businessman') legendHtml += '<span class="map-leg-group">Deals: <span style="color:#4CAF50">Active</span> <span style="color:#FFB74D">Growing</span> <span style="color:#78909C">Quiet</span></span>';
   }
   legend.innerHTML = legendHtml;
+}
+
+// ===============================
+//  NATIONAL SCALE MAP — 3D ORG VISUALIZATION
+// ===============================
+let _scaleMapOpen = false;
+
+function toggleScaleMap() {
+  _scaleMapOpen = !_scaleMapOpen;
+  const overlay = document.getElementById('scale-map-overlay');
+  if (!overlay) return;
+  overlay.classList.toggle('active', _scaleMapOpen);
+  if (_scaleMapOpen) renderScaleMap();
+}
+
+function renderScaleMap() {
+  const body = document.getElementById('scale-map-body');
+  const titleEl = document.getElementById('scale-map-title');
+  if (!body || !engine.persona) return;
+
+  const level = engine.getLevel();
+  const money = engine.state.money || 0;
+  const employees = engine.state.employees || 1;
+  const revenue = engine.state.revenue || 0;
+  const score = engine.totalScore;
+  const pi = engine.passiveIncome || { dailyRevenue: 0, sources: [] };
+  const so = engine.standingOrders || [];
+  const om = engine.operatingModel || {};
+
+  titleEl.textContent = `${level.name} — National Footprint`;
+
+  // Determine scale tier for visualization
+  const scaleTier = money < 20000 ? 'local' :
+                    money < 100000 ? 'regional' :
+                    money < 500000 ? 'multi-state' :
+                    money < 2000000 ? 'national' : 'empire';
+
+  const tierLabels = { local: 'Local Operation', regional: 'Regional Presence', 'multi-state': 'Multi-State Expansion', national: 'National Network', empire: 'Empire Scale' };
+  const tierColors = { local: '#64748b', regional: '#3b82f6', 'multi-state': '#8b5cf6', national: '#f59e0b', empire: '#ef4444' };
+
+  // KPI cards
+  let html = `<div class="org-kpi-bar">
+    <div class="kpi-card"><div class="kpi-value" style="color:${tierColors[scaleTier]}">${tierLabels[scaleTier]}</div><div class="kpi-label">Scale Tier</div></div>
+    <div class="kpi-card"><div class="kpi-value">$${_formatCompact(money)}</div><div class="kpi-label">Cash Position</div></div>
+    <div class="kpi-card"><div class="kpi-value">${employees}</div><div class="kpi-label">Employees</div></div>
+    <div class="kpi-card"><div class="kpi-value">$${_formatCompact(revenue)}</div><div class="kpi-label">Revenue</div></div>
+    <div class="kpi-card"><div class="kpi-value">${score}</div><div class="kpi-label">Score</div></div>
+    ${pi.dailyRevenue > 0 ? `<div class="kpi-card"><div class="kpi-value" style="color:#10b981">+$${pi.dailyRevenue}/d</div><div class="kpi-label">Passive Income</div></div>` : ''}
+  </div>`;
+
+  // 3D Organization building
+  const floors = _buildOrgFloors(scaleTier, employees, om, engine);
+  html += `<div class="org-3d-container"><div class="org-building">`;
+  floors.reverse().forEach(floor => {
+    html += `<div class="org-floor">
+      <div class="org-floor-face ${floor.cls}">
+        <div>${floor.icon} ${floor.label}</div>
+        <div class="org-floor-stats">${floor.stats.map(s => `<span class="org-stat">${s.label}: <span class="org-stat-val">${s.value}</span></span>`).join('')}</div>
+      </div>
+    </div>`;
+  });
+  html += `</div></div>`;
+
+  // National presence — regions with active operations
+  const regions = _getActiveRegions(scaleTier, engine);
+  html += `<div class="national-presence"><h3>Active Regions</h3><div class="region-grid">`;
+  regions.forEach(r => {
+    html += `<div class="region-card ${r.active ? 'active' : ''}">
+      <div class="region-name">${r.name}</div>
+      ${r.active ? `<div class="region-revenue">$${_formatCompact(r.revenue)}/period</div>` : '<div class="region-status">Not yet reached</div>'}
+    </div>`;
+  });
+  html += `</div></div>`;
+
+  // Standing orders summary
+  if (so.length > 0) {
+    html += '<div class="national-presence"><h3>Active Policies</h3><div class="region-grid">';
+    so.forEach(order => {
+      const rem = order.expiresDay ? Math.max(0, order.expiresDay - engine.day) : '\u221E';
+      html += `<div class="region-card active">
+        <div class="region-name">${order.label}</div>
+        <div class="region-revenue">${rem} days remaining</div>
+      </div>`;
+    });
+    html += '</div></div>';
+  }
+
+  body.innerHTML = html;
+}
+
+function _formatCompact(n) {
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+  return n.toLocaleString();
+}
+
+function _buildOrgFloors(scaleTier, employees, om, eng) {
+  const floors = [];
+  // Ground floor — always present
+  floors.push({
+    label: eng.persona === 'farmer' ? 'Farm Operations' : eng.persona === 'banker' ? 'Branch Office' : 'Main Office',
+    cls: 'org-floor-face org-floor-ops',
+    icon: '\u2699',
+    stats: [
+      { label: 'Staff', value: Math.min(employees, 10) },
+      { label: 'Efficiency', value: om.costEfficiency || 50 }
+    ]
+  });
+
+  if (['regional', 'multi-state', 'national', 'empire'].includes(scaleTier)) {
+    floors.push({
+      label: 'Finance & Treasury',
+      cls: 'org-floor-face org-floor-fin',
+      icon: '\u{1F4CA}',
+      stats: [
+        { label: 'Risk', value: eng.financialRisk || 30 },
+        { label: 'Rating', value: eng.creditRating || 'A' }
+      ]
+    });
+  }
+
+  if (['multi-state', 'national', 'empire'].includes(scaleTier)) {
+    floors.push({
+      label: 'Management & Strategy',
+      cls: 'org-floor-face org-floor-mgmt',
+      icon: '\u{1F465}',
+      stats: [
+        { label: 'Morale', value: eng.employeeSatisfaction || 70 },
+        { label: 'Employees', value: employees }
+      ]
+    });
+  }
+
+  if (['national', 'empire'].includes(scaleTier)) {
+    floors.push({
+      label: 'Technology & Innovation',
+      cls: 'org-floor-face org-floor-front',
+      icon: '\u{1F4BB}',
+      stats: [
+        { label: 'Tech', value: om.techLevel || 0 },
+        { label: 'Scale', value: om.scalability || 30 }
+      ]
+    });
+  }
+
+  if (scaleTier === 'empire') {
+    floors.push({
+      label: 'Executive Suite — HQ',
+      cls: 'org-floor-face org-floor-hq',
+      icon: '\u{1F3E2}',
+      stats: [
+        { label: 'Score', value: eng.totalScore },
+        { label: 'Assets', value: '$' + _formatCompact(eng.portfolio?.totalAssetValue || 0) }
+      ]
+    });
+  }
+
+  return floors;
+}
+
+function _getActiveRegions(scaleTier, eng) {
+  const allRegions = [
+    'Northeast', 'Mid-Atlantic', 'Southeast', 'Great Lakes',
+    'Midwest', 'Plains', 'Mountain West', 'Southwest',
+    'Pacific Northwest', 'California'
+  ];
+  const activeCount = { local: 1, regional: 2, 'multi-state': 4, national: 7, empire: 10 }[scaleTier] || 1;
+  const money = eng.state.money || 0;
+
+  return allRegions.map((name, i) => ({
+    name,
+    active: i < activeCount,
+    revenue: i < activeCount ? Math.round(money * (0.3 - i * 0.02) * (0.5 + Math.random() * 0.5)) : 0
+  }));
 }
