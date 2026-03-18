@@ -134,6 +134,11 @@ class GameEngine {
     this.maxActionsPerDay = 5;
     this.categoriesUsedToday = new Set();
 
+    // Compensation tracking
+    this._lastLevelIndex = 0;         // track level for promotion detection
+    this._profitShareAccum = 0;       // revenue accumulated since last distribution
+    this._lastProfitShareDay = 0;     // day of last profit share payout
+
     // Set categories per persona
     this._initCategories();
     return this;
@@ -205,7 +210,10 @@ class GameEngine {
       marketDataMode: saveData.marketDataMode || 'simulated',
       actionsToday: saveData.actionsToday || 0,
       maxActionsPerDay: 5,
-      categoriesUsedToday: new Set(saveData.categoriesUsedToday || [])
+      categoriesUsedToday: new Set(saveData.categoriesUsedToday || []),
+      _lastLevelIndex: saveData._lastLevelIndex || 0,
+      _profitShareAccum: saveData._profitShareAccum || 0,
+      _lastProfitShareDay: saveData._lastProfitShareDay || 0
     });
     this.generator = new ScenarioGenerator();
     this.generator.restore(saveData.generatorHashes || []);
@@ -260,6 +268,9 @@ class GameEngine {
       marketDataMode: this.marketDataMode,
       actionsToday: this.actionsToday,
       categoriesUsedToday: [...(this.categoriesUsedToday || [])],
+      _lastLevelIndex: this._lastLevelIndex || 0,
+      _profitShareAccum: this._profitShareAccum || 0,
+      _lastProfitShareDay: this._lastProfitShareDay || 0,
       savedAt: new Date().toISOString()
     };
   }
@@ -339,10 +350,22 @@ class GameEngine {
       this.totalScore += scaled;
     }
     if (effect.money) {
-      this.state.money += effect.money;
-      if (effect.money > 0) { this.state.revenue += effect.money; }
-      else { this.state.costs += Math.abs(effect.money); }
-      this.scores.financial += Math.abs(effect.money) > 0 ? (effect.money > 0 ? 5 : 2) : 0;
+      let money = effect.money;
+      // Cost exposure scaling: junior employees don't bear full business costs
+      // Positive income is unscaled (you earn what you earn)
+      // Negative costs are scaled by career tier exposure
+      if (money < 0) {
+        const exposure = this.getCostExposure();
+        money = Math.round(money * exposure);
+      }
+      // Track revenue for profit sharing
+      if (money > 0) {
+        this._profitShareAccum = (this._profitShareAccum || 0) + money;
+      }
+      this.state.money += money;
+      if (money > 0) { this.state.revenue += money; }
+      else { this.state.costs += Math.abs(money); }
+      this.scores.financial += Math.abs(money) > 0 ? (money > 0 ? 5 : 2) : 0;
     }
     if (effect.satisfaction) {
       this.satisfaction = Math.max(0, Math.min(100, this.satisfaction + effect.satisfaction));
@@ -702,6 +725,73 @@ class GameEngine {
     return om.scalability >= 50 && om.techLevel >= 30 && om.techApproach !== null;
   }
 
+  // ---- COMPENSATION SYSTEM ----
+
+  // Get the compensation tier index (clamped to available tiers)
+  _getCompTierIndex() {
+    const comp = GAME_DATA.compensation[this.persona];
+    if (!comp) return 0;
+    return Math.min(this.getLevelIndex(), comp.baseSalary.length - 1);
+  }
+
+  // Daily salary accrual: annual salary / 50 game-days per "year"
+  _tickSalary() {
+    const comp = GAME_DATA.compensation[this.persona];
+    if (!comp) return 0;
+    const tier = this._getCompTierIndex();
+    const annualSalary = comp.baseSalary[tier];
+    const dailyPay = Math.round(annualSalary / 50); // 50 game-days = 1 year
+    this.state.money += dailyPay;
+    this.state.revenue += dailyPay;
+    return dailyPay;
+  }
+
+  // Profit share: distributed every 10 days based on accumulated revenue
+  _tickProfitShare() {
+    const comp = GAME_DATA.compensation[this.persona];
+    if (!comp) return 0;
+    // Only distribute every 10 days (semi-annual analog)
+    if ((this.day - this._lastProfitShareDay) < 10) return 0;
+    const tier = this._getCompTierIndex();
+    const sharePct = comp.profitSharePct[tier] / 100;
+    const distribution = Math.round(this._profitShareAccum * sharePct);
+    if (distribution > 0) {
+      this.state.money += distribution;
+      this.state.revenue += distribution;
+    }
+    this._profitShareAccum = 0;
+    this._lastProfitShareDay = this.day;
+    return distribution;
+  }
+
+  // Check for promotion and award windfall bonus
+  _checkPromotionWindfall() {
+    const comp = GAME_DATA.compensation[this.persona];
+    if (!comp) return null;
+    const currentIndex = this.getLevelIndex();
+    if (currentIndex > (this._lastLevelIndex || 0)) {
+      const tier = Math.min(currentIndex, comp.promotionBonus.length - 1);
+      const bonus = comp.promotionBonus[tier];
+      const levelName = this.getLevel().name;
+      this._lastLevelIndex = currentIndex;
+      if (bonus > 0) {
+        this.state.money += bonus;
+        this.state.revenue += bonus;
+        return { levelName, bonus };
+      }
+    }
+    return null;
+  }
+
+  // Cost exposure: scales scenario costs based on career tier
+  // Junior employees don't bear full financial impact of business decisions
+  getCostExposure() {
+    const comp = GAME_DATA.compensation[this.persona];
+    if (!comp) return 1.0;
+    const tier = this._getCompTierIndex();
+    return comp.costExposure[tier];
+  }
+
   // ---- DAY ADVANCE ----
   advanceDay() {
     this.day++;
@@ -712,6 +802,23 @@ class GameEngine {
     if (this.marketTracker) this.marketTracker.tick(this.day);
     // Tick interpersonal dynamics
     this._tickInterpersonal();
+
+    // ---- SATISFACTION: daily recovery (rest between work days) ----
+    // Small natural recharge models weekends/off-time; more at lower satisfaction
+    if (this.satisfaction < 80) {
+      const recovery = this.satisfaction < 30 ? 3 : this.satisfaction < 50 ? 2 : 1;
+      this.satisfaction = Math.min(100, this.satisfaction + recovery);
+    }
+
+    // ---- INCOME: Salary accrual ----
+    this._tickSalary();
+
+    // ---- INCOME: Profit share distribution (every 10 days) ----
+    this._tickProfitShare();
+
+    // ---- INCOME: Promotion windfall check ----
+    const promotion = this._checkPromotionWindfall();
+
     // Debt service
     const debtPayment = this.getDebtService();
     if (debtPayment > 0) {
@@ -733,12 +840,25 @@ class GameEngine {
       return { ...failState, isGameOver: true };
     }
 
+    // If promotion occurred, return as event (takes priority over random)
+    if (promotion) {
+      return {
+        text: `Promoted to ${promotion.levelName}! You received a ${this._formatMoney(promotion.bonus)} compensation package.`,
+        money: 0, // already applied above
+        isPromotion: true
+      };
+    }
+
     // Random event — higher chance in hard mode
     const eventChance = this.difficulty === 'hard' ? 0.45 : 0.3;
     if (Math.random() < eventChance) {
       return this.generateRandomEvent();
     }
     return null;
+  }
+
+  _formatMoney(n) {
+    return '$' + n.toLocaleString();
   }
 
   checkFailState() {
@@ -832,6 +952,14 @@ class GameEngine {
     if (this.difficulty === 'hard') {
       if (event.money < 0) event.money = Math.round(event.money * 1.5);
       else event.money = Math.round(event.money * 0.7);
+    }
+    // Cost exposure: junior employees shielded from full impact of negative events
+    if (event.money < 0) {
+      event.money = Math.round(event.money * this.getCostExposure());
+    }
+    // Positive events feed profit share accumulator
+    if (event.money > 0) {
+      this._profitShareAccum = (this._profitShareAccum || 0) + event.money;
     }
     this.state.money += event.money;
     if (event.money > 0) this.state.revenue += event.money;

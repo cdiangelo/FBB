@@ -53,9 +53,43 @@ const GAME_DATA = {
   },
 
   startingState: {
-    farmer: { money: 10000, inventory: { seeds: 0, fertilizer: 0 }, crops: [], land: 10, equipment: 'basic', revenue: 0, costs: 0, assets: 10000, debt: 0, equity: 10000, employees: 2 },
-    banker: { money: 100000, capital: 100000, portfolio: [], investors: 1, reserves: 10000, revenue: 0, costs: 0, assets: 100000, debt: 0, equity: 100000, employees: 3 },
-    businessman: { money: 2000, clients: 0, ventures: [], partnerships: [], advisoryFees: 0, revenue: 0, costs: 0, assets: 2000, debt: 0, equity: 2000, employees: 0 }
+    farmer: { money: 40000, inventory: { seeds: 0, fertilizer: 0 }, crops: [], land: 10, equipment: 'basic', revenue: 0, costs: 0, assets: 40000, debt: 0, equity: 40000, employees: 2 },
+    banker: { money: 120000, capital: 120000, portfolio: [], investors: 1, reserves: 15000, revenue: 0, costs: 0, assets: 120000, debt: 0, equity: 120000, employees: 3 },
+    businessman: { money: 8000, clients: 0, ventures: [], partnerships: [], advisoryFees: 0, revenue: 0, costs: 0, assets: 8000, debt: 0, equity: 8000, employees: 0 }
+  },
+
+  // ---- COMPENSATION & INCOME MODEL ----
+  // Career tiers: individual (L0-1), producer (L2-3), manager/owner (L4+), empire (L6+)
+  // Each game day represents ~1 week of real time; salaries accrue daily as fraction of annual
+  // Profit share grows with seniority — as an employee you get fractions of business profit
+  compensation: {
+    farmer: {
+      // Annual base salary by level index (game-day accrual = annual / 50)
+      // 50 game-days ≈ 1 accelerated year
+      baseSalary:       [32000, 42000, 55000, 75000, 105000, 150000, 200000, 260000, 350000],
+      // Profit share: % of cumulative revenue distributed every 10 days
+      profitSharePct:   [1.0,   2.0,   3.0,   4.5,   6.0,    9.0,   13.0,   17.0,   22.0],
+      // Promotion windfall (signing bonus / raise bump) — paid once on level-up
+      promotionBonus:   [0,     3000,  8000,  15000, 30000,  50000, 90000,  150000, 250000],
+      // Cost exposure multiplier: how much of scenario costs the player bears
+      // Farming has high enterprise-scale costs; junior employees see very little
+      // Individual contributor → producer → manager → owner
+      costExposure:     [0.06,  0.10,  0.20,  0.35,  0.55,   0.80,  1.0,    1.0,    1.0]
+    },
+    banker: {
+      // Banking comp: higher base, bigger bonuses (industry standard)
+      baseSalary:       [55000, 72000, 95000, 130000, 180000, 250000, 350000, 500000, 750000],
+      profitSharePct:   [0.3,   0.8,   1.5,   2.5,    4.0,    6.5,    10.0,   14.0,   18.0],
+      promotionBonus:   [0,     5000,  12000, 25000,  50000,  100000, 175000, 300000, 500000],
+      costExposure:     [0.10,  0.20,  0.40,  0.60,   0.80,   1.0,    1.0,    1.0,    1.0]
+    },
+    businessman: {
+      // Consulting/advisory: lower base early, high upside later (eat-what-you-kill)
+      baseSalary:       [35000, 50000, 70000, 100000, 150000, 200000, 275000, 375000, 500000],
+      profitSharePct:   [1.0,   2.0,   3.5,   5.0,    7.5,    10.0,   14.0,   18.0,   22.0],
+      promotionBonus:   [0,     3000,  8000,  18000,  35000,  70000,  125000, 200000, 350000],
+      costExposure:     [0.12,  0.22,  0.42,  0.62,   0.82,   1.0,    1.0,    1.0,    1.0]
+    }
   },
 
   markets: {

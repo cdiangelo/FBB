@@ -151,13 +151,12 @@ class ScenarioGenerator {
     scenario.options = scenario.options.map((opt, idx) => {
       const modified = { ...opt, effect: { ...opt.effect } };
 
-      // All money costs are 30% higher in hard mode
+      // Hard mode: costs are 15% higher, revenue 10% lower (balanced with other hard mode penalties)
       if (modified.effect.money && modified.effect.money < 0) {
-        modified.effect.money = Math.round(modified.effect.money * 1.3);
+        modified.effect.money = Math.round(modified.effect.money * 1.15);
       }
-      // Positive money gains are 20% lower
       if (modified.effect.money && modified.effect.money > 0) {
-        modified.effect.money = Math.round(modified.effect.money * 0.8);
+        modified.effect.money = Math.round(modified.effect.money * 0.9);
       }
 
       // Some options become score-negative traps (the "easy looking" choice)
@@ -883,9 +882,9 @@ class ScenarioGenerator {
       title: `${crop.name} Marketing Decision`,
       description: `${elevator} is quoting ${crop.name} at ${this.dollar(spotPrice)}/bushel (basis: ${basis >= 0 ? '+' : ''}${basis}). Futures are ${direction} ${this.randFloat(1, 6)}% on ${catalyst}. You have ${bushels.toLocaleString()} bushels in storage.`,
       options: [
-        { label: `Sell all ${bushels.toLocaleString()} bu at spot`, detail: `Cash sale at ${this.dollar(spotPrice)}/bu. Total revenue: ${this.dollar(Math.round(spotPrice * bushels))}. Clean out storage for next harvest.`, effect: { score: this.randInt(8, 14), money: Math.round(spotPrice * bushels / 10) } },
-        { label: `Lock in futures at ${this.dollar(futuresPrice)}/bu`, detail: `Hedge ${bushels.toLocaleString()} bushels for ${this.pick(['next month','next quarter','December'])} delivery. ${futuresPrice > spotPrice ? 'Premium to spot — good carry.' : 'Discount to spot — inverse market signals.'}`, effect: { score: this.randInt(14, 22), knowledge: this.randInt(5, 10) } },
-        { label: `Sell ${this.randInt(30, 60)}% now, hold the rest`, detail: `Split risk. Partial revenue of ${this.dollar(Math.round(spotPrice * bushels * 0.45 / 10))} now with upside potential on remainder.`, effect: { score: this.randInt(12, 18), money: Math.round(spotPrice * bushels * 0.45 / 10) } },
+        { label: `Sell all ${bushels.toLocaleString()} bu at spot`, detail: `Cash sale at ${this.dollar(spotPrice)}/bu. Total revenue: ${this.dollar(Math.round(spotPrice * bushels))}. Clean out storage for next harvest.`, effect: { score: this.randInt(8, 14), money: Math.round(spotPrice * bushels / 4) } },
+        { label: `Lock in futures at ${this.dollar(futuresPrice)}/bu`, detail: `Hedge ${bushels.toLocaleString()} bushels for ${this.pick(['next month','next quarter','December'])} delivery. ${futuresPrice > spotPrice ? 'Premium to spot — good carry.' : 'Discount to spot — inverse market signals.'}`, effect: { score: this.randInt(14, 22), knowledge: this.randInt(5, 10), money: Math.round(futuresPrice * bushels / 6) } },
+        { label: `Sell ${this.randInt(30, 60)}% now, hold the rest`, detail: `Split risk. Partial revenue of ${this.dollar(Math.round(spotPrice * bushels * 0.45))} now with upside potential on remainder.`, effect: { score: this.randInt(12, 18), money: Math.round(spotPrice * bushels * 0.45 / 4) } },
         { label: `Store and wait for better prices`, detail: `Storage cost: ${this.dollar(this.randFloat(0.03, 0.07, 2))}/bu/month. ${direction === 'up' ? 'Momentum favors holding.' : 'Counter-trend play — risky but could pay off.'}`, effect: { score: this.randInt(6, 14), knowledge: this.randInt(5, 8), money: -this.randMoney(100, 500, 50) } }
       ]
     };
