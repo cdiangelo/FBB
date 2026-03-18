@@ -66,14 +66,16 @@ const GAME_DATA = {
     farmer: {
       // Annual base salary by level index (game-day accrual = annual / 50)
       // 50 game-days ≈ 1 accelerated year
-      baseSalary:       [32000, 42000, 55000, 75000, 105000, 150000, 200000, 260000, 350000],
+      // Boosted: farming generates value through land/crops beyond just salary
+      baseSalary:       [38000, 52000, 68000, 90000, 125000, 175000, 230000, 300000, 400000],
       // Profit share: % of cumulative revenue distributed every 10 days
-      profitSharePct:   [1.0,   2.0,   3.0,   4.5,   6.0,    9.0,   13.0,   17.0,   22.0],
+      // Higher than corporate: farmer directly benefits from harvest/sales
+      profitSharePct:   [2.0,   3.5,   5.0,   7.0,   9.0,    12.0,  16.0,   20.0,   25.0],
       // Promotion windfall (signing bonus / raise bump) — paid once on level-up
-      promotionBonus:   [0,     3000,  8000,  15000, 30000,  50000, 90000,  150000, 250000],
+      // Includes seasonal harvest bonuses and co-op distributions
+      promotionBonus:   [0,     4000,  10000, 20000, 40000,  65000, 110000, 180000, 300000],
       // Cost exposure multiplier: how much of scenario costs the player bears
       // Farming has high enterprise-scale costs; junior employees see very little
-      // Individual contributor → producer → manager → owner
       costExposure:     [0.06,  0.10,  0.20,  0.35,  0.55,   0.80,  1.0,    1.0,    1.0]
     },
     banker: {

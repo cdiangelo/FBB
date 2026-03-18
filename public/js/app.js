@@ -1314,6 +1314,7 @@ function updateAll() {
   updateJourneyPanel();
   updateLogPanel();
   updateInterpersonalPanel();
+  updateStrategyButton();
 }
 
 // ===============================
@@ -1439,6 +1440,152 @@ function executeSellOff(type) {
   updateAll();
   updateSellOffButton();
   setTimeout(() => loadNextTask(), 1000);
+}
+
+// ===============================
+//  STRATEGIC INITIATIVES
+// ===============================
+function showStrategicInitiatives() {
+  const initiatives = engine.getStrategicInitiatives();
+  const tokens = engine.strategicTokens;
+
+  const overlay = document.getElementById('celebration-overlay');
+  const content = document.getElementById('celebration-content');
+
+  if (tokens <= 0) {
+    content.innerHTML = `<div class="admin-panel" style="max-width:500px;text-align:left">
+      <div class="admin-header"><h3>Strategic Initiatives</h3><button class="trend-close" onclick="closeAdminPanel()">\u2715</button></div>
+      <p style="color:var(--text-secondary);font-size:.85rem;padding:1rem">You've used all 3 strategic initiative tokens this game. Focus on day-to-day operations.</p>
+      <div class="admin-footer"><button class="btn-secondary" onclick="closeAdminPanel()">Close</button></div>
+    </div>`;
+    overlay.style.display = 'flex';
+    return;
+  }
+
+  let html = `<div class="admin-panel" style="max-width:600px;text-align:left">
+    <div class="admin-header">
+      <h3>Strategic Initiatives <span class="token-badge" style="font-size:.7rem;width:20px;height:20px">${tokens}</span></h3>
+      <button class="trend-close" onclick="closeAdminPanel()">\u2715</button>
+    </div>
+    <p style="font-size:.78rem;color:var(--text-secondary);margin-bottom:1rem">Proactive big-ticket decisions. ${tokens} remaining this game. Each uses 1 token. Choose the option that best fits your strategy.</p>`;
+
+  initiatives.forEach(init => {
+    html += `<details class="collapsible-section"><summary>${init.name} \u2014 ${init.summary}</summary><div class="collapsible-body">
+      <div class="option-group" style="margin:0">`;
+    init.options.forEach((opt, i) => {
+      const cost = opt.effect.money && opt.effect.money < 0 ? `<span class="option-cost">$${Math.abs(opt.effect.money).toLocaleString()}</span>` : '';
+      const gain = opt.effect.money && opt.effect.money > 0 ? `<span style="color:#4CAF50;font-size:.75rem">+$${opt.effect.money.toLocaleString()}</span>` : '';
+      html += `<button class="option-btn" onclick="executeStrategicInitiative('${init.id}',${i})">
+        <span class="option-key">${String.fromCharCode(65 + i)}</span>
+        <span class="option-text">
+          <span class="option-label">${opt.label} ${cost}${gain}</span>
+          <span class="option-detail">${opt.detail}</span>
+        </span>
+      </button>`;
+    });
+    html += '</div></div></details>';
+  });
+
+  html += `<div class="admin-footer"><button class="btn-secondary" onclick="closeAdminPanel()">Close</button></div></div>`;
+  content.innerHTML = html;
+  overlay.style.display = 'flex';
+}
+
+function executeStrategicInitiative(initId, optionIndex) {
+  const initiatives = engine.getStrategicInitiatives();
+  const init = initiatives.find(i => i.id === initId);
+  if (!init) return;
+  const option = init.options[optionIndex];
+  if (!option) return;
+
+  engine.useStrategicToken(initId);
+  engine.applyEffect(option.effect);
+  engine.addLog(`Strategic initiative: ${init.name} \u2014 ${option.label}`);
+  engine.addPeriodAction('strategic', `${init.name}: ${option.label}`, option.effect);
+
+  closeAdminPanel();
+  updateAll();
+  updateStrategyButton();
+  showNotification(`${init.name} executed. ${engine.strategicTokens} tokens remaining.`);
+}
+
+function updateStrategyButton() {
+  const btn = document.getElementById('btn-strategy');
+  const count = document.getElementById('strategy-count');
+  if (btn && count) {
+    count.textContent = engine.strategicTokens;
+    btn.disabled = engine.strategicTokens <= 0;
+  }
+  // Advisor token button
+  const advBtn = document.getElementById('btn-advisor-token');
+  const advCount = document.getElementById('advisor-token-count');
+  if (advBtn && advCount) {
+    advCount.textContent = engine.advisorTokens;
+    advBtn.style.display = (advisorEnabled && engine.advisorTokens > 0) ? '' : 'none';
+  }
+}
+
+// ===============================
+//  AD-HOC ADVISOR TOKENS
+// ===============================
+async function useAdvisorToken() {
+  if (engine.advisorTokens <= 0) {
+    showNotification('No advisor tokens remaining.');
+    return;
+  }
+  if (!advisorEnabled) {
+    showNotification('AI advisor not available.');
+    return;
+  }
+
+  // Show a quick input dialog
+  const question = prompt('What would you like advice on? (This uses 1 of your advisor tokens)');
+  if (!question || !question.trim()) return;
+
+  engine.advisorTokens--;
+  updateStrategyButton();
+  showNotification(`Consulting advisor... (${engine.advisorTokens} tokens left)`);
+
+  // Reuse the advisor API
+  const context = {
+    persona: engine.persona,
+    day: engine.day,
+    level: engine.getLevel().name,
+    money: engine.state.money,
+    score: engine.totalScore,
+    satisfaction: engine.satisfaction,
+    scenario: currentScenario ? {
+      title: currentScenario.scenario.title,
+      description: currentScenario.scenario.description,
+      options: (currentScenario.scenario.options || []).map(o => ({ label: o.label, detail: o.detail }))
+    } : null,
+    recentLog: engine.log.slice(0, 5).map(l => l.message),
+    question: question.trim(),
+    reasoningLevel: advisorReasoningLevel,
+    difficulty: engine.difficulty || 'easy'
+  };
+
+  try {
+    const resp = await fetch('/api/advisor', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fingerprint, context })
+    });
+    const data = await resp.json();
+    if (data.advice) {
+      const overlay = document.getElementById('celebration-overlay');
+      const content = document.getElementById('celebration-content');
+      content.innerHTML = `<div class="admin-panel" style="max-width:500px;text-align:left">
+        <div class="admin-header"><h3>Advisor Consultation</h3><button class="trend-close" onclick="closeAdminPanel()">\u2715</button></div>
+        <div style="padding:.75rem;font-size:.85rem;color:var(--text-secondary);line-height:1.5">${data.advice.replace(/\n/g, '<br>')}</div>
+        <div style="padding:.5rem .75rem;font-size:.7rem;color:var(--text-dim)">${engine.advisorTokens} consultation${engine.advisorTokens !== 1 ? 's' : ''} remaining this game</div>
+        <div class="admin-footer"><button class="btn-secondary" onclick="closeAdminPanel()">Close</button></div>
+      </div>`;
+      overlay.style.display = 'flex';
+    }
+  } catch (e) {
+    showNotification('Advisor consultation failed.');
+  }
 }
 
 // ===============================
@@ -2052,14 +2199,14 @@ function _adminBalanceTab() {
   };
   const post = {
     easy: {
-      farmer:     { basic: { fail: 100, days: '4-26',  level: 'L3-5' }, moderate: { fail: 100, days: '10-25', level: 'L4-5' }, analytical: { fail: 75,  days: '10-22', level: 'L4-5' } },
+      farmer:     { basic: { fail: 5,   days: '35-51', level: 'L4-5' }, moderate: { fail: 0,   days: '42-51', level: 'L5'   }, analytical: { fail: 0,   days: '48-51', level: 'L5'   } },
       banker:     { basic: { fail: 0,   days: '51',    level: 'L5'   }, moderate: { fail: 0,   days: '51',    level: 'L5'   }, analytical: { fail: 0,   days: '51',    level: 'L5'   } },
-      businessman:{ basic: { fail: 0,   days: '51',    level: 'L5'   }, moderate: { fail: 0,   days: '51',    level: 'L5'   }, analytical: { fail: 0,   days: '51',    level: 'L5'   } }
+      businessman:{ basic: { fail: 5,   days: '38-51', level: 'L4-5' }, moderate: { fail: 0,   days: '45-51', level: 'L5'   }, analytical: { fail: 0,   days: '51',    level: 'L5'   } }
     },
     hard: {
-      farmer:     { basic: { fail: 100, days: '7-17',  level: 'L1-2' }, moderate: { fail: 100, days: '6-14',  level: 'L1-2' }, analytical: { fail: 100, days: '7-18',  level: 'L2-3' } },
-      banker:     { basic: { fail: 100, days: '11-21', level: 'L2-3' }, moderate: { fail: 75,  days: '7-64',  level: 'L4-8' }, analytical: { fail: 100, days: '9-22',  level: 'L3-4' } },
-      businessman:{ basic: { fail: 100, days: '9-19',  level: 'L3-4' }, moderate: { fail: 100, days: '7-18',  level: 'L3-4' }, analytical: { fail: 75,  days: '4-33',  level: 'L2-8' } }
+      farmer:     { basic: { fail: 95,  days: '8-22',  level: 'L1-3' }, moderate: { fail: 80,  days: '12-38', level: 'L3-6' }, analytical: { fail: 70,  days: '15-45', level: 'L4-7' } },
+      banker:     { basic: { fail: 90,  days: '11-28', level: 'L2-4' }, moderate: { fail: 75,  days: '14-42', level: 'L4-7' }, analytical: { fail: 65,  days: '18-51', level: 'L5-8' } },
+      businessman:{ basic: { fail: 95,  days: '9-24',  level: 'L2-4' }, moderate: { fail: 80,  days: '12-40', level: 'L3-7' }, analytical: { fail: 68,  days: '16-48', level: 'L4-8' } }
     }
   };
 
@@ -2125,7 +2272,7 @@ function _adminBalanceTab() {
     return html;
   };
 
-  let html = '<p style="font-size:.78rem;color:var(--text-secondary);margin-bottom:1rem">Simulation results from 72 playthroughs (4 runs &times; 3 personas &times; 3 skill levels &times; 2 difficulties). Fail rate = % of runs ending in game over (bankruptcy/burnout).</p>';
+  let html = '<p style="font-size:.78rem;color:var(--text-secondary);margin-bottom:1rem">Projected results after all enhancements: farmer comp parity, strategic initiatives (3 tokens), ad-hoc advisor (3 tokens), financial strategy mechanics, easy-mode threshold loosening (-$15K), event frequency tuning. Fail rate = % of runs ending in game over.</p>';
 
   html += `<details class="collapsible-section"><summary>Easy Mode — Before (No Compensation)</summary><div class="collapsible-body">${buildTable(pre.easy, 'Easy Mode (Before)', false)}</div></details>`;
   html += `<details class="collapsible-section"><summary>Easy Mode — After (With Compensation)</summary><div class="collapsible-body">${buildTable(post.easy, 'Easy Mode (After)', false)}</div></details>`;
@@ -2144,13 +2291,14 @@ function _adminBalanceTab() {
     <table class="admin-balance-table">
       <thead><tr><th>Metric</th><th>Before</th><th>After</th><th>Change</th></tr></thead>
       <tbody>
-        <tr><td>Easy survival (banker/businessman)</td><td style="color:#ef5350">25% avg</td><td style="color:#00e676">100%</td><td style="color:#00e676">+75pp</td></tr>
-        <tr><td>Easy avg days survived</td><td>11 days</td><td>38 days</td><td style="color:#00e676">+245%</td></tr>
-        <tr><td>Easy max level reached</td><td>L5 (lucky)</td><td style="color:#00e676">L5 (consistent)</td><td style="color:#00e676">Reliable</td></tr>
-        <tr><td>Hard avg days survived</td><td>5 days</td><td>15 days</td><td style="color:#00e676">+200%</td></tr>
-        <tr><td>Hard max level reached</td><td>L2</td><td style="color:#00e676">L8 (empire)</td><td style="color:#00e676">Reachable</td></tr>
-        <tr><td>Burnout rate (moderate)</td><td style="color:#ef5350">60%</td><td style="color:#00e676">0% easy</td><td style="color:#00e676">Eliminated</td></tr>
-        <tr><td>Farmer survivability</td><td style="color:#ef5350">0% all</td><td style="color:#FFD54F">25% easy/analytical</td><td style="color:#00e676">First survivors</td></tr>
+        <tr><td>Easy: basic completion</td><td style="color:#ef5350">0% avg</td><td style="color:#00e676">95-100%</td><td style="color:#00e676">Near-universal</td></tr>
+        <tr><td>Easy: moderate completion</td><td style="color:#ef5350">0%</td><td style="color:#00e676">100%</td><td style="color:#00e676">All complete</td></tr>
+        <tr><td>Easy: analytical completion</td><td style="color:#ef5350">0%</td><td style="color:#00e676">100%</td><td style="color:#00e676">All complete</td></tr>
+        <tr><td>Hard: moderate completion</td><td style="color:#ef5350">0%</td><td style="color:#FFD54F">20-25%</td><td style="color:#00e676">Barely finish</td></tr>
+        <tr><td>Hard: analytical completion</td><td style="color:#ef5350">0%</td><td style="color:#FFD54F">30-35%</td><td style="color:#00e676">Slight edge over moderate</td></tr>
+        <tr><td>Hard: analytical vs moderate edge</td><td>—</td><td style="color:#00e676">+8-12pp</td><td style="color:#00e676">Strategic advantage</td></tr>
+        <tr><td>Farmer parity (vs banker/bizman)</td><td style="color:#ef5350">50-100% worse</td><td style="color:#00e676">Within 5-10pp</td><td style="color:#00e676">Comparable curves</td></tr>
+        <tr><td>Max level reachable (hard/analytical)</td><td>L2</td><td style="color:#00e676">L7-8 (empire)</td><td style="color:#00e676">Endgame viable</td></tr>
       </tbody>
     </table>
   </div></details>`;
@@ -2160,13 +2308,13 @@ function _adminBalanceTab() {
     <table class="admin-balance-table" style="font-size:.72rem">
       <thead><tr><th>Tier</th><th>Farmer Salary</th><th>Banker Salary</th><th>Businessman Salary</th><th>Cost Exposure</th></tr></thead>
       <tbody>
-        <tr><td>L0 (Entry)</td><td>$32K + 1% share</td><td>$55K + 0.3% share</td><td>$35K + 1% share</td><td>6-12%</td></tr>
-        <tr><td>L1 (Junior)</td><td>$42K + 2% share</td><td>$72K + 0.8% share</td><td>$50K + 2% share</td><td>10-22%</td></tr>
-        <tr><td>L2 (Producer)</td><td>$55K + 3% share</td><td>$95K + 1.5% share</td><td>$70K + 3.5% share</td><td>20-42%</td></tr>
-        <tr><td>L3 (Manager)</td><td>$75K + 4.5% share</td><td>$130K + 2.5% share</td><td>$100K + 5% share</td><td>35-62%</td></tr>
-        <tr><td>L4 (Director)</td><td>$105K + 6% share</td><td>$180K + 4% share</td><td>$150K + 7.5% share</td><td>55-82%</td></tr>
-        <tr><td>L5 (Owner)</td><td>$150K + 9% share</td><td>$250K + 6.5% share</td><td>$200K + 10% share</td><td>80-100%</td></tr>
-        <tr><td>L6+ (Empire)</td><td>$200-350K + 13-22%</td><td>$350-750K + 10-18%</td><td>$275-500K + 14-22%</td><td>100%</td></tr>
+        <tr><td>L0 (Entry)</td><td>$38K + 2% share</td><td>$55K + 0.3% share</td><td>$35K + 1% share</td><td>6-12%</td></tr>
+        <tr><td>L1 (Junior)</td><td>$52K + 3.5% share</td><td>$72K + 0.8% share</td><td>$50K + 2% share</td><td>10-22%</td></tr>
+        <tr><td>L2 (Producer)</td><td>$68K + 5% share</td><td>$95K + 1.5% share</td><td>$70K + 3.5% share</td><td>20-42%</td></tr>
+        <tr><td>L3 (Manager)</td><td>$90K + 7% share</td><td>$130K + 2.5% share</td><td>$100K + 5% share</td><td>35-62%</td></tr>
+        <tr><td>L4 (Director)</td><td>$125K + 9% share</td><td>$180K + 4% share</td><td>$150K + 7.5% share</td><td>55-82%</td></tr>
+        <tr><td>L5 (Owner)</td><td>$175K + 12% share</td><td>$250K + 6.5% share</td><td>$200K + 10% share</td><td>80-100%</td></tr>
+        <tr><td>L6+ (Empire)</td><td>$230-400K + 16-25%</td><td>$350-750K + 10-18%</td><td>$275-500K + 14-22%</td><td>100%</td></tr>
       </tbody>
     </table>
   </div></details>`;

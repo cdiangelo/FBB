@@ -659,6 +659,12 @@ body {
 .btn-back:hover, .btn-save:hover, .btn-financials:hover { background: rgba(255,255,255,.05); color: var(--text-primary); }
 .btn-financials { border-color: rgba(100,181,246,.3); color: #64B5F6; }
 .btn-financials:hover { background: rgba(100,181,246,.1); }
+.btn-strategy { border-color: rgba(156,39,176,.3); color: #CE93D8; padding: .4rem .8rem; border: 1px solid rgba(156,39,176,.3); border-radius: var(--radius); background: transparent; cursor: pointer; font-size: .8rem; transition: all .2s; }
+.btn-strategy:hover { background: rgba(156,39,176,.1); color: #E1BEE7; }
+.btn-strategy:disabled { opacity: .4; cursor: not-allowed; }
+.btn-advisor-token { border-color: rgba(76,175,80,.3); color: #81C784; padding: .4rem .8rem; border: 1px solid rgba(76,175,80,.3); border-radius: var(--radius); background: transparent; cursor: pointer; font-size: .8rem; transition: all .2s; }
+.btn-advisor-token:hover { background: rgba(76,175,80,.1); }
+.token-badge { display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,.1); border-radius: 50%; width: 16px; height: 16px; font-size: .6rem; font-weight: 700; margin-left: 3px; }
 .btn-sell { border-color: rgba(255,215,0,.3); color: #FFD700; }
 .btn-sell:hover { background: rgba(255,215,0,.1); }
 

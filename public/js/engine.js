@@ -112,6 +112,13 @@ class GameEngine {
     this.unrealizedGains = 0;         // paper profits not yet cash
     this.accruedLiabilities = 0;      // obligations not yet paid
 
+    // Strategic initiative tokens — proactive big moves (3 per game)
+    this.strategicTokens = 3;
+    this.strategicUsed = [];          // history of initiatives used
+
+    // Ad-hoc advisor tokens (separate from commentary advisor)
+    this.advisorTokens = 3;
+
     // Operating model & tech enablement
     this.operatingModel = {
       techLevel: 0,        // 0-100: 0=manual, 100=fully automated/AI-driven
@@ -215,6 +222,9 @@ class GameEngine {
       auditRisk: saveData.auditRisk || 0,
       unrealizedGains: saveData.unrealizedGains || 0,
       accruedLiabilities: saveData.accruedLiabilities || 0,
+      strategicTokens: saveData.strategicTokens ?? 3,
+      strategicUsed: saveData.strategicUsed || [],
+      advisorTokens: saveData.advisorTokens ?? 3,
       operatingModel: saveData.operatingModel || {
         techLevel: 0, techApproach: null, serviceQuality: 70, costEfficiency: 50,
         scalability: 30, techDebt: 0, techInvestments: []
@@ -280,6 +290,9 @@ class GameEngine {
       auditRisk: this.auditRisk || 0,
       unrealizedGains: this.unrealizedGains || 0,
       accruedLiabilities: this.accruedLiabilities || 0,
+      strategicTokens: this.strategicTokens ?? 3,
+      strategicUsed: this.strategicUsed || [],
+      advisorTokens: this.advisorTokens ?? 3,
       operatingModel: JSON.parse(JSON.stringify(this.operatingModel || {})),
       marketDataMode: this.marketDataMode,
       actionsToday: this.actionsToday,
@@ -862,8 +875,8 @@ class GameEngine {
       };
     }
 
-    // Random event — higher chance in hard mode
-    const eventChance = this.difficulty === 'hard' ? 0.45 : 0.3;
+    // Random event — higher chance in hard mode, lower in easy
+    const eventChance = this.difficulty === 'hard' ? 0.45 : 0.22;
     if (Math.random() < eventChance) {
       return this.generateRandomEvent();
     }
@@ -876,8 +889,10 @@ class GameEngine {
 
   checkFailState() {
     // Bankruptcy: money deeply negative with no assets to cover
+    // Easy mode is more forgiving — larger buffer before bankruptcy
+    const bankruptcyThreshold = this.difficulty === 'hard' ? -5000 : -15000;
     const netWorth = this.state.money + (this.portfolio?.totalAssetValue || 0) - (this.debtStructure?.totalDebt || 0);
-    if (netWorth < -5000 && this.state.money < 0) {
+    if (netWorth < bankruptcyThreshold && this.state.money < 0) {
       return {
         type: 'bankruptcy',
         text: 'Your liabilities have overwhelmed your assets. Creditors have called in your debts and your operation is insolvent.',
@@ -923,16 +938,18 @@ class GameEngine {
   generateRandomEvent() {
     const events = {
       farmer: [
-        { text: 'Heavy rains boosted your crop growth.', money: 500 },
-        { text: 'Drought conditions — irrigation costs increased.', money: -300 },
-        { text: 'Commodity prices spiked on export news.', money: 800 },
-        { text: 'Equipment breakdown — emergency repair needed.', money: -600 },
-        { text: 'Government subsidy payment received.', money: 1000 },
-        { text: 'Neighbor offered to share equipment costs this week.', money: 200 },
-        { text: 'Fuel prices jumped — higher operating costs.', money: -400 },
-        { text: 'Soil test results came back excellent for your fields.', money: 300 },
-        { text: 'A buyer offered premium for organic-certified produce.', money: 700 },
-        { text: 'Unexpected pest pressure in the south field.', money: -500 }
+        { text: 'Heavy rains boosted your crop growth — bumper harvest premium.', money: 1500 },
+        { text: 'Drought conditions — emergency irrigation and water hauling costs.', money: -800 },
+        { text: 'Commodity prices spiked on export news — sold forward contracts.', money: 2500 },
+        { text: 'Equipment breakdown — emergency repair and rental needed.', money: -1200 },
+        { text: 'Government subsidy payment and conservation credit received.', money: 3000 },
+        { text: 'Cooperative negotiated bulk input discounts for the season.', money: 800 },
+        { text: 'Fuel prices jumped — higher operating costs across all equipment.', money: -600 },
+        { text: 'Soil test results excellent — premium crop insurance discount.', money: 1000 },
+        { text: 'A buyer offered premium for organic-certified produce — long-term contract.', money: 2000 },
+        { text: 'Unexpected pest pressure — crop dusting and treatment costs.', money: -900 },
+        { text: 'Farm-to-table restaurant chain signed seasonal supply agreement.', money: 1800 },
+        { text: 'Received USDA value-added producer grant.', money: 2500 }
       ],
       banker: [
         { text: 'Federal Reserve adjusted interest rates.', money: 2000 },
@@ -978,6 +995,80 @@ class GameEngine {
     if (event.money > 0) this.state.revenue += event.money;
     else this.state.costs += Math.abs(event.money);
     return event;
+  }
+
+  // ---- STRATEGIC INITIATIVES ----
+  // Proactive big-ticket decisions the player can trigger (3 per game)
+  getStrategicInitiatives() {
+    if (this.strategicTokens <= 0) return [];
+    const tier = this._getCompTierIndex();
+    const cash = this.state.money;
+    const persona = this.persona;
+    const initiatives = [];
+
+    // Restructuring — available at tier 2+
+    if (tier >= 2) {
+      const savings = Math.round(cash * 0.15);
+      initiatives.push({
+        id: 'restructure',
+        name: 'Restructuring Proposal',
+        summary: `Reorganize operations to cut costs by ~$${savings.toLocaleString()}/period`,
+        options: [
+          { label: 'Lean restructure — minimal layoffs', detail: 'Cut overhead through process optimization and renegotiated contracts. Smaller savings but preserves team morale and institutional knowledge.',
+            effect: { score: 15, money: Math.round(savings * 0.5), satisfaction: -3, costEfficiency: 8, knowledge: 6 } },
+          { label: 'Deep restructure — significant headcount reduction', detail: 'Eliminate redundant roles and flatten hierarchy. Maximum cost savings but significant disruption and morale impact. Rebuilding takes time.',
+            effect: { score: 12, money: savings, satisfaction: -12, costEfficiency: 15, scalability: -5, knowledge: 4 } },
+          { label: 'Strategic pivot — restructure around growth', detail: 'Redirect resources from declining areas to high-growth opportunities. Costs money upfront but positions you for larger returns. Requires conviction.',
+            effect: { score: 20, money: -Math.round(savings * 0.3), scalability: 10, techLevel: 5, knowledge: 12 } }
+        ]
+      });
+    }
+
+    // Acquisition — available at tier 3+ with sufficient cash
+    if (tier >= 3 && cash > 15000) {
+      const target = Math.round(cash * 0.4);
+      initiatives.push({
+        id: 'acquisition',
+        name: 'Acquisition Opportunity',
+        summary: `Acquire a competitor or complementary business (~$${target.toLocaleString()})`,
+        options: [
+          { label: 'All-cash acquisition', detail: `Pay ${this._formatMoney(target)} outright. Full control, no dilution, no debt service. But depletes reserves significantly. Best if you have strong cash flow to rebuild.`,
+            effect: { score: 18, money: -target, scalability: 12, knowledge: 8 } },
+          { label: 'Leveraged acquisition (60% debt)', detail: `Put ${this._formatMoney(Math.round(target * 0.4))} down, finance the rest. Amplifies returns but adds monthly obligations. Tax-deductible interest offsets some cost.`,
+            effect: { score: 20, money: -Math.round(target * 0.4), financialRisk: 12, scalability: 12, knowledge: 10 } },
+          { label: 'Equity swap — merge rather than buy', detail: 'Combine operations with shared ownership. No cash outlay, gain scale instantly. But you give up control and ownership percentage.',
+            effect: { score: 22, scalability: 15, knowledge: 14, satisfaction: -5 } },
+          { label: 'Pass — not the right time', detail: 'Preserve capital and optionality. The deal will come around again. Sometimes the best deal is no deal.',
+            effect: { score: 6, knowledge: 3 } }
+        ]
+      });
+    }
+
+    // Revenue initiative — always available
+    const revTarget = Math.round(cash * 0.08 + 2000);
+    const revInvest = Math.round(revTarget * 0.3);
+    initiatives.push({
+      id: 'revenue_push',
+      name: 'Revenue Growth Initiative',
+      summary: `Invest to drive ~$${revTarget.toLocaleString()} in new revenue`,
+      options: [
+        { label: 'Market expansion — new geography or segment', detail: `Invest ${this._formatMoney(revInvest)} to enter adjacent markets. Higher risk, higher potential reward. Takes time to materialize.`,
+          effect: { score: 16, money: -revInvest, scalability: 8, knowledge: 10 } },
+        { label: 'Price increase — capture more value', detail: 'Raise prices 5-15% on existing products/services. Immediate margin improvement if volume holds. Risk of customer loss.',
+          effect: { score: 14, money: Math.round(revTarget * 0.6), satisfaction: -3, knowledge: 6 } },
+        { label: 'Upsell existing relationships', detail: 'Cross-sell additional services to current customers. Low cost, high conversion. Deepens relationships but requires sales effort.',
+          effect: { score: 18, money: Math.round(revTarget * 0.4), knowledge: 8, satisfaction: -2 } }
+      ]
+    });
+
+    return initiatives;
+  }
+
+  useStrategicToken(initiativeId) {
+    if (this.strategicTokens <= 0) return false;
+    this.strategicTokens--;
+    this.strategicUsed.push({ id: initiativeId, day: this.day });
+    return true;
   }
 
   // ---- SCENARIO GENERATION ----
