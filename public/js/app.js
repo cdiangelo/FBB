@@ -969,7 +969,7 @@ function buildMarketTable(snapshot) {
   let html = `<table class="mkt-table">
     <thead><tr>
       <th class="mkt-name">Instrument</th>
-      <th>Price</th>
+      ${sortBtn('price', 'Price')}
       ${sortBtn('pctChange', 'Day')}
       ${sortBtn('periodChange', 'Period')}
       ${sortBtn('totalReturn', 'Total')}
