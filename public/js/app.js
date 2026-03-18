@@ -911,18 +911,25 @@ function showDecisionTask(scenario, badge) {
     </details>`;
   }
 
-  // Options as compact panes with color-coded implication borders and info expand
+  // Options as compact panes — merged headline with key specs, hover tooltip for detail
   const optionsHtml = `${badgeHtml}<div class="option-group">${scenario.options.map((opt, i) => {
     const cost = engine.getOptionCost(opt);
     const affordable = engine.canAfford(opt);
-    const costHtml = cost > 0 ? `<span class="option-cost ${affordable ? '' : 'option-cost-blocked'}">$${cost.toLocaleString()}</span>` : '';
+    const e = opt.effect || {};
+    // Build merged summary: label + 1-2 key specs if relevant
+    let summary = opt.label;
+    const specs = [];
+    if (cost > 0) specs.push(`$${cost.toLocaleString()}`);
+    if (e.score && e.score > 5) specs.push(`+${e.score}pts`);
+    if (e.satisfaction && e.satisfaction !== 0) specs.push(`${e.satisfaction > 0 ? '+' : ''}${e.satisfaction} sat`);
+    if (specs.length) summary += ` — ${specs.slice(0, 2).join(', ')}`;
     // Classify implication for color border
     const impClass = _getImplicationClass(opt);
-    return `<div class="option-pane ${impClass}${affordable ? '' : ' option-unaffordable'}" onclick="selectOption(${i})">
+    const detailEscaped = opt.detail.replace(/"/g, '&quot;');
+    return `<div class="option-pane ${impClass}${affordable ? '' : ' option-unaffordable'}" onclick="selectOption(${i})" data-detail="${detailEscaped}">
       <span class="option-key">${String.fromCharCode(65 + i)}</span>
-      <span class="option-label">${opt.label}</span>${costHtml}
-      <button class="option-info-btn" onclick="event.stopPropagation();toggleOptionExpand(this)" title="More info">i</button>
-      <div class="option-expand">${opt.detail}</div>
+      <span class="option-label">${summary}</span>
+      ${!affordable ? '<span class="option-cost option-cost-blocked">insufficient $</span>' : ''}
     </div>`;
   }).join('')}</div>`;
 
@@ -962,10 +969,11 @@ function showCommentaryTask(scenario) {
     actionsHtml = `<details class="collapsible-section"><summary>Actions This Period (${actions.length})${summaryBadge}</summary><div class="collapsible-body action-history">${actionRows}</div></details>`;
   }
 
-  // Commentary input in scrollable area
+  // Commentary input in scrollable area — highlight defined terms in prompt
+  const highlightedPrompt = highlightGlossaryTerms(scenario.prompt);
   els.taskBody.innerHTML = `
     ${actionsHtml}
-    <p style="color:var(--text-secondary);margin-bottom:1rem;font-size:.85rem">${scenario.prompt}</p>
+    <div class="commentary-prompt" style="color:var(--text-secondary);margin-bottom:1rem;font-size:.85rem">${highlightedPrompt}</div>
     <textarea class="commentary-input" id="commentary-text" placeholder="Write your performance commentary here..."></textarea>
   `;
   els.taskActions.innerHTML = '<button class="btn-primary" onclick="submitCommentary()">Submit Commentary</button>';
@@ -1485,6 +1493,17 @@ function showFinancialStatement() {
             <tr><td>Service Quality</td><td class="fin-val">${om?.serviceQuality || 0}</td></tr>
           </tbody>
         </table>
+        <table class="fin-stmt-table" style="margin-top:1rem">
+          <thead><tr><th colspan="2" style="text-align:left;border-bottom:1px solid var(--border);padding-bottom:.4rem">Workforce & Efficiency</th></tr></thead>
+          <tbody>
+            <tr><td>Employees</td><td class="fin-val">${engine.state?.employees || 0}</td></tr>
+            <tr><td>Employee Satisfaction</td><td class="fin-val" style="color:${(engine.employeeSatisfaction || 0) < 40 ? '#ef5350' : (engine.employeeSatisfaction || 0) > 70 ? '#4CAF50' : 'var(--text-secondary)'};">${engine.employeeSatisfaction || 0}/100</td></tr>
+            <tr><td>Management Style</td><td class="fin-val">${(engine.micromanagerLevel || 50) > 65 ? 'Hands-on' : (engine.micromanagerLevel || 50) < 35 ? 'Hands-off' : 'Balanced'}</td></tr>
+            <tr><td>Revenue/Employee</td><td class="fin-val">$${(engine.state?.employees > 0 ? Math.round((s.revenue || 0) / engine.state.employees) : 0).toLocaleString()}</td></tr>
+            <tr><td>Personal Satisfaction</td><td class="fin-val" style="color:${(engine.satisfaction || 0) < 30 ? '#ef5350' : (engine.satisfaction || 0) > 60 ? '#4CAF50' : '#FF9800'};">${engine.satisfaction || 0}/100</td></tr>
+            <tr><td>Career Level</td><td class="fin-val">${engine.getLevel().name}</td></tr>
+          </tbody>
+        </table>
       </div>
       <div class="admin-footer">
         <button class="btn-secondary" onclick="closeAdminPanel()">Close</button>
@@ -1822,7 +1841,18 @@ function toggleGameSpeech(enabled) {
   dingSoundChoice = 'C'; // always double-ding
   const titleToggle = document.getElementById('toggle-speech');
   if (titleToggle) titleToggle.checked = enabled;
+  // Show/hide speed slider
+  const speedRange = document.getElementById('game-speech-speed');
+  const speedVal = document.getElementById('game-speech-speed-val');
+  if (speedRange) speedRange.style.display = enabled ? '' : 'none';
+  if (speedVal) speedVal.style.display = enabled ? '' : 'none';
   if (!enabled) stopSpeech();
+}
+
+function updateSpeechSpeed(val) {
+  speechSpeed = parseFloat(val);
+  const label = document.getElementById('game-speech-speed-val');
+  if (label) label.textContent = `${val}x`;
 }
 
 // ===============================
@@ -1835,6 +1865,56 @@ function showNotification(text) {
 }
 
 function capitalize(str) { return str.charAt(0).toUpperCase() + str.slice(1); }
+
+// Highlight glossary terms in commentary prompts
+function highlightGlossaryTerms(text) {
+  const glossary = GAME_DATA.glossary;
+  if (!glossary) return text;
+
+  // Sort terms by length (longest first) to avoid partial matches
+  const terms = Object.keys(glossary).sort((a, b) => b.length - a.length);
+
+  // Build a map of replacements — avoid double-replacing
+  const replacements = [];
+  let working = text;
+
+  for (const term of terms) {
+    const regex = new RegExp(`\\b(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b`, 'gi');
+    let match;
+    while ((match = regex.exec(working)) !== null) {
+      // Check not already inside a replacement zone
+      const start = match.index;
+      const end = start + match[0].length;
+      const overlaps = replacements.some(r => start < r.end && end > r.start);
+      if (!overlaps) {
+        replacements.push({ start, end, term, original: match[0] });
+      }
+    }
+  }
+
+  // Sort by position (reverse) and replace from end to preserve indices
+  replacements.sort((a, b) => b.start - a.start);
+  let result = text;
+  for (const r of replacements) {
+    const entry = glossary[r.term.toLowerCase()];
+    const sourceIcon = entry.source === 'financials' ? '📊' : entry.source === 'actions' ? '📋' : entry.source === 'business-summary' ? '📈' : '📉';
+    const tooltip = `${entry.def} ${sourceIcon} Find in: ${entry.section}`;
+    result = result.slice(0, r.start) +
+      `<span class="glossary-term" tabindex="0" data-tooltip="${tooltip.replace(/"/g, '&quot;')}">${r.original}</span>` +
+      result.slice(r.end);
+  }
+  return result;
+}
+
+// Toggle glossary tooltip on click (mobile-friendly)
+document.addEventListener('click', (e) => {
+  const term = e.target.closest('.glossary-term');
+  // Close any open tooltips first
+  document.querySelectorAll('.glossary-term.active').forEach(t => {
+    if (t !== term) t.classList.remove('active');
+  });
+  if (term) term.classList.toggle('active');
+});
 
 // Classify option implication for color-coded border
 function _getImplicationClass(opt) {
@@ -1852,10 +1932,6 @@ function _getImplicationClass(opt) {
   return 'imp-balanced';
 }
 
-function toggleOptionExpand(btn) {
-  const pane = btn.closest('.option-pane');
-  if (pane) pane.classList.toggle('expanded');
-}
 
 function formatKey(key) { return key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()); }
 

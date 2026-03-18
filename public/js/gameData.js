@@ -152,6 +152,76 @@ const GAME_DATA = {
       'Prepare your investor update. Cover: portfolio company performance, new deals sourced, fee income trends, market positioning, and capital deployment plan.',
       'Draft your strategic outlook. Include: market conditions assessment, competitive dynamics, client engagement results, team capacity, and expansion priorities.'
     ]
+  },
+
+  // ---- TERM GLOSSARY ----
+  // Industry terms with definitions and where to find the data
+  // source: 'financials' = look in Financial Statement panel
+  //         'actions' = look in Actions This Period
+  //         'score-panel' = look in right-side score/stats panel
+  //         'business-summary' = look in Business Summary section
+  glossary: {
+    // === SHARED (all personas) ===
+    'revenue':            { def: 'Total income earned from operations this period.', source: 'financials', section: 'Income Summary' },
+    'costs':              { def: 'Total expenses incurred from operations this period.', source: 'financials', section: 'Income Summary' },
+    'net income':         { def: 'Revenue minus costs — your bottom-line profit or loss.', source: 'financials', section: 'Income Summary' },
+    'cash on hand':       { def: 'Actual liquid cash available right now, distinct from book profit.', source: 'financials', section: 'Cash vs Profit' },
+    'net worth':          { def: 'Cash + assets − debt. Your total financial position.', source: 'financials', section: 'Balance Sheet' },
+    'total assets':       { def: 'Value of all owned property, equipment, and investments.', source: 'financials', section: 'Balance Sheet' },
+    'total debt':         { def: 'Outstanding loans and obligations owed to creditors.', source: 'financials', section: 'Balance Sheet' },
+    'debt service':       { def: 'Regular payments required to service outstanding debt.', source: 'financials', section: 'Income Summary' },
+    'financial risk':     { def: 'Overall risk exposure (0–100%). Higher = more vulnerable to shocks.', source: 'financials', section: 'Risk & Operations' },
+    'audit risk':         { def: 'Chance of regulatory scrutiny or tax audit (0–100%).', source: 'financials', section: 'Risk & Operations' },
+    'capital expenditure': { def: 'Spending on long-term assets like equipment, land, or technology.', source: 'actions', section: 'Look for asset purchase decisions' },
+    'growth strategy':    { def: 'Your plan for expanding operations — reflected in tech level, scalability, and recent decisions.', source: 'financials', section: 'Risk & Operations' },
+    'book profit':        { def: 'Accounting profit on paper — may differ from actual cash due to timing.', source: 'financials', section: 'Cash vs Profit' },
+    'unrealized gains':   { def: 'Paper profits on assets you haven\'t sold yet.', source: 'financials', section: 'Cash vs Profit' },
+    'tech level':         { def: 'Technology adoption score — higher means more automated/efficient operations.', source: 'financials', section: 'Risk & Operations' },
+    'scalability':        { def: 'How well your operations can grow without proportional cost increases.', source: 'financials', section: 'Risk & Operations' },
+    'service quality':    { def: 'Quality rating of your output/service delivery.', source: 'financials', section: 'Risk & Operations' },
+    'tax strategy':       { def: 'Your approach to taxation — standard, aggressive (risky), or conservative (safe).', source: 'financials', section: 'Risk & Operations' },
+
+    // === FARMER-SPECIFIC ===
+    'crop yields':        { def: 'Amount of crop produced per acre. Affected by weather, inputs, and decisions.', source: 'business-summary', section: 'Revenue changes reflect yield outcomes' },
+    'input cost':         { def: 'Cost of seed, fertilizer, chemicals, fuel — tracked in your period costs.', source: 'financials', section: 'Income Summary (Costs)' },
+    'input costs':        { def: 'Cost of seed, fertilizer, chemicals, fuel — tracked in your period costs.', source: 'financials', section: 'Income Summary (Costs)' },
+    'market price':       { def: 'Current commodity selling price. Check the market ticker during scenarios.', source: 'score-panel', section: 'Market ticker in task header' },
+    'acreage utilization': { def: 'How effectively you\'re using available farmland. Reflected in revenue vs costs ratio.', source: 'business-summary', section: 'Revenue and capital allocation' },
+    'equipment ROI':      { def: 'Return on equipment investments. Compare asset value to the income they generate.', source: 'financials', section: 'Balance Sheet (Total Assets)' },
+    'labor efficiency':   { def: 'Output per worker. Reflected in your scalability score and employee count.', source: 'financials', section: 'Risk & Operations (Scalability)' },
+    'commodity marketing': { def: 'How and when you sell your crops — timing and pricing strategy.', source: 'actions', section: 'Look for selling/marketing decisions' },
+    'crop insurance':     { def: 'Protection against crop loss. Appears as insurance-related decisions in your actions.', source: 'actions', section: 'Look for insurance decisions' },
+    'land value':         { def: 'Worth of owned land. Part of your total asset value.', source: 'financials', section: 'Balance Sheet (Total Assets)' },
+    'weather impacts':    { def: 'How weather events affected your operations. Review recent event actions.', source: 'actions', section: 'Look for weather-related events' },
+
+    // === BANKER-SPECIFIC ===
+    'loan quality':       { def: 'Health of your loan portfolio — lower default rates = higher quality.', source: 'financials', section: 'Risk & Operations (Financial Risk)' },
+    'default rates':      { def: 'Percentage of loans where borrowers fail to repay. Drives financial risk.', source: 'financials', section: 'Risk & Operations (Financial Risk)' },
+    'interest income':    { def: 'Revenue earned from interest on loans. Your primary income source.', source: 'financials', section: 'Income Summary (Revenue)' },
+    'net interest margin': { def: 'Difference between interest earned on loans and interest paid on deposits. Key profitability metric.', source: 'business-summary', section: 'Revenue minus debt service costs' },
+    'sector concentration': { def: 'How much of your portfolio is in one industry. High concentration = higher risk.', source: 'financials', section: 'Risk & Operations (Financial Risk)' },
+    'capital adequacy':   { def: 'Whether you have enough capital to absorb losses. Net worth relative to total assets.', source: 'financials', section: 'Balance Sheet (Net Worth vs Assets)' },
+    'provision for loan losses': { def: 'Money set aside to cover expected loan defaults. Reduces net income.', source: 'financials', section: 'Income Summary (Costs)' },
+    'deposit growth':     { def: 'Increase in customer deposits — your funding base. Reflected in revenue trends.', source: 'business-summary', section: 'Revenue changes' },
+    'regulatory standing': { def: 'Your compliance status with banking regulations. Reflected in audit risk.', source: 'financials', section: 'Risk & Operations (Audit Risk)' },
+    'lending strategy':   { def: 'Your approach to making loans — conservative vs aggressive, sector focus.', source: 'actions', section: 'Look for lending decisions' },
+    'stress test':        { def: 'Analysis of how your portfolio performs under adverse conditions. Financial risk score reflects this.', source: 'financials', section: 'Risk & Operations (Financial Risk)' },
+    'watch list':         { def: 'Loans showing signs of trouble. Tracked via your financial risk level.', source: 'financials', section: 'Risk & Operations (Financial Risk)' },
+    'portfolio':          { def: 'Your collection of loans, investments, or business activities.', source: 'financials', section: 'Balance Sheet' },
+
+    // === BUSINESSMAN-SPECIFIC ===
+    'advisory revenue':   { def: 'Income from consulting and advisory services to clients.', source: 'financials', section: 'Income Summary (Revenue)' },
+    'client pipeline':    { def: 'Potential future clients and deals in progress. Reflected in revenue momentum.', source: 'business-summary', section: 'Forecast (Growth & Momentum)' },
+    'market opportunities': { def: 'Identified chances for new business or expansion.', source: 'actions', section: 'Look for opportunity-related decisions' },
+    'partnership performance': { def: 'How well business partnerships are delivering value. Check recent partner-related actions.', source: 'actions', section: 'Look for partnership decisions' },
+    'venture returns':    { def: 'Profit/loss from venture investments. Shown as unrealized gains or asset value.', source: 'financials', section: 'Cash vs Profit (Unrealized Gains)' },
+    'fee income':         { def: 'Revenue from fees charged for services. Part of total revenue.', source: 'financials', section: 'Income Summary (Revenue)' },
+    'capital deployment':  { def: 'How you\'re investing available capital — debt vs equity allocation.', source: 'business-summary', section: 'Capital allocation (Debt/Equity %)' },
+    'competitive dynamics': { def: 'Market competition affecting your business. Reflected in pricing pressure and revenue.', source: 'business-summary', section: 'Forecast' },
+    'client engagement':  { def: 'Active work with clients. Review your recent advisory/consulting decisions.', source: 'actions', section: 'Look for client-related decisions' },
+    'team capacity':      { def: 'How much work your team can handle. Tied to employee count and scalability.', source: 'financials', section: 'Risk & Operations (Scalability)' },
+    'market positioning':  { def: 'Where you stand relative to competitors. Reflected in your overall score and level.', source: 'score-panel', section: 'Your level and total score' },
+    'valuation':          { def: 'Estimated worth of a business or investment. Your net worth approximates this.', source: 'financials', section: 'Balance Sheet (Net Worth)' }
   }
 };
 

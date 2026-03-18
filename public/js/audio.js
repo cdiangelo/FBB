@@ -5,7 +5,7 @@
 
 // ---- STATE ----
 let speechEnabled = false;
-let speechSpeed = 1;        // 1, 1.5, or 2
+let speechSpeed = 1.5;      // 1-2x range, default 1.5
 let dingSoundChoice = 'C';  // 'A', 'B', or 'C' — default to Double Ding
 let _audioCtx = null;
 

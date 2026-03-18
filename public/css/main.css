@@ -637,14 +637,8 @@ body {
 
 /* Game speech controls (inline in top bar) */
 .game-speech-controls { display: flex; align-items: center; gap: .4rem; margin-left: .25rem; padding-left: .5rem; border-left: 1px solid var(--border); }
-.game-ding-btns { display: flex; gap: 2px; }
-.ding-btn-sm {
-  background: var(--bg-card); border: 1px solid var(--border); border-radius: 3px;
-  padding: .2rem .4rem; font-size: .65rem; color: var(--text-dim);
-  cursor: pointer; transition: all .2s; line-height: 1;
-}
-.ding-btn-sm:hover { border-color: var(--accent); color: var(--text-primary); }
-.ding-btn-sm.active { background: var(--accent); color: #1a1a2e; border-color: var(--accent); font-weight: 600; }
+.speech-speed-range { width: 50px; height: 3px; accent-color: var(--accent); cursor: pointer; }
+.speech-speed-val { font-size: .6rem; color: var(--text-dim); min-width: 24px; }
 
 .btn-back, .btn-save, .btn-sell, .btn-financials {
   padding: .4rem .8rem;
@@ -964,22 +958,18 @@ body {
 .option-pane.option-unaffordable:hover { transform: none; }
 .option-pane.option-unaffordable .option-key { background: #555; }
 
-/* Info expand button */
-.option-info-btn {
-  position: absolute; top: 4px; right: 4px;
-  width: 18px; height: 18px; border-radius: 50%;
-  background: rgba(255,255,255,.08); border: none; color: var(--text-dim);
-  font-size: .6rem; cursor: pointer; transition: all .2s;
-  display: flex; align-items: center; justify-content: center;
+/* Detail tooltip on hover */
+.option-pane::after {
+  content: attr(data-detail);
+  position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  width: max-content; max-width: 280px; padding: .45rem .6rem;
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text-secondary); font-size: .7rem; line-height: 1.4;
+  white-space: normal; z-index: 100; pointer-events: none;
+  opacity: 0; transition: opacity .15s;
+  box-shadow: 0 4px 12px rgba(0,0,0,.4);
 }
-.option-info-btn:hover { background: rgba(255,255,255,.15); color: var(--text-primary); }
-.option-expand {
-  display: none; margin-top: .4rem; padding-top: .35rem;
-  border-top: 1px solid var(--border); font-size: .72rem;
-  color: var(--text-secondary); line-height: 1.4;
-}
-.option-pane.expanded .option-expand { display: block; }
-.option-pane.expanded { flex: 1 1 100%; }
+.option-pane:hover::after { opacity: 1; }
 
 /* Implication color borders — spectrum from safe to risky */
 .option-pane.imp-safe { border-color: rgba(33,150,243,.4); }        /* blue — safe/conservative */
@@ -1058,6 +1048,31 @@ body {
 }
 .commentary-input:focus { outline: none; border-color: var(--accent); }
 .commentary-input::placeholder { color: var(--text-dim); }
+
+/* Glossary term highlighting in commentary prompts */
+.glossary-term {
+  position: relative; cursor: help;
+  border-bottom: 1px dashed var(--accent); color: var(--text-primary);
+  padding: 0 1px; transition: color .2s;
+}
+.glossary-term:hover, .glossary-term:focus { color: var(--accent); }
+
+/* Tooltip via ::after — shown on hover and on click (.active) */
+.glossary-term::after {
+  content: attr(data-tooltip);
+  position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  width: max-content; max-width: 260px; padding: .45rem .6rem;
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text-secondary); font-size: .7rem; line-height: 1.4;
+  white-space: normal; z-index: 100; pointer-events: none;
+  opacity: 0; transition: opacity .15s;
+  box-shadow: 0 4px 12px rgba(0,0,0,.4);
+}
+.glossary-term:hover::after, .glossary-term:focus::after,
+.glossary-term.active::after { opacity: 1; }
+
+/* Flip tooltip below if near top */
+.commentary-prompt { position: relative; }
 
 /* Task action buttons */
 .task-actions { display: flex; gap: .75rem; flex-wrap: wrap; padding-top: 1rem; border-top: 1px solid var(--border); }
