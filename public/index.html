@@ -94,6 +94,32 @@
             </label>
             <p class="toggle-hint">When off, standard scenarios with full advisor access. When on, tougher decisions with more downside risk — advisor limited to reasoning support during quarterly reviews only.</p>
           </div>
+          <div class="option-toggle" style="margin-top:.75rem">
+            <label class="toggle-label">
+              <input type="checkbox" id="toggle-speech">
+              <span class="toggle-switch"></span>
+              <span class="toggle-text">Speech Mode</span>
+            </label>
+            <p class="toggle-hint">Reads scenario prompts aloud. Click the speaker icon beside any prompt to hear it again.</p>
+            <div class="speech-controls" id="speech-controls" style="display:none">
+              <div class="speech-speed-row">
+                <span class="speech-speed-label">Speed:</span>
+                <div class="speech-speed-btns" id="speech-speed-btns">
+                  <button class="speech-speed-btn active" data-speed="1">1x</button>
+                  <button class="speech-speed-btn" data-speed="1.5">1.5x</button>
+                  <button class="speech-speed-btn" data-speed="2">2x</button>
+                </div>
+              </div>
+              <div class="ding-select-row">
+                <span class="speech-speed-label">Decision ding:</span>
+                <div class="ding-btns" id="ding-btns">
+                  <button class="ding-btn active" data-ding="A" onclick="previewDing('A'); selectDing('A')">A — Bright Chime</button>
+                  <button class="ding-btn" data-ding="B" onclick="previewDing('B'); selectDing('B')">B — Soft Bell</button>
+                  <button class="ding-btn" data-ding="C" onclick="previewDing('C'); selectDing('C')">C — Double Ding</button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <div style="margin-bottom:.5rem">
           <button class="btn-admin-link" id="btn-admin" onclick="showAdminPanel()">Admin</button>
@@ -154,6 +180,7 @@
           </div>
           <div class="top-bar-actions">
             <button class="btn-advisor-toggle" id="btn-advisor" onclick="toggleAdvisor()" style="display:none">Helper &amp; Decision Analysis</button>
+            <button class="btn-financials" id="btn-financials" onclick="showFinancialStatement()">Financials</button>
             <button class="btn-sell" id="btn-sell" style="display:none">Sell-Off</button>
             <button class="btn-save" id="btn-save">Save</button>
           </div>
@@ -325,6 +352,7 @@
   <script src="/js/gameData.js"></script>
   <script src="/js/scenarioGenerator.js"></script>
   <script src="/js/engine.js"></script>
+  <script src="/js/audio.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>

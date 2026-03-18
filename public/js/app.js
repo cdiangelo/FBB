@@ -283,6 +283,25 @@ function setupEventListeners() {
     // Only dismiss if clicking the overlay backdrop itself, not child content (admin panel, sliders, etc.)
     if (e.target === els.celebrationOverlay) dismissCelebration();
   });
+
+  // Speech mode toggle
+  const speechToggle = document.getElementById('toggle-speech');
+  const speechControls = document.getElementById('speech-controls');
+  if (speechToggle) {
+    speechToggle.addEventListener('change', () => {
+      speechEnabled = speechToggle.checked;
+      speechControls.style.display = speechEnabled ? 'block' : 'none';
+      if (!speechEnabled) stopSpeech();
+    });
+  }
+  // Speech speed buttons
+  document.querySelectorAll('.speech-speed-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.speech-speed-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      speechSpeed = parseFloat(btn.dataset.speed);
+    });
+  });
 }
 
 // ---- SCREENS ----
@@ -685,6 +704,32 @@ function loadNextTask() {
     showCelebration(celebration);
   }
 
+  // Check force-dependency queue — tick countdowns and intercept if one is ready
+  let forcedDep = null;
+  const remaining = [];
+  for (const q of _forceDependencyQueue) {
+    q.countdown--;
+    if (!forcedDep && q.countdown <= 0) {
+      const req = engine.interpersonal?.activeRequests?.[q.reqIndex];
+      if (req && !req.resolved) {
+        forcedDep = req;
+        continue; // consumed — don't keep in queue
+      }
+    }
+    if (q.countdown > 0) remaining.push(q);
+  }
+  _forceDependencyQueue = remaining;
+
+  if (forcedDep) {
+    engine.actionsToday++;
+    engine.categoriesUsedToday.add('dependency');
+    const scenario = engine._buildDependencyScenario(forcedDep);
+    currentScenario = { type: 'decision', scenario };
+    updateAdvisorButton();
+    showDecisionTask(scenario, null);
+    return;
+  }
+
   const result = engine.getNextScenario();
   if (!result) {
     setTaskHeader('End of Day', 'You\'ve navigated every challenge. Time moves on.');
@@ -707,7 +752,7 @@ function loadNextTask() {
 }
 
 function setTaskHeader(title, description) {
-  els.taskTitle.textContent = title;
+  els.taskTitle.innerHTML = title + ' ' + buildSpeakerBtn(title + '. ' + description);
   els.taskDescription.textContent = description;
 }
 
@@ -720,6 +765,16 @@ function clearTaskFixed() {
 }
 
 function showDecisionTask(scenario, badge) {
+  // Ensure at least one option is always affordable — inject a free fallback if needed
+  const anyAffordable = scenario.options.some(opt => engine.canAfford(opt));
+  if (!anyAffordable && scenario.options.length > 0) {
+    scenario.options.push({
+      label: 'Do nothing — can\'t afford the alternatives',
+      detail: 'You lack the funds for any meaningful action right now. Sometimes survival means sitting this one out.',
+      effect: { score: -2, satisfaction: -3 }
+    });
+  }
+
   setTaskHeader(scenario.title, scenario.description);
   clearTaskFixed();
 
@@ -767,6 +822,7 @@ function showDecisionTask(scenario, badge) {
   els.taskBody.innerHTML = optionsHtml;
   els.taskActions.innerHTML = '';
   reanimateScroll();
+  speakScenario(scenario.title, scenario.description);
 }
 
 function showCommentaryTask(scenario) {
@@ -807,6 +863,7 @@ function showCommentaryTask(scenario) {
   `;
   els.taskActions.innerHTML = '<button class="btn-primary" onclick="submitCommentary()">Submit Commentary</button>';
   reanimateScroll();
+  speakScenario(scenario.title, scenario.description);
 }
 
 function buildBizSummaryHTML(summary) {
@@ -1098,6 +1155,7 @@ function selectOption(index) {
   }
 
   engine.applyEffect(option.effect);
+  playDing();
 
   // Resolve dependency request if this is a dependency scenario
   if (scenario.isDependencyEvent && scenario.requestIndex !== undefined) {
@@ -1210,10 +1268,19 @@ function handleCommentaryResult(result) {
   </div>`;
   els.taskActions.innerHTML = '<button class="btn-primary" onclick="advanceAndContinue()">Next Day &rarr;</button>';
   updateAll();
+
+  // Read aloud commentary feedback in speech mode
+  if (speechEnabled && result.feedback && result.feedback.length) {
+    speakText(`Grade: ${result.grade}. ${result.feedback.join('. ')}`);
+  }
 }
 
 function advanceAndContinue() {
   const event = engine.advanceDay();
+  if (event && event.isGameOver) {
+    showGameOver(event);
+    return;
+  }
   if (event) {
     const moneyStr = event.money > 0 ? `+$${event.money.toLocaleString()}` : `-$${Math.abs(event.money).toLocaleString()}`;
     engine.addLog(`${event.text} (${moneyStr})`);
@@ -1223,6 +1290,43 @@ function advanceAndContinue() {
   updateAll();
   updateSellOffButton();
   setTimeout(() => loadNextTask(), event ? 1500 : 200);
+}
+
+function showGameOver(event) {
+  engine.addLog(`GAME OVER: ${event.type} — ${event.text}`);
+
+  const titles = {
+    bankruptcy: 'BANKRUPTCY',
+    burnout: 'BURNOUT',
+    regulatory_shutdown: 'SHUT DOWN',
+    legal_collapse: 'LEGAL CATASTROPHE'
+  };
+  const icons = {
+    bankruptcy: '\u{1F4C9}',
+    burnout: '\u{1F6AB}',
+    regulatory_shutdown: '\u{1F6A8}',
+    legal_collapse: '\u{2696}'
+  };
+
+  setTaskHeader('Game Over', titles[event.type] || 'FAILURE');
+  clearTaskFixed();
+
+  els.taskBody.innerHTML = `<div class="grade-display" style="border-color:#ef5350">
+    <div style="font-size:3rem;margin-bottom:.5rem">${icons[event.type] || ''}</div>
+    <div style="font-size:1.5rem;font-weight:900;color:#ef5350;margin-bottom:.75rem">${titles[event.type] || 'GAME OVER'}</div>
+    <p class="grade-feedback" style="color:var(--text-secondary);margin-bottom:1rem">${event.text}</p>
+    <div style="font-size:.85rem;color:var(--text-dim)">
+      <p>Final Score: ${engine.totalScore} pts</p>
+      <p>Days Survived: ${engine.day}</p>
+      <p>Net Worth: $${((engine.state.money || 0) + (engine.portfolio?.totalAssetValue || 0) - (engine.debtStructure?.totalDebt || 0)).toLocaleString()}</p>
+    </div>
+  </div>`;
+
+  els.taskActions.innerHTML = `
+    <button class="btn-primary" onclick="showScreen('title'); loadSavedGamesMenu();">Return to Menu</button>
+  `;
+
+  speakText(`Game over. ${event.text}`);
 }
 
 function updateAll() {
@@ -1235,6 +1339,65 @@ function updateAll() {
   updateJourneyPanel();
   updateLogPanel();
   updateInterpersonalPanel();
+}
+
+// ===============================
+//  FINANCIAL STATEMENT
+// ===============================
+function showFinancialStatement() {
+  const s = engine.state;
+  const ds = engine.debtStructure;
+  const pf = engine.portfolio;
+  const om = engine.operatingModel;
+  const debtService = engine.getDebtService();
+  const netWorth = (s.money || 0) + (pf?.totalAssetValue || 0) - (ds?.totalDebt || 0);
+  const equity = ds?.equityGiven || 0;
+
+  const overlay = document.getElementById('celebration-overlay');
+  const content = document.getElementById('celebration-content');
+
+  content.innerHTML = `
+    <div class="admin-panel" style="text-align:left;max-width:500px">
+      <div class="admin-header">
+        <h3>Financial Statement — Day ${engine.day}</h3>
+        <button class="trend-close" onclick="closeAdminPanel()">&#10005;</button>
+      </div>
+      <div class="admin-tab-body" style="padding:1rem">
+        <table class="fin-stmt-table">
+          <thead><tr><th colspan="2" style="text-align:left;border-bottom:1px solid var(--border);padding-bottom:.4rem">Balance Sheet</th></tr></thead>
+          <tbody>
+            <tr><td>Cash</td><td class="fin-val">$${(s.money || 0).toLocaleString()}</td></tr>
+            <tr><td>Total Assets</td><td class="fin-val">$${(pf?.totalAssetValue || 0).toLocaleString()}</td></tr>
+            <tr><td>Total Debt</td><td class="fin-val" style="color:#ef5350">($${(ds?.totalDebt || 0).toLocaleString()})</td></tr>
+            <tr style="font-weight:700;border-top:1px solid var(--border)"><td>Net Worth</td><td class="fin-val" style="color:${netWorth >= 0 ? '#4CAF50' : '#ef5350'}">$${netWorth.toLocaleString()}</td></tr>
+            ${equity > 0 ? `<tr><td>Ownership Retained</td><td class="fin-val">${100 - equity}%</td></tr>` : ''}
+          </tbody>
+        </table>
+        <table class="fin-stmt-table" style="margin-top:1rem">
+          <thead><tr><th colspan="2" style="text-align:left;border-bottom:1px solid var(--border);padding-bottom:.4rem">Income Summary</th></tr></thead>
+          <tbody>
+            <tr><td>Revenue (cumulative)</td><td class="fin-val">$${(s.revenue || 0).toLocaleString()}</td></tr>
+            <tr><td>Costs (cumulative)</td><td class="fin-val" style="color:#ef5350">($${(s.costs || 0).toLocaleString()})</td></tr>
+            <tr style="font-weight:700;border-top:1px solid var(--border)"><td>Net Income</td><td class="fin-val" style="color:${(s.revenue || 0) - (s.costs || 0) >= 0 ? '#4CAF50' : '#ef5350'}">$${((s.revenue || 0) - (s.costs || 0)).toLocaleString()}</td></tr>
+            ${debtService > 0 ? `<tr><td>Debt Service</td><td class="fin-val" style="color:#ef5350">-$${debtService.toLocaleString()}/mo</td></tr>` : ''}
+          </tbody>
+        </table>
+        <table class="fin-stmt-table" style="margin-top:1rem">
+          <thead><tr><th colspan="2" style="text-align:left;border-bottom:1px solid var(--border);padding-bottom:.4rem">Operations</th></tr></thead>
+          <tbody>
+            <tr><td>Tech Level</td><td class="fin-val">${om?.techLevel || 0}</td></tr>
+            <tr><td>Scalability</td><td class="fin-val">${om?.scalability || 0}</td></tr>
+            <tr><td>Service Quality</td><td class="fin-val">${om?.serviceQuality || 0}</td></tr>
+            <tr><td>Financial Risk</td><td class="fin-val" style="color:${(engine.financialRisk || 0) > 50 ? '#ef5350' : 'var(--text-secondary)'};">${engine.financialRisk || 0}%</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="admin-footer">
+        <button class="btn-secondary" onclick="closeAdminPanel()">Close</button>
+      </div>
+    </div>
+  `;
+  overlay.style.display = 'flex';
 }
 
 // ===============================
@@ -1414,6 +1577,13 @@ function spawnConfetti(persona, count) {
   setTimeout(() => { if (container.parentNode) container.remove(); }, 6000);
 }
 
+function selectDing(choice) {
+  dingSoundChoice = choice;
+  document.querySelectorAll('.ding-btn').forEach(b => b.classList.remove('active'));
+  const active = document.querySelector(`.ding-btn[data-ding="${choice}"]`);
+  if (active) active.classList.add('active');
+}
+
 // ===============================
 //  UTILITIES
 // ===============================
@@ -1517,6 +1687,18 @@ function updateAdvisorButton() {
 // ===============================
 //  INTERPERSONAL DYNAMICS DISPLAY
 // ===============================
+// Queue for force-responding to dependencies by clicking them
+let _forceDependencyQueue = [];
+
+function forceRespondDependency(reqIndex) {
+  const req = engine.interpersonal?.activeRequests?.[reqIndex];
+  if (!req || req.resolved) return;
+  // Queue it to appear within the next 1-3 scenarios
+  const delay = Math.floor(Math.random() * 3) + 1;
+  _forceDependencyQueue.push({ reqIndex, countdown: delay });
+  showNotification(`Queued response to ${req.from} — will appear within ${delay} action${delay > 1 ? 's' : ''}.`);
+}
+
 function updateInterpersonalPanel() {
   const panel = document.getElementById('interpersonal-display');
   if (!panel || !engine.interpersonal) return;
@@ -1524,17 +1706,18 @@ function updateInterpersonalPanel() {
 
   let html = '<h3>Team & Dependencies</h3>';
 
-  // Active requests from others
+  // Active requests from others — clickable to force-respond
   if (ip.activeRequests && ip.activeRequests.length > 0) {
     html += '<div class="ip-requests">';
-    ip.activeRequests.forEach(req => {
+    ip.activeRequests.forEach((req, idx) => {
       const urgencyClass = req.urgency === 'high' ? 'ip-urgent' : req.urgency === 'medium' ? 'ip-medium' : 'ip-low';
       const elapsed = engine.day - req.dayIssued;
       const timerPenalty = elapsed > req.deadline ? ' (OVERDUE)' : ` (${req.deadline - elapsed}d left)`;
-      html += `<div class="ip-request ${urgencyClass}">
+      const queued = _forceDependencyQueue.some(q => q.reqIndex === idx);
+      html += `<div class="ip-request ${urgencyClass} ip-clickable ${queued ? 'ip-queued' : ''}" onclick="${queued ? '' : `forceRespondDependency(${idx})`}" title="${queued ? 'Already queued' : 'Click to respond to this request'}">
         <span class="ip-from">${req.from}</span>
         <span class="ip-task">${req.task}</span>
-        <span class="ip-timer">${timerPenalty}</span>
+        <span class="ip-timer">${timerPenalty}${queued ? ' — QUEUED' : ''}</span>
       </div>`;
     });
     html += '</div>';

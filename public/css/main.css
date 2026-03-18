@@ -572,6 +572,46 @@ body {
 .saved-games .save-slot:hover { border-color: rgba(255,255,255,.2); color: var(--text-primary); }
 
 /* ===============================
+   SPEECH & SOUND CONTROLS
+   =============================== */
+.speech-controls {
+  margin-top: .6rem; padding: .6rem .8rem;
+  background: rgba(255,255,255,.03); border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.speech-speed-row, .ding-select-row {
+  display: flex; align-items: center; gap: .6rem; margin-bottom: .5rem;
+}
+.ding-select-row { margin-bottom: 0; }
+.speech-speed-label { font-size: .75rem; color: var(--text-dim); min-width: 80px; }
+.speech-speed-btns { display: flex; gap: .3rem; }
+.speech-speed-btn {
+  padding: .25rem .6rem; font-size: .75rem; border-radius: 4px;
+  background: var(--panel-inset); border: 1px solid var(--border);
+  color: var(--text-secondary); cursor: pointer; transition: all .2s;
+}
+.speech-speed-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.speech-speed-btn:hover { border-color: var(--accent); }
+
+.ding-btns { display: flex; gap: .3rem; flex-wrap: wrap; }
+.ding-btn {
+  padding: .25rem .6rem; font-size: .72rem; border-radius: 4px;
+  background: var(--panel-inset); border: 1px solid var(--border);
+  color: var(--text-secondary); cursor: pointer; transition: all .2s;
+}
+.ding-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.ding-btn:hover { border-color: var(--accent); }
+
+.speak-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+  color: var(--text-dim); cursor: pointer; transition: all .2s;
+  vertical-align: middle; margin-left: .4rem; padding: 0;
+}
+.speak-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ===============================
    GAME LAYOUT
    =============================== */
 .game-layout {
@@ -595,7 +635,7 @@ body {
 
 .top-bar-actions { display: flex; gap: .5rem; }
 
-.btn-back, .btn-save, .btn-sell {
+.btn-back, .btn-save, .btn-sell, .btn-financials {
   padding: .4rem .8rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -605,9 +645,15 @@ body {
   font-size: .8rem;
   transition: all .2s;
 }
-.btn-back:hover, .btn-save:hover { background: rgba(255,255,255,.05); color: var(--text-primary); }
+.btn-back:hover, .btn-save:hover, .btn-financials:hover { background: rgba(255,255,255,.05); color: var(--text-primary); }
+.btn-financials { border-color: rgba(100,181,246,.3); color: #64B5F6; }
+.btn-financials:hover { background: rgba(100,181,246,.1); }
 .btn-sell { border-color: rgba(255,215,0,.3); color: #FFD700; }
 .btn-sell:hover { background: rgba(255,215,0,.1); }
+
+.fin-stmt-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.fin-stmt-table td { padding: .3rem .4rem; color: var(--text-secondary); }
+.fin-stmt-table .fin-val { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--font-mono, monospace); }
 
 .game-content {
   display: grid;
@@ -1233,6 +1279,9 @@ body {
 .ip-request.ip-urgent .ip-timer { color: #ef5350; }
 .ip-request.ip-medium .ip-timer { color: #FFC107; }
 .ip-request.ip-low .ip-timer { color: #4CAF50; }
+.ip-request.ip-clickable { cursor: pointer; transition: all .2s; }
+.ip-request.ip-clickable:hover { background: rgba(255,255,255,.08); border-left-width: 5px; }
+.ip-request.ip-queued { opacity: .5; cursor: default; border-left-style: dashed; }
 .ip-clear { font-size: .7rem; color: var(--text-dim); font-style: italic; margin-bottom: .5rem; }
 .ip-relationships { display: flex; flex-direction: column; gap: .25rem; }
 .ip-rel-row { display: flex; align-items: center; gap: .4rem; font-size: .68rem; }
@@ -1395,7 +1444,7 @@ body {
 
   /* Top bar tighter */
   .top-bar { padding: .3rem .5rem; gap: .3rem; }
-  .btn-back, .btn-save, .btn-sell { padding: .3rem .5rem; font-size: .7rem; }
+  .btn-back, .btn-save, .btn-sell, .btn-financials { padding: .3rem .5rem; font-size: .7rem; }
   .status-bar span { font-size: .68rem; }
   .status-bar { gap: .4rem; }
   .status-level { display: none; } /* hide level text — visible in journey tab */
@@ -1429,7 +1478,7 @@ body {
   /* Top bar: single compact row */
   .top-bar { padding: .25rem .4rem; }
   .btn-back { font-size: .65rem; padding: .25rem .4rem; }
-  .btn-save, .btn-sell { font-size: .65rem; padding: .25rem .4rem; }
+  .btn-save, .btn-sell, .btn-financials { font-size: .65rem; padding: .25rem .4rem; }
   .btn-advisor-toggle { font-size: .6rem; padding: .25rem .4rem; }
   .status-bar { gap: .3rem; }
   .status-bar span { font-size: .62rem; }

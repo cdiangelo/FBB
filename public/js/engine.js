@@ -727,11 +727,63 @@ class GameEngine {
     if (this.difficulty === 'hard') {
       this._tickLegalExposure();
     }
+    // Check for game-over conditions
+    const failState = this.checkFailState();
+    if (failState) {
+      return { ...failState, isGameOver: true };
+    }
+
     // Random event — higher chance in hard mode
     const eventChance = this.difficulty === 'hard' ? 0.45 : 0.3;
     if (Math.random() < eventChance) {
       return this.generateRandomEvent();
     }
+    return null;
+  }
+
+  checkFailState() {
+    // Bankruptcy: money deeply negative with no assets to cover
+    const netWorth = this.state.money + (this.portfolio?.totalAssetValue || 0) - (this.debtStructure?.totalDebt || 0);
+    if (netWorth < -5000 && this.state.money < 0) {
+      return {
+        type: 'bankruptcy',
+        text: 'Your liabilities have overwhelmed your assets. Creditors have called in your debts and your operation is insolvent.',
+        money: 0
+      };
+    }
+
+    // Satisfaction collapse: satisfaction at 0 or below for sustained period
+    if (this.satisfaction <= 0) {
+      this._satisfactionZeroDays = (this._satisfactionZeroDays || 0) + 1;
+      if (this._satisfactionZeroDays >= 3) {
+        return {
+          type: 'burnout',
+          text: 'Your personal satisfaction has completely collapsed. Burned out and disillusioned, you walk away from the business entirely.',
+          money: 0
+        };
+      }
+    } else {
+      this._satisfactionZeroDays = 0;
+    }
+
+    // Catastrophic financial risk: risk maxed out triggers forced liquidation
+    if ((this.financialRisk || 0) >= 100) {
+      return {
+        type: 'regulatory_shutdown',
+        text: 'Regulators have shut down your operation due to extreme financial risk and compliance failures. Your business license has been revoked.',
+        money: 0
+      };
+    }
+
+    // Legal catastrophe (hard mode): legal exposure maxed
+    if (this.difficulty === 'hard' && (this.legalExposure || 0) >= 100) {
+      return {
+        type: 'legal_collapse',
+        text: 'A cascade of lawsuits and regulatory actions has forced your business into receivership. Legal fees have consumed all remaining assets.',
+        money: 0
+      };
+    }
+
     return null;
   }
 
