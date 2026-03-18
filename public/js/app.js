@@ -1194,7 +1194,7 @@ function confirmMultiSelect() {
   </div>`;
   els.taskActions.innerHTML = engine.hasUndo() ? '<button class="btn-undo" onclick="undoLastAction()">Undo</button>' : '';
   updateAll();
-  setTimeout(() => advanceAndContinue(), 1800);
+  setTimeout(() => loadNextTask(), 1800);
 }
 
 function showCommentaryTask(scenario) {
@@ -1685,7 +1685,7 @@ function selectOption(index) {
   els.taskActions.innerHTML = engine.hasUndo() ? '<button class="btn-undo" onclick="undoLastAction()">Undo</button>' : '';
 
   updateAll();
-  setTimeout(() => advanceAndContinue(), 1800);
+  setTimeout(() => loadNextTask(), 1800);
 }
 
 async function submitCommentary() {
@@ -1731,7 +1731,7 @@ function handleCommentaryResult(result) {
   if (speechEnabled && result.feedback && result.feedback.length) {
     speakText(`Grade: ${result.grade}. ${result.feedback.join('. ')}`);
   }
-  setTimeout(() => advanceAndContinue(), 2200);
+  setTimeout(() => loadNextTask(), 2200);
 }
 
 // ===============================
