@@ -100,25 +100,7 @@
               <span class="toggle-switch"></span>
               <span class="toggle-text">Speech Mode</span>
             </label>
-            <p class="toggle-hint">Reads scenario prompts aloud. Click the speaker icon beside any prompt to hear it again.</p>
-            <div class="speech-controls" id="speech-controls" style="display:none">
-              <div class="speech-speed-row">
-                <span class="speech-speed-label">Speed:</span>
-                <div class="speech-speed-btns" id="speech-speed-btns">
-                  <button class="speech-speed-btn active" data-speed="1">1x</button>
-                  <button class="speech-speed-btn" data-speed="1.5">1.5x</button>
-                  <button class="speech-speed-btn" data-speed="2">2x Fast</button>
-                </div>
-              </div>
-              <div class="ding-select-row">
-                <span class="speech-speed-label">Decision ding:</span>
-                <div class="ding-btns" id="ding-btns">
-                  <button class="ding-btn" data-ding="A" onclick="previewDing('A'); selectDing('A')">A — Bright Chime</button>
-                  <button class="ding-btn" data-ding="B" onclick="previewDing('B'); selectDing('B')">B — Soft Bell</button>
-                  <button class="ding-btn active" data-ding="C" onclick="previewDing('C'); selectDing('C')">C — Double Ding</button>
-                </div>
-              </div>
-            </div>
+            <p class="toggle-hint">Reads scenario prompts aloud with a double-ding on each decision.</p>
           </div>
         </div>
         <div style="margin-bottom:.5rem">
@@ -190,11 +172,6 @@
                 <input type="checkbox" id="game-toggle-speech" onchange="toggleGameSpeech(this.checked)">
                 <span class="toggle-switch-sm"></span>
               </label>
-              <div class="game-ding-btns" id="game-ding-btns" style="display:none">
-                <button class="ding-btn-sm" data-ding="A" onclick="selectDing('A');previewDing('A')" title="Bright Chime">A</button>
-                <button class="ding-btn-sm" data-ding="B" onclick="selectDing('B');previewDing('B')" title="Soft Bell">B</button>
-                <button class="ding-btn-sm active" data-ding="C" onclick="selectDing('C');previewDing('C')" title="Double Ding">C</button>
-              </div>
             </div>
           </div>
         </div>

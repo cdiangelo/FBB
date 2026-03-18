@@ -294,14 +294,8 @@ function setupEventListeners() {
       toggleGameSpeech(speechToggle.checked);
     });
   }
-  // Speech speed buttons
-  document.querySelectorAll('.speech-speed-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.speech-speed-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      speechSpeed = parseFloat(btn.dataset.speed);
-    });
-  });
+  // Always use double-ding (C) — speed/ding selection removed
+  dingSoundChoice = 'C';
 }
 
 // ---- SCREENS ----
@@ -384,8 +378,6 @@ function enterGameScreen() {
   // Sync game-screen speech toggle with current state
   const gameSpeechToggle = document.getElementById('game-toggle-speech');
   if (gameSpeechToggle) gameSpeechToggle.checked = speechEnabled;
-  const gameDings = document.getElementById('game-ding-btns');
-  if (gameDings) gameDings.style.display = speechEnabled ? 'flex' : 'none';
   applyPersonaTheme();
   updateStatusBar();
   updateJourneyPanel();
@@ -1710,24 +1702,11 @@ function spawnConfetti(persona, count) {
   setTimeout(() => { if (container.parentNode) container.remove(); }, 6000);
 }
 
-function selectDing(choice) {
-  dingSoundChoice = choice;
-  // Sync both title-screen and game-screen ding buttons
-  document.querySelectorAll('.ding-btn, .ding-btn-sm').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll(`.ding-btn[data-ding="${choice}"], .ding-btn-sm[data-ding="${choice}"]`).forEach(b => b.classList.add('active'));
-}
-
 function toggleGameSpeech(enabled) {
   speechEnabled = enabled;
-  // Sync the title-screen toggle
+  dingSoundChoice = 'C'; // always double-ding
   const titleToggle = document.getElementById('toggle-speech');
   if (titleToggle) titleToggle.checked = enabled;
-  // Show/hide ding buttons in game
-  const gameDings = document.getElementById('game-ding-btns');
-  if (gameDings) gameDings.style.display = enabled ? 'flex' : 'none';
-  // Show/hide title-screen speech controls
-  const titleControls = document.getElementById('speech-controls');
-  if (titleControls) titleControls.style.display = enabled ? 'block' : 'none';
   if (!enabled) stopSpeech();
 }
 
