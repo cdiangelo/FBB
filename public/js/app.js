@@ -19,6 +19,7 @@ let adminSettings = null; // loaded from server
 let _adminSessionAuth = false; // true once admin authenticates this session
 let playerGender = 'male';     // male, female, other
 let playerSkinTone = 0;        // 0-5 index into skin color palette
+let playerEra = 'present';     // medieval, colonial, industrial, modern, present
 const SKIN_COLORS = [
   '#FDDBB4', '#D2A679', '#C4946B', '#A57551', '#7B5138', '#4A2E1A',
   '#C5B8E8', '#FFD1B8', '#B8E8D0', '#B8D8F0', '#F0C8D8', '#F0DCA0'
@@ -269,6 +270,21 @@ function setupEventListeners() {
     });
   });
 
+  // Era slider
+  const eraSlider = document.getElementById('era-slider');
+  if (eraSlider) {
+    const eraIds = ['medieval', 'colonial', 'industrial', 'modern', 'present'];
+    eraSlider.addEventListener('input', () => {
+      const idx = parseInt(eraSlider.value);
+      const era = ERA_DATA.eras[idx];
+      playerEra = era.id;
+      document.getElementById('era-year').textContent = era.year;
+      document.getElementById('era-name').textContent = era.name;
+      document.getElementById('era-subtitle').textContent = era.subtitle;
+      eraSlider.style.accentColor = era.color;
+    });
+  }
+
   // Persona selection
   document.querySelectorAll('.persona-card').forEach(card => {
     card.addEventListener('click', () => startNewGame(card.dataset.persona));
@@ -394,8 +410,10 @@ function startNewGame(persona) {
   difficultyMode = (diffToggle && diffToggle.checked) ? 'hard' : 'easy';
   const gameModeSelect = document.getElementById('select-game-mode');
   const gameMode = gameModeSelect ? gameModeSelect.value : 'standard';
-  engine.newGame(persona, { scoreSatisfaction: scoreSat, marketDataMode, difficulty: difficultyMode, gameMode, gender: playerGender, skinTone: playerSkinTone });
-  engine.addLog(`Started new career as a ${capitalize(persona)} on ${difficultyMode} mode (${gameMode}).`);
+  engine.newGame(persona, { scoreSatisfaction: scoreSat, marketDataMode, difficulty: difficultyMode, gameMode, gender: playerGender, skinTone: playerSkinTone, era: playerEra });
+  const eraInfo = ERA_DATA.get(playerEra);
+  const eraLabel = eraInfo.id !== 'present' ? ` in the ${eraInfo.name} era (${eraInfo.year})` : '';
+  engine.addLog(`Started new career as a ${eraInfo.roles[persona]?.title || capitalize(persona)}${eraLabel} on ${difficultyMode} mode (${gameMode}).`);
   enterGameScreen();
 }
 
@@ -667,7 +685,8 @@ function updateSceneForLevel() {
 //  STATUS & PANELS
 // ===============================
 function updateStatusBar() {
-  els.statusPersona.textContent = capitalize(engine.persona);
+  const eraTag = engine.era && engine.era !== 'present' ? ` (${engine.eraData.year})` : '';
+  els.statusPersona.textContent = capitalize(engine.persona) + eraTag;
   els.statusPersona.style.color = getComputedStyle(document.documentElement).getPropertyValue('--accent');
   const domainLabels = { operations: 'Operations', finance: 'Finance', management: 'Management' };
   const currentDomain = engine._domainOrder ? engine._domainOrder[(engine.actionsToday || 0) % 3] : '';

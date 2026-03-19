@@ -57,6 +57,26 @@ class ScenarioGenerator {
     return scenario;
   }
 
+  // ---- ERA-AWARE POOL HELPERS ----
+  // Returns era-appropriate crops, sectors, loan types when available
+  eraCrops() {
+    if (this._eraCtx && this._eraCtx.crops && this._eraCtx.crops.length > 0) {
+      return this._eraCtx.crops.map(name => {
+        const existing = FARMER_POOLS.crops.find(c => c.name === name);
+        return existing || { name, priceRange: [2, 8], valuePerAcre: [200, 600] };
+      });
+    }
+    return FARMER_POOLS.crops;
+  }
+  eraSectors() {
+    if (this._eraCtx && this._eraCtx.sectors && this._eraCtx.sectors.length > 0) return this._eraCtx.sectors;
+    return BIZ_POOLS.sectors;
+  }
+  eraLoanTypes() {
+    if (this._eraCtx && this._eraCtx.loanTypes && this._eraCtx.loanTypes.length > 0) return this._eraCtx.loanTypes;
+    return GAME_DATA.markets.banker.loanTypes;
+  }
+
   // ---- HASH FOR DEDUP ----
   hash(str) {
     let h = 0;
@@ -72,13 +92,19 @@ class ScenarioGenerator {
   }
 
   // ---- MAIN ENTRY ----
-  generate(persona, day, category, state, difficulty) {
+  generate(persona, day, category, state, difficulty, era) {
+    this._currentEra = era || 'present';
+    this._eraCtx = ERA_DATA.getEraContext(this._currentEra, persona);
     let attempts = 0;
     let scenario;
     do {
       scenario = this._generate(persona, day, category, state);
       attempts++;
     } while (!this.isUnique(scenario) && attempts < 20);
+    // Apply era transformations before other mods
+    if (this._eraCtx) {
+      scenario = this._applyEraContext(scenario, persona, day);
+    }
     // Apply hard mode modifications
     if (difficulty === 'hard') {
       scenario = this._applyHardMode(scenario, day);
@@ -87,6 +113,91 @@ class ScenarioGenerator {
     scenario = this._scaleScenarioMoney(scenario, state);
     // Inject financial strategy choices for significant decisions
     scenario = this._injectFinancialStrategy(scenario, state);
+    return scenario;
+  }
+
+  // ---- ERA CONTEXT APPLICATION ----
+  // Transforms modern scenarios into era-appropriate versions
+  _applyEraContext(scenario, persona, day) {
+    const ctx = this._eraCtx;
+    if (!ctx) return scenario;
+    const era = ctx.era;
+
+    // Inject era event as context into description periodically
+    if (era.events.length > 0 && day % 3 === 0) {
+      const event = this.pick(era.events);
+      scenario.description = event + '\n\n' + scenario.description;
+      scenario._eraEvent = true;
+    }
+
+    // Add war/political context occasionally
+    if (day % 7 === 0 && era.wars.length > 0) {
+      const war = this.pick(era.wars);
+      const pol = era.politics.length > 0 ? this.pick(era.politics) : null;
+      let prefix = `The ${war} weighs on all commerce.`;
+      if (pol) prefix += ` Meanwhile, ${pol.toLowerCase()} reshapes the political landscape.`;
+      scenario.description = prefix + '\n\n' + scenario.description;
+      scenario._eraWar = true;
+    }
+
+    // Replace currency references in text
+    if (era.currency.symbol !== '$') {
+      const replCurrency = (text) => {
+        if (!text) return text;
+        return text.replace(/\$([0-9,]+)/g, (m, num) => {
+          const val = Math.round(parseFloat(num.replace(/,/g, '')) * era.moneyMultiplier);
+          if (era.id === 'medieval') return `${val} ${era.currency.plural}`;
+          return `${era.currency.symbol}${val.toLocaleString()}`;
+        });
+      };
+      scenario.title = replCurrency(scenario.title);
+      scenario.description = replCurrency(scenario.description);
+      if (scenario.options) {
+        for (const opt of scenario.options) {
+          opt.label = replCurrency(opt.label);
+          opt.detail = replCurrency(opt.detail);
+        }
+      }
+    }
+
+    // Scale money effects by era multiplier
+    if (era.moneyMultiplier !== 1.0 && scenario.options) {
+      for (const opt of scenario.options) {
+        if (opt.effect && opt.effect.money) {
+          opt.effect.money = Math.round(opt.effect.money * era.moneyMultiplier);
+        }
+      }
+    }
+
+    // Add barter option for eras with significant barter weight
+    if (era.currency.barterWeight > 0.2 && era.barterGoods.length > 0 && scenario.options && scenario.options.length >= 3) {
+      const good = this.pick(era.barterGoods);
+      const barterOpt = {
+        label: `Barter with ${good.toLowerCase()}`,
+        detail: `Instead of coin, negotiate a trade using ${good.toLowerCase()}. ${era.currency.barterWeight > 0.4 ? 'Common practice in this era — often gets better terms.' : 'Unusual but possible — may be viewed skeptically.'}`,
+        effect: {
+          score: era.currency.barterWeight > 0.4 ? 14 : 10,
+          money: 0,
+          satisfaction: era.currency.barterWeight > 0.4 ? 3 : -2
+        }
+      };
+      // Replace the weakest option or add as 4th
+      if (scenario.options.length >= 4) {
+        scenario.options[3] = barterOpt;
+      } else {
+        scenario.options.push(barterOpt);
+      }
+    }
+
+    // Add unavailable services flavor
+    if (era.unavailable.length > 0 && Math.random() < 0.25) {
+      const missing = this.pick(era.unavailable);
+      scenario.description += `\n\n(Note: ${missing} ${era.id === 'medieval' ? 'does not exist yet' : 'is not yet available in this era'}.)`;
+    }
+
+    // Tag the scenario with era info
+    scenario._era = era.id;
+    scenario._eraName = era.name;
     return scenario;
   }
 

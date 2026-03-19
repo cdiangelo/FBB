@@ -128,6 +128,12 @@ function _updateClubLightOverlay() {
   const W = _OVERLAY_W, H = _OVERLAY_H;
   ctx.clearRect(0, 0, W, H);
 
+  // --- THEATER MODE: Big morphing color swaths instead of geometry ---
+  if (_nirvanaState === 'movies') {
+    _drawTheaterColorSwaths(ctx, W, H);
+    return;
+  }
+
   // --- Advance orb colors (not drawn — they just drive the color field) ---
   for (const orb of CLUB_ORBS) {
     orb.blend += orb.speed;
@@ -221,6 +227,93 @@ function _updateClubLightOverlay() {
 
     ctx.restore();
   }
+}
+
+// ---- THEATER COLOR SWATHS ----
+// Big morphing blobs that change color, intensity, and position rhythmically
+function _drawTheaterColorSwaths(ctx, W, H) {
+  const t = _clubLightTime;
+
+  // Multi-stage rhythm: slow pulse, medium drift, fast shimmer layered
+  const slowPhase = t * 0.008;    // ~80 frame cycle
+  const medPhase = t * 0.025;     // ~25 frame cycle
+  const fastPhase = t * 0.06;     // ~10 frame cycle
+
+  // 5 large overlapping color zones that morph and drift
+  const swaths = [
+    { // Deep purple/magenta zone
+      cx: 0.25 + Math.sin(slowPhase) * 0.2,
+      cy: 0.35 + Math.cos(slowPhase * 0.7) * 0.25,
+      r: 0.55 + Math.sin(medPhase) * 0.15,
+      h: (280 + Math.sin(slowPhase * 1.3) * 40 + 360) % 360,
+      intensity: 0.35 + Math.sin(medPhase + 1) * 0.15 + Math.sin(fastPhase) * 0.05
+    },
+    { // Teal/cyan zone
+      cx: 0.75 + Math.cos(slowPhase * 0.9) * 0.2,
+      cy: 0.4 + Math.sin(slowPhase * 0.6) * 0.3,
+      r: 0.5 + Math.cos(medPhase * 1.2) * 0.12,
+      h: (180 + Math.cos(slowPhase * 0.8) * 30 + 360) % 360,
+      intensity: 0.3 + Math.cos(medPhase * 0.8 + 2) * 0.15 + Math.cos(fastPhase * 1.1) * 0.05
+    },
+    { // Warm amber/orange zone
+      cx: 0.5 + Math.sin(slowPhase * 1.1 + 2) * 0.3,
+      cy: 0.65 + Math.cos(slowPhase * 0.5 + 1) * 0.2,
+      r: 0.45 + Math.sin(medPhase * 0.9 + 1) * 0.1,
+      h: (30 + Math.sin(slowPhase * 1.5) * 25 + 360) % 360,
+      intensity: 0.25 + Math.sin(medPhase * 1.3) * 0.12 + Math.sin(fastPhase * 0.9 + 1) * 0.04
+    },
+    { // Electric blue zone
+      cx: 0.3 + Math.cos(slowPhase * 0.7 + 3) * 0.25,
+      cy: 0.2 + Math.sin(slowPhase * 0.8 + 2) * 0.15,
+      r: 0.4 + Math.cos(medPhase * 1.1 + 2) * 0.12,
+      h: (220 + Math.cos(slowPhase * 0.6) * 35 + 360) % 360,
+      intensity: 0.3 + Math.cos(medPhase + 3) * 0.1 + Math.sin(fastPhase * 1.3 + 2) * 0.05
+    },
+    { // Green/emerald zone
+      cx: 0.7 + Math.sin(slowPhase * 0.6 + 4) * 0.2,
+      cy: 0.7 + Math.cos(slowPhase * 0.9 + 3) * 0.2,
+      r: 0.4 + Math.sin(medPhase * 0.7 + 3) * 0.1,
+      h: (140 + Math.sin(slowPhase * 1.2 + 1) * 30 + 360) % 360,
+      intensity: 0.25 + Math.sin(medPhase * 0.6 + 4) * 0.12 + Math.cos(fastPhase * 0.8 + 3) * 0.04
+    }
+  ];
+
+  // Render each swath as a big radial gradient
+  for (const s of swaths) {
+    const px = s.cx * W, py = s.cy * H;
+    const pr = s.r * Math.max(W, H);
+    const sat = 70 + Math.sin(medPhase + s.h) * 15;
+    const lit = 50 + Math.sin(fastPhase + s.h * 0.01) * 10;
+    const color = `hsl(${s.h}, ${sat}%, ${lit}%)`;
+
+    ctx.save();
+    ctx.globalAlpha = Math.max(0.02, Math.min(0.5, s.intensity)) * _clubLightOpacity * 2.5;
+    const grd = ctx.createRadialGradient(px, py, 0, px, py, pr);
+    grd.addColorStop(0, color);
+    grd.addColorStop(0.4, color.replace(/\)$/, ', 0.6)').replace('hsl', 'hsla'));
+    grd.addColorStop(0.7, color.replace(/\)$/, ', 0.2)').replace('hsl', 'hsla'));
+    grd.addColorStop(1, 'transparent');
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.arc(px, py, pr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Global intensity pulse — everything breathes together in slow rhythm
+  ctx.save();
+  const globalPulse = 0.03 + Math.sin(slowPhase * 0.5) * 0.02;
+  ctx.globalAlpha = globalPulse;
+  const fullGrad = ctx.createLinearGradient(0, 0, W, H);
+  const angle1 = (t * 0.003) % 1;
+  const hue1 = (t * 0.5) % 360;
+  const hue2 = (hue1 + 120) % 360;
+  fullGrad.addColorStop(0, `hsl(${hue1}, 60%, 50%)`);
+  fullGrad.addColorStop(0.5, `hsl(${hue2}, 50%, 40%)`);
+  fullGrad.addColorStop(1, `hsl(${(hue2 + 120) % 360}, 60%, 45%)`);
+  ctx.fillStyle = fullGrad;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
 }
 
 // ---- HUB WORLD ----

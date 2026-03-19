@@ -73,6 +73,8 @@ class GameEngine {
     this.gameMode = options.gameMode || 'standard'; // standard, advanced, extreme
     this.playerGender = options.gender || 'male';
     this.playerSkinTone = options.skinTone ?? 0;
+    this.era = options.era || 'present';
+    this.eraData = ERA_DATA.get(this.era);
     this.log = [];
     this.periodActions = [];
     this.scenarioIndex = {};
@@ -87,6 +89,16 @@ class GameEngine {
     this.cumulativeBudget = { revenue: 0, costs: 0, netIncome: 0 };
     this.cumulativePriorYear = { revenue: 0, costs: 0, netIncome: 0 };
     this.state = JSON.parse(JSON.stringify(GAME_DATA.startingState[persona]));
+
+    // Apply era-specific starting money and adjustments
+    if (this.era !== 'present' && this.eraData.startingMoney[persona]) {
+      const eraMoney = this.eraData.startingMoney[persona];
+      this.state.money = eraMoney;
+      this.state.assets = eraMoney;
+      this.state.equity = eraMoney;
+      if (this.state.capital !== undefined) this.state.capital = eraMoney;
+      if (this.state.reserves !== undefined) this.state.reserves = Math.round(eraMoney * 0.12);
+    }
 
     // Culture defaults
     this.culturePriorities = ['integrity', 'accountability', 'efficiency'];
@@ -281,6 +293,8 @@ class GameEngine {
       gameMode: saveData.gameMode || 'standard',
       playerGender: saveData.playerGender || 'male',
       playerSkinTone: saveData.playerSkinTone ?? 0,
+      era: saveData.era || 'present',
+      eraData: ERA_DATA.get(saveData.era || 'present'),
       _hardModeHistory: saveData._hardModeHistory || [],
       legalExposure: saveData.legalExposure || 0,
       legalEvents: saveData.legalEvents || [],
@@ -357,6 +371,7 @@ class GameEngine {
       gameMode: this.gameMode || 'standard',
       playerGender: this.playerGender || 'male',
       playerSkinTone: this.playerSkinTone ?? 0,
+      era: this.era || 'present',
       _hardModeHistory: this._hardModeHistory || [],
       legalExposure: this.legalExposure || 0,
       legalEvents: this.legalEvents || [],
@@ -388,7 +403,15 @@ class GameEngine {
 
   // ---- LEVELS ----
   _getAllLevels() {
-    const base = GAME_DATA.levels[this.persona];
+    let base = GAME_DATA.levels[this.persona];
+    // Override level names for non-present eras
+    if (this.era && this.era !== 'present' && this.eraData && this.eraData.levels[this.persona]) {
+      const eraNames = this.eraData.levels[this.persona];
+      base = base.map((lvl, i) => ({
+        ...lvl,
+        name: eraNames[i] || lvl.name
+      }));
+    }
     if (this.difficulty === 'hard' && GAME_DATA.hardModeLevels && GAME_DATA.hardModeLevels[this.persona]) {
       return [...base, ...GAME_DATA.hardModeLevels[this.persona]];
     }
@@ -1329,7 +1352,7 @@ class GameEngine {
 
     this.actionsToday++;
     this.categoriesUsedToday.add(category);
-    const scenario = this.generator.generate(this.persona, this.day, category, this.state, this.difficulty);
+    const scenario = this.generator.generate(this.persona, this.day, category, this.state, this.difficulty, this.era);
     // Tag scenario with its domain for UI display
     scenario._domain = this._domainMap[category] || 'operations';
     return { type: 'decision', scenario };
@@ -1936,6 +1959,11 @@ class GameEngine {
   }
 
   getMoney() {
+    if (this.era && this.era !== 'present' && this.eraData) {
+      const c = this.eraData.currency;
+      if (this.eraData.id === 'medieval') return `${this.state.money.toLocaleString()} ${c.plural}`;
+      return `${c.symbol}${this.state.money.toLocaleString()}`;
+    }
     return '$' + this.state.money.toLocaleString();
   }
 

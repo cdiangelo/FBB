@@ -70,6 +70,15 @@
         <p class="game-tagline">Three paths. One truth: business is business.</p>
 
         <div class="game-options" id="game-options">
+          <div class="option-toggle era-selector" style="margin-bottom:1rem">
+            <label class="appearance-label" style="font-size:.85rem;margin-bottom:.35rem;display:block;text-align:center">Era</label>
+            <div style="display:flex;align-items:center;gap:.5rem;justify-content:center">
+              <span id="era-year" style="font-size:.7rem;color:var(--text-muted);min-width:40px;text-align:right">2020s</span>
+              <input type="range" id="era-slider" min="0" max="4" value="4" step="1" style="width:180px;accent-color:var(--accent)">
+              <span id="era-name" style="font-size:.7rem;color:var(--text-muted);min-width:70px">Present Day</span>
+            </div>
+            <p id="era-subtitle" class="toggle-hint" style="text-align:center;margin-top:.25rem">Digital age, global markets &amp; disruption</p>
+          </div>
           <div class="option-toggle">
             <label class="toggle-label">
               <input type="checkbox" id="toggle-satisfaction">

@@ -529,6 +529,236 @@ const LIFE_EVENTS = {
 };
 
 // ============================================================
+//  ERA SYSTEM — Historical periods that transform all gameplay
+// ============================================================
+const ERA_DATA = {
+  eras: [
+    {
+      id: 'medieval',
+      name: 'Medieval',
+      year: '1200s',
+      subtitle: 'Feudal lords, guilds & the plague',
+      color: '#8B7355',
+      currency: { name: 'Silver Marks', symbol: 'SM', plural: 'marks', barterWeight: 0.6 },
+      moneyMultiplier: 0.001, // scale modern $ to era-appropriate values
+      roles: {
+        farmer: { title: 'Serf Tenant', desc: 'Work the lord\'s fields, pay tithe, and pray for harvest.' },
+        banker: { title: 'Money Changer', desc: 'Exchange coins, lend to merchants, navigate usury laws.' },
+        businessman: { title: 'Guild Master', desc: 'Control a craft guild, manage apprentices, trade across fairs.' }
+      },
+      levels: {
+        farmer: ['Serf', 'Yeoman', 'Free Farmer', 'Bailiff', 'Reeve', 'Lord of the Manor'],
+        banker: ['Coin Weigher', 'Money Changer', 'Pawnbroker', 'Lombard Banker', 'Papal Financier', 'Master of the Mint'],
+        businessman: ['Apprentice', 'Journeyman', 'Master Craftsman', 'Guild Warden', 'Alderman', 'Guild Master']
+      },
+      startingMoney: { farmer: 15, banker: 200, businessman: 40 },
+      events: [
+        'The Black Death sweeps through the region — labor is scarce and wages demanded are rising.',
+        'The lord demands increased feudal dues to fund his participation in the Crusade.',
+        'A traveling friar preaches against usury — the Church threatens to excommunicate money lenders.',
+        'Viking raiders sacked a nearby settlement — trade routes are disrupted.',
+        'The King has debased the coinage again — silver content in pennies has dropped by a third.',
+        'A new cathedral is being built — stonemasons and laborers flood into the region.',
+        'The wool trade with Flanders is booming — English sheep farmers see surging demand.',
+        'Famine strikes after a failed harvest — grain prices triple overnight.',
+        'The Magna Carta\'s influence spreads — merchants gain new rights against arbitrary royal taxation.',
+        'A rival guild has petitioned the Crown for exclusive charter — your trade is under threat.'
+      ],
+      wars: ['The Crusades', 'Baron\'s War', 'Welsh Campaigns', 'Scottish Wars of Independence'],
+      politics: ['Magna Carta signed', 'Rise of Parliament', 'Papal power struggles', 'Feudal system crumbling'],
+      services: ['Blacksmith', 'Apothecary', 'Monastery hospice', 'Traveling merchants', 'Fairs (seasonal only)'],
+      unavailable: ['Banks', 'Insurance', 'Formal courts', 'Printing', 'Standardized weights'],
+      barterGoods: ['Bushels of wheat', 'Bolts of cloth', 'Iron tools', 'Livestock', 'Salt', 'Ale'],
+      crops: ['Wheat', 'Barley', 'Rye', 'Oats', 'Peas', 'Flax'],
+      loanTypes: ['Pawn loans', 'Merchant advances', 'Ship ventures', 'Harvest liens', 'Crown loans'],
+      sectors: ['Wool trade', 'Metalwork', 'Masonry', 'Brewing', 'Textiles', 'Spice trade']
+    },
+    {
+      id: 'colonial',
+      name: 'Colonial',
+      year: '1770s',
+      subtitle: 'Revolution, mercantilism & new world',
+      color: '#8B4513',
+      currency: { name: 'Pounds Sterling', symbol: '\u00A3', plural: 'pounds', barterWeight: 0.3 },
+      moneyMultiplier: 0.01,
+      roles: {
+        farmer: { title: 'Plantation Owner', desc: 'Grow tobacco, cotton, or indigo for export to the Crown.' },
+        banker: { title: 'Colonial Merchant Banker', desc: 'Finance trade ships, issue letters of credit, navigate mercantilist law.' },
+        businessman: { title: 'Trading Company Agent', desc: 'Run imports/exports, manage warehouses, outmaneuver competitors.' }
+      },
+      levels: {
+        farmer: ['Indentured Laborer', 'Tenant Farmer', 'Freeholder', 'Planter', 'Estate Owner', 'Landed Gentry'],
+        banker: ['Counting House Clerk', 'Factor', 'Exchange Broker', 'Merchant Banker', 'Colonial Treasurer', 'Governor\'s Financier'],
+        businessman: ['Shopkeeper', 'Factor Agent', 'Warehouse Owner', 'Import Merchant', 'Trading Company Partner', 'Shipping Magnate']
+      },
+      startingMoney: { farmer: 150, banker: 1200, businessman: 80 },
+      events: [
+        'The Stamp Act has enraged the colonies — mobs are burning tax stamps and boycotting British goods.',
+        'A shipment of tea sits in the harbor — do you pay the duty or join the resistance?',
+        'Continental currency is nearly worthless — "not worth a Continental" is the common phrase.',
+        'The British Navy blockades the coast — smuggling is the only way to move goods.',
+        'Benjamin Franklin has returned from Paris with promises of French alliance and loans.',
+        'Smallpox ravages the Continental Army — inoculation is controversial but effective.',
+        'The Crown revokes your colony\'s charter — all land grants are now in question.',
+        'Tobacco prices collapse as the war disrupts Atlantic shipping.',
+        'A Loyalist neighbor has been tarred and feathered — choosing sides is no longer optional.',
+        'The Continental Congress authorizes privateering — war profiteering is now patriotic.'
+      ],
+      wars: ['American Revolution', 'French and Indian War aftermath', 'Piracy on trade routes'],
+      politics: ['Declaration of Independence', 'Continental Congress', 'Taxation without representation', 'Loyalist vs Patriot split'],
+      services: ['General store', 'Blacksmith', 'Physician (barber-surgeon)', 'Port authority', 'Post riders'],
+      unavailable: ['Telegraph', 'Railroads', 'Police force', 'Standard banking system', 'Factory production'],
+      barterGoods: ['Tobacco', 'Rum', 'Indigo', 'Beaver pelts', 'Timber', 'Salted fish'],
+      crops: ['Tobacco', 'Cotton', 'Indigo', 'Corn', 'Rice', 'Wheat', 'Sugar Cane'],
+      loanTypes: ['Ship cargo loans', 'Land mortgages', 'Mercantile credit', 'Letters of credit', 'War bonds'],
+      sectors: ['Shipping', 'Fur trade', 'Tobacco export', 'Rum distilling', 'Ironworks', 'Whaling']
+    },
+    {
+      id: 'industrial',
+      name: 'Industrial',
+      year: '1870s',
+      subtitle: 'Railroads, robber barons & gold standard',
+      color: '#4A4A4A',
+      currency: { name: 'Dollars', symbol: '$', plural: 'dollars', barterWeight: 0.05 },
+      moneyMultiplier: 0.1,
+      roles: {
+        farmer: { title: 'Homesteader', desc: 'Claim land out west, mechanize with new equipment, ship by rail.' },
+        banker: { title: 'Railroad Financier', desc: 'Fund railroads, mines, and factories. Navigate panics and gold rushes.' },
+        businessman: { title: 'Industrialist', desc: 'Build factories, corner markets, and compete with the titans of industry.' }
+      },
+      levels: {
+        farmer: ['Homesteader', 'Section Farmer', 'Ranch Operator', 'Elevator Owner', 'Cattle Baron', 'Land Grant Magnate'],
+        banker: ['Bank Teller', 'Loan Agent', 'Branch Manager', 'Trust Officer', 'Railroad Financier', 'Robber Baron Banker'],
+        businessman: ['Factory Foreman', 'Mill Owner', 'Manufacturer', 'Trust Director', 'Industry Captain', 'Titan of Industry']
+      },
+      startingMoney: { farmer: 2000, banker: 15000, businessman: 800 },
+      events: [
+        'The Panic of 1873 — banks are failing, railroads are bankrupt, and gold reserves are depleted.',
+        'The Transcontinental Railroad opens new markets — but freight rates are extortionate.',
+        'Labor strikes paralyze the coal mines — the National Guard has been called in.',
+        'Cornelius Vanderbilt is cornering the railroad market — smaller operators are being squeezed out.',
+        'The Homestead Act brings waves of settlers — land claims are being disputed at gunpoint.',
+        'Edison\'s electric light threatens to make gas lamp companies obsolete overnight.',
+        'The Great Fire destroys half the downtown business district — insurance claims overwhelm underwriters.',
+        'Gold discovered in the Black Hills — but the Sioux treaty makes mining illegal.',
+        'The Grange movement demands railroad regulation — farmers unite against monopoly pricing.',
+        'Andrew Carnegie slashes steel prices — competitors face ruin or consolidation.'
+      ],
+      wars: ['Indian Wars', 'Reconstruction aftermath', 'Labor wars', 'Franco-Prussian War (trade impact)'],
+      politics: ['Reconstruction', 'Gilded Age corruption', 'Trust-busting beginnings', 'Women\'s suffrage movement', 'Populist revolt'],
+      services: ['Telegraph office', 'Railroad depot', 'General store', 'Bank (local)', 'Physician', 'Newspaper'],
+      unavailable: ['Telephone (just invented)', 'Automobiles', 'Air travel', 'Antibiotics', 'Radio'],
+      barterGoods: ['Grain', 'Livestock', 'Timber', 'Coal', 'Iron ore', 'Whiskey'],
+      crops: ['Wheat', 'Corn', 'Cotton', 'Cattle', 'Tobacco', 'Sugar beets', 'Hops', 'Oats'],
+      loanTypes: ['Railroad bonds', 'Land mortgages', 'Commercial paper', 'Gold-backed notes', 'Farm liens', 'Mine shares'],
+      sectors: ['Railroads', 'Steel', 'Oil', 'Mining', 'Textiles', 'Meatpacking', 'Lumber', 'Telegraph']
+    },
+    {
+      id: 'modern',
+      name: 'Post-War',
+      year: '1950s',
+      subtitle: 'Cold War, suburbs & corporate boom',
+      color: '#2E5090',
+      currency: { name: 'Dollars', symbol: '$', plural: 'dollars', barterWeight: 0.0 },
+      moneyMultiplier: 0.3,
+      roles: {
+        farmer: { title: 'Family Farmer', desc: 'Mechanized farming, commodity markets, and the squeeze between costs and prices.' },
+        banker: { title: 'Commercial Banker', desc: 'GI Bill loans, mortgage boom, and Cold War defense contracts.' },
+        businessman: { title: 'Corporate Executive', desc: 'Build the American corporation, expand into suburbs, compete globally.' }
+      },
+      levels: {
+        farmer: ['Farm Hand', 'Tractor Operator', 'Farm Manager', 'Co-op Director', 'Agricultural Director', 'Agribusiness CEO'],
+        banker: ['Bank Teller', 'Loan Officer', 'Branch Manager', 'VP of Lending', 'Regional President', 'Bank Chairman'],
+        businessman: ['Junior Executive', 'Department Head', 'Division Manager', 'VP of Operations', 'President', 'Chairman of the Board']
+      },
+      startingMoney: { farmer: 12000, banker: 50000, businessman: 3000 },
+      events: [
+        'Sputnik launches — the Space Race begins and defense contracts surge.',
+        'McCarthy hearings target suspected communists — your business partner is accused.',
+        'The GI Bill floods the housing market — suburban development explodes.',
+        'The Korean War drives commodity prices sky-high — then they crash when it ends.',
+        'Eisenhower signs the Interstate Highway Act — rural land values along routes skyrocket.',
+        'Television advertising transforms consumer markets — those who adapt thrive.',
+        'The Soviet Union tests an H-bomb — civil defense spending creates new opportunities.',
+        'Labor unions demand a 40-hour work week and health benefits — strikes threaten production.',
+        'Levittown-style developments need massive financing — mortgage lending is booming.',
+        'The polio vaccine is announced — public health spending redirects government budgets.'
+      ],
+      wars: ['Korean War', 'Cold War escalation', 'Suez Crisis'],
+      politics: ['McCarthyism', 'Civil Rights movement begins', 'Eisenhower Doctrine', 'NATO formation', 'UN establishment'],
+      services: ['Bank', 'Hospital', 'Department store', 'Gas station', 'Insurance agent', 'Lawyer', 'Accountant'],
+      unavailable: ['Internet', 'Cell phones', 'Credit cards (just starting)', 'Computers (room-sized)', 'GPS'],
+      barterGoods: [],
+      crops: ['Corn', 'Wheat', 'Soybeans', 'Cotton', 'Rice', 'Sorghum', 'Barley', 'Oats'],
+      loanTypes: ['GI Bill mortgages', 'Commercial RE', 'Small Business', 'Agricultural', 'Consumer Auto', 'Equipment'],
+      sectors: ['Defense', 'Automotive', 'Aerospace', 'Television', 'Suburban development', 'Manufacturing', 'Oil', 'Retail']
+    },
+    {
+      id: 'present',
+      name: 'Present Day',
+      year: '2020s',
+      subtitle: 'Digital age, global markets & disruption',
+      color: '#1565C0',
+      currency: { name: 'Dollars', symbol: '$', plural: 'dollars', barterWeight: 0.0 },
+      moneyMultiplier: 1.0,
+      roles: {
+        farmer: { title: 'Farm Operator', desc: 'Navigate commodity markets, precision agriculture, and global supply chains.' },
+        banker: { title: 'Banking Professional', desc: 'Manage portfolios, fintech disruption, and regulatory compliance.' },
+        businessman: { title: 'Business Consultant', desc: 'Advisory services, venture capital, and digital transformation.' }
+      },
+      levels: {
+        farmer: ['Family Farm Hand', 'Junior Farmer', 'Farm Operator', 'Farm Manager', 'Agricultural Director', 'Agribusiness Owner'],
+        banker: ['Junior Analyst', 'Credit Analyst', 'Loan Officer', 'Portfolio Manager', 'VP of Lending', 'Bank President'],
+        businessman: ['Junior Consultant', 'Business Analyst', 'Senior Advisor', 'Managing Director', 'Partner', 'Founding Principal']
+      },
+      startingMoney: { farmer: 40000, banker: 120000, businessman: 8000 },
+      events: [],
+      wars: [],
+      politics: [],
+      services: [],
+      unavailable: [],
+      barterGoods: [],
+      crops: [],
+      loanTypes: [],
+      sectors: []
+    }
+  ],
+
+  // Get era by id
+  get(id) { return this.eras.find(e => e.id === id) || this.eras[4]; },
+
+  // Get era-appropriate currency display
+  formatMoney(amount, era) {
+    const e = this.get(era);
+    const scaled = Math.round(amount * e.moneyMultiplier);
+    if (e.id === 'medieval') return `${scaled} ${e.currency.plural}`;
+    return `${e.currency.symbol}${scaled.toLocaleString()}`;
+  },
+
+  // For scenario descriptions: era-appropriate flavor
+  getEraContext(eraId, persona) {
+    const era = this.get(eraId);
+    if (era.id === 'present') return null; // no special context needed
+    return {
+      era: era,
+      role: era.roles[persona],
+      title: era.roles[persona].title,
+      levelNames: era.levels[persona],
+      currency: era.currency,
+      events: era.events,
+      wars: era.wars,
+      politics: era.politics,
+      services: era.services,
+      unavailable: era.unavailable,
+      barterGoods: era.barterGoods,
+      crops: persona === 'farmer' ? era.crops : null,
+      loanTypes: persona === 'banker' ? era.loanTypes : null,
+      sectors: persona === 'businessman' ? era.sectors : null
+    };
+  }
+};
+
+// ============================================================
 //  MARKET TRACKER — persistent prices with history
 // ============================================================
 class MarketTracker {
