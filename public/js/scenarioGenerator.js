@@ -117,11 +117,31 @@ class ScenarioGenerator {
   }
 
   // ---- ERA CONTEXT APPLICATION ----
-  // Transforms modern scenarios into era-appropriate versions
+  // Transforms modern scenarios into era-appropriate versions with comprehensive term replacement
   _applyEraContext(scenario, persona, day) {
     const ctx = this._eraCtx;
     if (!ctx) return scenario;
     const era = ctx.era;
+
+    // --- Comprehensive era term replacement ---
+    const termMap = this._getEraTermMap(era.id);
+    if (termMap.length > 0) {
+      const replaceTerms = (text) => {
+        if (!text) return text;
+        for (const [rx, repl] of termMap) {
+          text = text.replace(rx, repl);
+        }
+        return text;
+      };
+      scenario.title = replaceTerms(scenario.title);
+      scenario.description = replaceTerms(scenario.description);
+      if (scenario.options) {
+        for (const opt of scenario.options) {
+          opt.label = replaceTerms(opt.label);
+          opt.detail = replaceTerms(opt.detail);
+        }
+      }
+    }
 
     // Inject era event as context into description periodically
     if (era.events.length > 0 && day % 3 === 0) {
@@ -199,6 +219,170 @@ class ScenarioGenerator {
     scenario._era = era.id;
     scenario._eraName = era.name;
     return scenario;
+  }
+
+  // Comprehensive term replacement maps per era — [regex, replacement] pairs
+  _getEraTermMap(eraId) {
+    const maps = {
+      medieval: [
+        [/\bAI[- ]powered\b/gi, 'scribe-assisted'], [/\bAI yield prediction\b/gi, 'almanac harvest prediction'], [/\bAI fraud detection\b/gi, 'sworn auditor inspection'], [/\bAI-powered market analysis\b/gi, 'scholar-calculated market assessment'], [/\bAI\b/g, 'learned scholars'],
+        [/\bartificial intelligence\b/gi, 'scholarly calculation'],
+        [/\bautomated underwriting\b/gi, 'standardized lending assessment'], [/\bautomated irrigation systems?\b/gi, 'canal and sluice systems'], [/\bautomated reporting suite\b/gi, 'regular scribe reports'], [/\bautomated sorting\b/gi, 'hand sorting'],
+        [/\bautomated?\b/gi, 'organized'], [/\bautomation\b/gi, 'organized labor'],
+        [/\bprecision agriculture sensors?\b/gi, 'careful soil testing by hand'], [/\bprecision agriculture\b/gi, 'careful husbandry'],
+        [/\bdrone crop monitoring\b/gi, 'mounted field patrols'], [/\bdrone[s]?\b/gi, 'scouts on horseback'],
+        [/\bdigital lending platform\b/gi, 'standardized lending ledger'], [/\bmobile banking suite\b/gi, 'traveling money changer service'],
+        [/\bCRM and pipeline automation\b/gi, 'client ledger and apprentice dispatching'], [/\bclient portal platform\b/gi, 'guild hall notice board'],
+        [/\bSaaS solution\b/gi, 'guild service arrangement'], [/\bSaaS\b/g, 'guild service'], [/\bcloud\b/gi, 'distant'],
+        [/\bsoftware\b/gi, 'methods'], [/\bplatform\b/gi, 'trading network'], [/\bdigital\b/gi, 'written'],
+        [/\balgorithm\b/gi, 'calculation method'], [/\bGPS[- ]guided\b/gi, 'landmark-guided'], [/\bGPS\b/g, 'landmarks'],
+        [/\bcomputer\b/gi, 'abacus'], [/\binternet\b/gi, 'messenger network'], [/\bemail\b/gi, 'written letter'],
+        [/\bphone is never really off\b/gi, 'messengers arrive at all hours'], [/\bphone\b/gi, 'messenger'], [/\btelephone\b/gi, 'messenger'],
+        [/\bsocial media\b/gi, 'town crier'], [/\bwebsite\b/gi, 'market notice board'], [/\bonline\b/gi, 'at the fair'],
+        [/\bcyber\w*\b/gi, 'espionage'], [/\bblockchain\b/gi, 'sealed ledger'], [/\bfintech\b/gi, 'money changing methods'],
+        [/\bstartup\b/gi, 'new venture'], [/\bCRM\b/g, 'client ledger'], [/\bdata breach\b/gi, 'stolen records'],
+        [/\banalytics\b/gi, 'record-keeping'], [/\bdatabase\b/gi, 'archive'], [/\bdata\b/gi, 'records'],
+        [/\bTechnology Strategy\b/g, 'Craft Methods Strategy'], [/\bTech Adoption\b/g, 'New Methods Adoption'], [/\bTechnical Debt Review\b/g, 'Workshop Maintenance Review'],
+        [/\btechnology stack\b/gi, 'workshop tools and methods'], [/\btechnical debt\b/gi, 'deferred workshop repairs'],
+        [/\btechnology\b/gi, 'craft knowledge'], [/\btech\b/gi, 'craft'],
+        [/\bCEO\b/g, 'Lord'], [/\bCTO\b/g, 'Master Craftsman'], [/\bCFO\b/g, 'Steward'],
+        [/\bboard of directors\b/gi, 'council of elders'], [/\bthe board\b/gi, 'the council'],
+        [/\bshareholders?\b/gi, 'guild members'], [/\bstakeholders?\b/gi, 'interested parties'],
+        [/\bventure capital\b/gi, 'merchant backing'], [/\bVC\b/g, 'patron'],
+        [/\bcorporation\b/gi, 'guild charter'], [/\bcorporate\b/gi, 'guild'],
+        [/\bfranchise\b/gi, 'chartered branch'], [/\bIPO\b/g, 'public charter'],
+        [/\bmerger\b/gi, 'guild union'], [/\bacquisition\b/gi, 'rival purchase'],
+        [/\bmarket share\b/gi, 'guild influence'], [/\bbrand\b/gi, 'guild reputation'],
+        [/\bconsulting firm\b/gi, 'advisory guild'], [/\bconsulting\b/gi, 'counsel'], [/\bconsultant\b/gi, 'counselor'],
+        [/\boffice\b/gi, 'chambers'], [/\bfactory\b/gi, 'workshop'], [/\bwarehouse\b/gi, 'storehouse'],
+        [/\bcredit card\b/gi, 'letter of credit'], [/\bmortgage\b/gi, 'land pledge'],
+        [/\bcrop insurance\b/gi, 'mutual village aid'], [/\binsurance\b/gi, 'mutual protection pact'],
+        [/\bSBA\b/g, 'Royal Charter'], [/\bAPY\b/g, 'annual interest'], [/\bCD ladder\b/gi, 'tiered lending terms'],
+        [/\bindex fund\b/gi, 'diversified merchant venture'], [/\bmortgage-backed securities\b/gi, 'pooled land pledges'],
+        [/\bportfolio\b/gi, 'holdings'], [/\bsecurities\b/gi, 'trade agreements'],
+        [/\bfutures contracts?\b/gi, 'harvest pledges'], [/\bfutures\b/gi, 'harvest pledges'],
+        [/\bforward contracts?\b/gi, 'seasonal pledges'],
+        [/\bspot price\b/gi, 'fair-day price'], [/\bspot market\b/gi, 'market day'],
+        [/\bUSDA\b/g, 'the Lord\'s bailiff'], [/\bEPA\b/g, 'Church authorities'],
+        [/\bFDIC\b/g, 'the Crown'], [/\bregulat(?:ory|ors?|ions?)\b/gi, 'decree'],
+        [/\bcompliance\b/gi, 'fealty'], [/\baudit\b/gi, 'inspection'], [/\bexaminers?\b/gi, 'lord\'s officials'],
+        [/\bfreelancers?\b/gi, 'journeymen'], [/\bcontractors?\b/gi, 'hired craftsmen'],
+        [/\binterns?\b/gi, 'apprentices'], [/\bemployees?\b/gi, 'servants'],
+        [/\bHR\b/g, 'household steward'], [/\bpayroll\b/gi, 'wage distribution'],
+        [/\bfungicide\b/gi, 'herbal treatment'], [/\bpesticide\b/gi, 'herbal mixture'], [/\bherbicide\b/gi, 'hand weeding'],
+        [/\bNational Weather Service\b/gi, 'local weather signs'], [/\bWeather Bureau\b/gi, 'weather signs'],
+        [/\binnovation\b/gi, 'new methods'], [/\boptimiz\w+\b/gi, 'improve'],
+        [/\bscalability\b/gi, 'growth capacity'],
+      ],
+      colonial: [
+        [/\bAI[- ]powered\b/gi, 'clerk-assisted'], [/\bAI yield prediction\b/gi, 'almanac-based yield estimation'], [/\bAI fraud detection\b/gi, 'bookkeeper fraud review'], [/\bAI-powered market analysis\b/gi, 'factor\'s market assessment'], [/\bAI\b/g, 'trained clerks'],
+        [/\bartificial intelligence\b/gi, 'clerical calculation'],
+        [/\bautomated underwriting\b/gi, 'standardized credit assessment'], [/\bautomated irrigation systems?\b/gi, 'hand-dug canal systems'], [/\bautomated reporting suite\b/gi, 'regular clerk reports'], [/\bautomated sorting\b/gi, 'hand sorting'],
+        [/\bautomated?\b/gi, 'systematized'], [/\bautomation\b/gi, 'systematized methods'],
+        [/\bprecision agriculture sensors?\b/gi, 'careful soil assessment by hand'], [/\bprecision agriculture\b/gi, 'careful cultivation'],
+        [/\bdrone crop monitoring\b/gi, 'field hand crop scouting'], [/\bdrone[s]?\b/gi, 'field scouts'],
+        [/\bdigital lending platform\b/gi, 'colonial credit ledger system'], [/\bmobile banking suite\b/gi, 'traveling factor service'],
+        [/\bCRM and pipeline automation\b/gi, 'client ledger and agent dispatching'], [/\bclient portal platform\b/gi, 'trading house notice system'],
+        [/\bSaaS solution\b/gi, 'contracted service'], [/\bSaaS\b/g, 'contracted service'], [/\bcloud\b/gi, 'remote'],
+        [/\bsoftware\b/gi, 'procedures'], [/\bplatform\b/gi, 'trading house'], [/\bdigital\b/gi, 'printed'],
+        [/\balgorithm\b/gi, 'reckoning method'], [/\bGPS[- ]guided\b/gi, 'compass-guided'], [/\bGPS\b/g, 'compass survey'],
+        [/\bcomputer\b/gi, 'counting house'], [/\binternet\b/gi, 'post network'], [/\bemail\b/gi, 'posted letter'],
+        [/\bphone is never really off\b/gi, 'visitors and messages arrive constantly'], [/\bphone\b/gi, 'post rider'], [/\btelephone\b/gi, 'post rider'],
+        [/\bsocial media\b/gi, 'broadsheet notices'], [/\bwebsite\b/gi, 'printed handbill'], [/\bonline\b/gi, 'by post'],
+        [/\bcyber\w*\b/gi, 'espionage'], [/\bblockchain\b/gi, 'notarized ledger'], [/\bfintech\b/gi, 'merchant banking methods'],
+        [/\bstartup\b/gi, 'new colonial venture'], [/\bCRM\b/g, 'client ledger'], [/\bdata breach\b/gi, 'stolen correspondence'],
+        [/\banalytics\b/gi, 'bookkeeping'], [/\bdatabase\b/gi, 'ledger system'], [/\bdata\b/gi, 'records'],
+        [/\bTechnology Strategy\b/g, 'Methods & Equipment Strategy'], [/\bTech Adoption\b/g, 'New Methods Adoption'], [/\bTechnical Debt Review\b/g, 'Equipment & Process Review'],
+        [/\btechnology stack\b/gi, 'equipment and procedures'], [/\btechnical debt\b/gi, 'deferred maintenance'],
+        [/\btechnology\b/gi, 'methods'], [/\btech\b/gi, 'methods'],
+        [/\bCEO\b/g, 'Governor'], [/\bCTO\b/g, 'Chief Factor'], [/\bCFO\b/g, 'Treasurer'],
+        [/\bboard of directors\b/gi, 'board of proprietors'], [/\bthe board\b/gi, 'the proprietors'],
+        [/\bventure capital\b/gi, 'merchant investors'], [/\bVC\b/g, 'investor'],
+        [/\bcorporation\b/gi, 'chartered company'], [/\bcorporate\b/gi, 'company'],
+        [/\bIPO\b/g, 'public share offering'], [/\bmerger\b/gi, 'consolidation'],
+        [/\bacquisition\b/gi, 'purchasing competitor'], [/\bmarket share\b/gi, 'market influence'],
+        [/\bbrand\b/gi, 'merchant reputation'], [/\bconsulting firm\b/gi, 'advisory house'],
+        [/\bconsulting\b/gi, 'advisory'], [/\bconsultant\b/gi, 'advisor'],
+        [/\boffice\b/gi, 'counting house'], [/\bfactory\b/gi, 'manufactory'],
+        [/\bcredit card\b/gi, 'letter of credit'], [/\bcrop insurance\b/gi, 'township mutual aid'], [/\binsurance\b/gi, 'maritime insurance'],
+        [/\bSBA\b/g, 'colonial charter'], [/\bAPY\b/g, 'annual interest'],
+        [/\bindex fund\b/gi, 'diversified shipping venture'], [/\bmortgage-backed securities\b/gi, 'pooled land mortgages'],
+        [/\bportfolio\b/gi, 'holdings'], [/\bsecurities\b/gi, 'bonds and notes'],
+        [/\bfutures\b/gi, 'forward contracts'], [/\bspot price\b/gi, 'dockside price'], [/\bspot market\b/gi, 'dockside market'],
+        [/\bUSDA\b/g, 'colonial magistrate'], [/\bEPA\b/g, 'colonial authorities'],
+        [/\bFDIC\b/g, 'the Crown'], [/\bregulat(?:ory|ors?|ions?)\b/gi, 'colonial law'],
+        [/\bcompliance\b/gi, 'legal conformity'], [/\baudit\b/gi, 'inspection'], [/\bexaminers?\b/gi, 'Crown inspectors'],
+        [/\bfreelancers?\b/gi, 'independent tradesmen'], [/\bcontractors?\b/gi, 'hired tradesmen'],
+        [/\binterns?\b/gi, 'apprentices'], [/\bHR\b/g, 'estate manager'], [/\bpayroll\b/gi, 'wage books'],
+        [/\bfungicide\b/gi, 'ash mixture'], [/\bpesticide\b/gi, 'herbal treatment'], [/\bherbicide\b/gi, 'hand clearing'],
+        [/\bNational Weather Service\b/gi, 'almanac predictions'],
+        [/\binnovation\b/gi, 'ingenuity'], [/\boptimiz\w+\b/gi, 'improve'],
+      ],
+      industrial: [
+        [/\bAI[- ]powered\b/gi, 'mechanically-assisted'], [/\bAI yield prediction\b/gi, 'statistical yield estimation'], [/\bAI fraud detection\b/gi, 'bookkeeper fraud detection'], [/\bAI-powered market analysis\b/gi, 'statistical market analysis'], [/\bAI\b/g, 'mechanical systems'],
+        [/\bartificial intelligence\b/gi, 'mechanical calculation'],
+        [/\bautomated underwriting\b/gi, 'standardized credit forms'], [/\bautomated irrigation systems?\b/gi, 'mechanical pump irrigation'], [/\bautomated reporting suite\b/gi, 'stenographer reporting service'], [/\bautomated sorting\b/gi, 'mechanical sorting'],
+        [/\bautomated?\b/gi, 'mechanized'], [/\bautomation\b/gi, 'mechanization'],
+        [/\bprecision agriculture sensors?\b/gi, 'scientific soil testing'], [/\bprecision agriculture\b/gi, 'scientific farming'],
+        [/\bdrone crop monitoring\b/gi, 'field scout inspection'], [/\bdrone[s]?\b/gi, 'hired scouts'],
+        [/\bdigital lending platform\b/gi, 'standardized lending office'], [/\bmobile banking suite\b/gi, 'branch banking network'],
+        [/\bCRM and pipeline automation\b/gi, 'client filing system and clerk dispatching'], [/\bclient portal platform\b/gi, 'client correspondence office'],
+        [/\bSaaS solution\b/gi, 'contracted service bureau'], [/\bSaaS\b/g, 'service bureau'], [/\bcloud\b/gi, 'centralized'],
+        [/\bsoftware\b/gi, 'systems'], [/\bplatform\b/gi, 'commercial network'], [/\bdigital\b/gi, 'telegraph'],
+        [/\balgorithm\b/gi, 'calculation method'], [/\bGPS[- ]guided\b/gi, 'survey-guided'], [/\bGPS\b/g, 'surveyor\'s marks'],
+        [/\bcomputer\b/gi, 'calculating machine'], [/\binternet\b/gi, 'telegraph network'], [/\bemail\b/gi, 'telegram'],
+        [/\bphone is never really off\b/gi, 'the telegraph never stops'], [/\bphone\b/gi, 'telegraph'], [/\btelephone\b/gi, 'telegraph'],
+        [/\bsocial media\b/gi, 'newspaper advertisements'], [/\bwebsite\b/gi, 'trade catalog'], [/\bonline\b/gi, 'by telegraph'],
+        [/\bcyber\w*\b/gi, 'telegraph fraud'], [/\bblockchain\b/gi, 'notarized ledger'], [/\bfintech\b/gi, 'banking machinery'],
+        [/\bstartup\b/gi, 'new enterprise'], [/\bCRM\b/g, 'client registry'], [/\bdata breach\b/gi, 'stolen records'],
+        [/\banalytics\b/gi, 'statistical analysis'], [/\bdatabase\b/gi, 'file cabinet'], [/\bdata\b/gi, 'records'],
+        [/\bTechnology Strategy\b/g, 'Machinery & Methods Strategy'], [/\bTech Adoption\b/g, 'New Machinery Adoption'], [/\bTechnical Debt Review\b/g, 'Equipment Maintenance Review'],
+        [/\btechnology stack\b/gi, 'machinery and methods'], [/\btechnical debt\b/gi, 'deferred equipment repairs'],
+        [/\btechnology\b/gi, 'machinery'], [/\btech\b/gi, 'mechanical'],
+        [/\bCEO\b/g, 'President'], [/\bCTO\b/g, 'Chief Engineer'], [/\bCFO\b/g, 'Treasurer'],
+        [/\bboard of directors\b/gi, 'board of trustees'], [/\bventure capital\b/gi, 'investment capital'], [/\bVC\b/g, 'financier'],
+        [/\bcorporation\b/gi, 'incorporated company'], [/\bIPO\b/g, 'public stock offering'],
+        [/\bbrand\b/gi, 'trade name'], [/\bconsulting firm\b/gi, 'advisory firm'],
+        [/\bconsulting\b/gi, 'advisory'], [/\bconsultant\b/gi, 'advisor'],
+        [/\bcredit card\b/gi, 'trade credit'], [/\bcrop insurance\b/gi, 'mutual crop protection'], [/\binsurance\b/gi, 'insurance policy'],
+        [/\bSBA\b/g, 'state banking commission'], [/\bAPY\b/g, 'annual interest'],
+        [/\bindex fund\b/gi, 'railroad bond portfolio'], [/\bmortgage-backed securities\b/gi, 'land trust certificates'],
+        [/\bfutures\b/gi, 'exchange contracts'], [/\bspot price\b/gi, 'exchange price'],
+        [/\bUSDA\b/g, 'state agriculture board'], [/\bEPA\b/g, 'county health inspector'],
+        [/\bFDIC\b/g, 'state banking regulator'], [/\bexaminers?\b/gi, 'state examiners'],
+        [/\bfreelancers?\b/gi, 'independent craftsmen'], [/\bHR\b/g, 'personnel office'], [/\bpayroll\b/gi, 'wage office'],
+        [/\bfungicide\b/gi, 'copper sulfate'], [/\bpesticide\b/gi, 'arsenic spray'],
+        [/\bNational Weather Service\b/gi, 'regional weather bureau'],
+        [/\binnovation\b/gi, 'invention'], [/\boptimiz\w+\b/gi, 'improve'],
+      ],
+      modern: [
+        [/\bAI[- ]powered\b/gi, 'IBM-assisted'], [/\bAI yield prediction\b/gi, 'statistical yield forecasting'], [/\bAI fraud detection\b/gi, 'audit department fraud detection'], [/\bAI-powered market analysis\b/gi, 'research department market analysis'], [/\bAI\b/g, 'electronic computing'],
+        [/\bartificial intelligence\b/gi, 'electronic computation'],
+        [/\bautomated underwriting\b/gi, 'form-based credit scoring'], [/\bautomated irrigation systems?\b/gi, 'sprinkler irrigation systems'], [/\bautomated reporting suite\b/gi, 'typed reporting system'], [/\bautomated sorting\b/gi, 'mechanical sorting'],
+        [/\bprecision agriculture sensors?\b/gi, 'soil testing service'], [/\bprecision agriculture\b/gi, 'scientific farming'],
+        [/\bdrone crop monitoring\b/gi, 'aerial crop dusting surveys'], [/\bdrone[s]?\b/gi, 'survey planes'],
+        [/\bdigital lending platform\b/gi, 'modern lending office'], [/\bmobile banking suite\b/gi, 'drive-through banking service'],
+        [/\bCRM and pipeline automation\b/gi, 'Rolodex system and secretary dispatching'], [/\bclient portal platform\b/gi, 'client service desk'],
+        [/\bSaaS solution\b/gi, 'service bureau contract'], [/\bSaaS\b/g, 'service bureau'], [/\bcloud\b/gi, 'centralized'],
+        [/\bsoftware\b/gi, 'procedures'], [/\bplatform\b/gi, 'distribution network'], [/\bdigital\b/gi, 'electronic'],
+        [/\balgorithm\b/gi, 'calculation procedure'],
+        [/\bGPS[- ]guided\b/gi, 'survey-guided'], [/\bGPS\b/g, 'surveyor\'s data'],
+        [/\bcomputer\b/gi, 'IBM machine'], [/\binternet\b/gi, 'telephone network'], [/\bemail\b/gi, 'interoffice memo'],
+        [/\bphone is never really off\b/gi, 'the telephone keeps ringing at home'], [/\bsocial media\b/gi, 'newspaper and radio ads'],
+        [/\bwebsite\b/gi, 'sales catalog'], [/\bonline\b/gi, 'by mail order'],
+        [/\bcyber\w*\b/gi, 'communication'], [/\bblockchain\b/gi, 'certified ledger'], [/\bfintech\b/gi, 'modern banking methods'],
+        [/\bstartup\b/gi, 'new venture'], [/\bCRM\b/g, 'Rolodex'], [/\bdata breach\b/gi, 'security breach'],
+        [/\banalytics\b/gi, 'statistical analysis'], [/\bdatabase\b/gi, 'filing cabinet'],
+        [/\bTechnology Strategy\b/g, 'Equipment & Methods Strategy'], [/\bTech Adoption\b/g, 'New Equipment Adoption'], [/\bTechnical Debt Review\b/g, 'Equipment Maintenance Review'],
+        [/\btechnology stack\b/gi, 'equipment and processes'], [/\btechnical debt\b/gi, 'deferred maintenance'],
+        [/\btechnology\b/gi, 'equipment'], [/\btech\b/gi, 'equipment'],
+        [/\bcredit card\b/gi, 'Diners Club card'], [/\bindex fund\b/gi, 'diversified stock portfolio'],
+        [/\bmortgage-backed securities\b/gi, 'pooled mortgage bonds'],
+        [/\bNational Weather Service\b/gi, 'Weather Bureau'],
+        [/\bfreelancers?\b/gi, 'independent contractors'],
+      ]
+    };
+    return maps[eraId] || [];
   }
 
   _generate(persona, day, category, state) {
@@ -323,7 +507,31 @@ class ScenarioGenerator {
   // ============================================================
 
   _techEnablementScenario(persona, day, state) {
-    const techLabels = {
+    // Era-specific tech labels — what counts as "technology" depends on the era
+    const eraTechLabels = {
+      medieval: {
+        farmer: { domain: 'farming methods', ops: 'farm operations', examples: ['iron plowshare upgrade', 'ox-team rotation system', 'three-field crop rotation', 'water mill for grain'] },
+        banker: { domain: 'money handling methods', ops: 'lending operations', examples: ['double-entry bookkeeping', 'standardized coin scales', 'secure vault construction', 'correspondent letter system'] },
+        businessman: { domain: 'guild craft methods', ops: 'guild operations', examples: ['apprentice training program', 'quality hallmark system', 'trade fair network', 'guild record-keeping'] }
+      },
+      colonial: {
+        farmer: { domain: 'farming equipment', ops: 'plantation operations', examples: ['seed drill planter', 'horse-drawn cultivator', 'improved grain cradle', 'tobacco curing barn'] },
+        banker: { domain: 'banking methods', ops: 'banking operations', examples: ['standardized bills of exchange', 'colonial post network for collections', 'printed ledger forms', 'warehouse receipt system'] },
+        businessman: { domain: 'trading methods', ops: 'trading operations', examples: ['printed price catalogs', 'commission agent network', 'bonded warehouse system', 'regular shipping schedules'] }
+      },
+      industrial: {
+        farmer: { domain: 'farm machinery', ops: 'farm operations', examples: ['steam-powered thresher', 'mechanical reaper', 'railroad grain car shipping', 'grain elevator storage'] },
+        banker: { domain: 'banking systems', ops: 'banking operations', examples: ['telegraph-based wire transfers', 'printed bank note system', 'mechanical adding machines', 'standardized loan forms'] },
+        businessman: { domain: 'industrial methods', ops: 'business operations', examples: ['typewriter correspondence system', 'telegraph order network', 'railroad distribution network', 'mechanical accounting machines'] }
+      },
+      modern: {
+        farmer: { domain: 'farm equipment', ops: 'farm operations', examples: ['diesel tractor upgrade', 'center-pivot irrigation', 'crop dusting service', 'grain dryer system'] },
+        banker: { domain: 'banking equipment', ops: 'banking operations', examples: ['electronic bookkeeping machine', 'drive-through teller window', 'microfilm record system', 'adding machine upgrade'] },
+        businessman: { domain: 'office equipment', ops: 'business operations', examples: ['electric typewriter system', 'Xerox copying machine', 'Dictaphone recording', 'telex communication system'] }
+      }
+    };
+    const eraKey = this._currentEra || 'present';
+    const techLabels = (eraKey !== 'present' && eraTechLabels[eraKey]) ? eraTechLabels[eraKey] : {
       farmer: { domain: 'agricultural technology', ops: 'farm operations', examples: ['precision agriculture sensors', 'automated irrigation systems', 'drone crop monitoring', 'AI yield prediction'] },
       banker: { domain: 'financial technology', ops: 'banking operations', examples: ['automated underwriting', 'digital lending platform', 'AI fraud detection', 'mobile banking suite'] },
       businessman: { domain: 'business technology', ops: 'advisory operations', examples: ['CRM and pipeline automation', 'AI-powered market analysis', 'client portal platform', 'automated reporting suite'] }
@@ -441,7 +649,104 @@ class ScenarioGenerator {
   // ============================================================
 
   _investmentScenario(persona, day, state) {
-    const assetTypes = {
+    // Era-specific investment assets
+    const eraAssets = {
+      medieval: {
+        farmer: [
+          { name: 'Additional strips of arable land', type: 'real_estate', valueRange: [20000, 80000], risk: 20, returnRate: 7 },
+          { name: 'Stone granary construction', type: 'infrastructure', valueRange: [10000, 30000], risk: 15, returnRate: 8 },
+          { name: 'Iron plowshare and ox team', type: 'equipment', valueRange: [5000, 20000], risk: 10, returnRate: 6 },
+          { name: 'Water mill share', type: 'infrastructure', valueRange: [15000, 40000], risk: 25, returnRate: 12 },
+          { name: 'Sheep flock for wool trade', type: 'commodity', valueRange: [8000, 25000], risk: 35, returnRate: 15 }
+        ],
+        banker: [
+          { name: 'Market town property', type: 'real_estate', valueRange: [30000, 100000], risk: 20, returnRate: 6 },
+          { name: 'Crown loan participation', type: 'financial', valueRange: [20000, 80000], risk: 55, returnRate: 18 },
+          { name: 'Wool trade merchant share', type: 'equity', valueRange: [10000, 40000], risk: 40, returnRate: 14 },
+          { name: 'Secure vault expansion', type: 'infrastructure', valueRange: [15000, 50000], risk: 10, returnRate: 5 },
+          { name: 'Shipping venture stake', type: 'equity', valueRange: [20000, 60000], risk: 65, returnRate: 22 }
+        ],
+        businessman: [
+          { name: 'Guild hall expansion', type: 'real_estate', valueRange: [20000, 70000], risk: 15, returnRate: 6 },
+          { name: 'Trade fair booth rights', type: 'intangible', valueRange: [5000, 20000], risk: 30, returnRate: 14 },
+          { name: 'Apprentice training investment', type: 'intangible', valueRange: [3000, 12000], risk: 20, returnRate: 10 },
+          { name: 'Merchant caravan share', type: 'contractual', valueRange: [10000, 35000], risk: 50, returnRate: 20 },
+          { name: 'Exclusive craft charter', type: 'intangible', valueRange: [15000, 40000], risk: 25, returnRate: 12 }
+        ]
+      },
+      colonial: {
+        farmer: [
+          { name: 'Additional plantation acreage', type: 'real_estate', valueRange: [20000, 80000], risk: 25, returnRate: 8 },
+          { name: 'Tobacco curing barn', type: 'infrastructure', valueRange: [10000, 30000], risk: 15, returnRate: 9 },
+          { name: 'Horse team and plows', type: 'equipment', valueRange: [8000, 25000], risk: 10, returnRate: 5 },
+          { name: 'Indigo processing facility', type: 'infrastructure', valueRange: [15000, 45000], risk: 30, returnRate: 14 },
+          { name: 'Ship cargo share', type: 'financial', valueRange: [10000, 40000], risk: 60, returnRate: 22 }
+        ],
+        banker: [
+          { name: 'Waterfront warehouse property', type: 'real_estate', valueRange: [30000, 120000], risk: 25, returnRate: 7 },
+          { name: 'Colonial government bonds', type: 'financial', valueRange: [15000, 60000], risk: 15, returnRate: 5 },
+          { name: 'Shipping company share', type: 'equity', valueRange: [20000, 70000], risk: 55, returnRate: 18 },
+          { name: 'Counting house expansion', type: 'infrastructure', valueRange: [10000, 40000], risk: 10, returnRate: 6 },
+          { name: 'Privateer venture stake', type: 'equity', valueRange: [15000, 50000], risk: 75, returnRate: 30 }
+        ],
+        businessman: [
+          { name: 'Trading post establishment', type: 'real_estate', valueRange: [15000, 60000], risk: 30, returnRate: 10 },
+          { name: 'Rum distillery share', type: 'equity', valueRange: [10000, 40000], risk: 40, returnRate: 16 },
+          { name: 'Fur trade partnership', type: 'contractual', valueRange: [8000, 30000], risk: 45, returnRate: 18 },
+          { name: 'Ironworks investment', type: 'infrastructure', valueRange: [20000, 60000], risk: 35, returnRate: 12 },
+          { name: 'Import license acquisition', type: 'intangible', valueRange: [5000, 25000], risk: 20, returnRate: 8 }
+        ]
+      },
+      industrial: {
+        farmer: [
+          { name: 'Homestead quarter-section', type: 'real_estate', valueRange: [20000, 80000], risk: 20, returnRate: 7 },
+          { name: 'Grain elevator share', type: 'infrastructure', valueRange: [15000, 50000], risk: 25, returnRate: 10 },
+          { name: 'Steam thresher purchase', type: 'equipment', valueRange: [10000, 40000], risk: 15, returnRate: 8 },
+          { name: 'Railroad stock', type: 'financial', valueRange: [5000, 30000], risk: 60, returnRate: 18 },
+          { name: 'Cattle ranch expansion', type: 'real_estate', valueRange: [15000, 50000], risk: 35, returnRate: 12 }
+        ],
+        banker: [
+          { name: 'Downtown commercial block', type: 'real_estate', valueRange: [40000, 150000], risk: 30, returnRate: 7 },
+          { name: 'Government war bonds', type: 'financial', valueRange: [20000, 80000], risk: 10, returnRate: 4 },
+          { name: 'Railroad bond portfolio', type: 'financial', valueRange: [15000, 60000], risk: 55, returnRate: 15 },
+          { name: 'New branch office', type: 'infrastructure', valueRange: [25000, 70000], risk: 20, returnRate: 8 },
+          { name: 'Mining company stock', type: 'equity', valueRange: [10000, 50000], risk: 70, returnRate: 25 }
+        ],
+        businessman: [
+          { name: 'Factory building purchase', type: 'real_estate', valueRange: [25000, 100000], risk: 25, returnRate: 7 },
+          { name: 'Patent rights acquisition', type: 'intangible', valueRange: [5000, 30000], risk: 50, returnRate: 20 },
+          { name: 'Railroad partnership stake', type: 'equity', valueRange: [10000, 50000], risk: 55, returnRate: 16 },
+          { name: 'Steel company shares', type: 'equity', valueRange: [8000, 35000], risk: 60, returnRate: 18 },
+          { name: 'Lumber mill investment', type: 'infrastructure', valueRange: [15000, 45000], risk: 30, returnRate: 10 }
+        ]
+      },
+      modern: {
+        farmer: [
+          { name: 'Adjacent farmland', type: 'real_estate', valueRange: [20000, 80000], risk: 25, returnRate: 6 },
+          { name: 'Grain storage facility', type: 'infrastructure', valueRange: [15000, 40000], risk: 20, returnRate: 8 },
+          { name: 'Tractor fleet upgrade', type: 'equipment', valueRange: [10000, 50000], risk: 15, returnRate: 5 },
+          { name: 'Commodity exchange contracts', type: 'financial', valueRange: [5000, 30000], risk: 65, returnRate: 18 },
+          { name: 'Soil conservation program', type: 'intangible', valueRange: [5000, 15000], risk: 20, returnRate: 10 }
+        ],
+        banker: [
+          { name: 'Suburban office building', type: 'real_estate', valueRange: [50000, 200000], risk: 30, returnRate: 7 },
+          { name: 'Treasury bond allocation', type: 'financial', valueRange: [20000, 100000], risk: 10, returnRate: 4 },
+          { name: 'Defense contractor stock', type: 'equity', valueRange: [10000, 50000], risk: 45, returnRate: 14 },
+          { name: 'Drive-through branch construction', type: 'infrastructure', valueRange: [30000, 80000], risk: 20, returnRate: 9 },
+          { name: 'Pooled mortgage bonds', type: 'financial', valueRange: [25000, 75000], risk: 40, returnRate: 11 }
+        ],
+        businessman: [
+          { name: 'Suburban office building', type: 'real_estate', valueRange: [25000, 100000], risk: 20, returnRate: 6 },
+          { name: 'Television advertising campaign', type: 'intangible', valueRange: [5000, 30000], risk: 45, returnRate: 16 },
+          { name: 'Revenue-share partnership', type: 'contractual', valueRange: [10000, 30000], risk: 40, returnRate: 14 },
+          { name: 'Trade name and brand development', type: 'intangible', valueRange: [8000, 25000], risk: 35, returnRate: 10 },
+          { name: 'Blue chip stock portfolio', type: 'financial', valueRange: [10000, 60000], risk: 20, returnRate: 8 }
+        ]
+      }
+    };
+
+    const eraKey = this._currentEra || 'present';
+    const assetTypes = (eraKey !== 'present' && eraAssets[eraKey]) ? eraAssets[eraKey] : {
       farmer: [
         { name: 'Adjacent farmland', type: 'real_estate', valueRange: [20000, 80000], risk: 25, returnRate: 6 },
         { name: 'Grain storage facility', type: 'infrastructure', valueRange: [15000, 40000], risk: 20, returnRate: 8 },
@@ -1032,7 +1337,7 @@ class ScenarioGenerator {
   }
 
   _farmerMorning(day, state) {
-    const crop = this.pick(FARMER_POOLS.crops);
+    const crop = this.pick(this.eraCrops());
     const weather = this.pick(FARMER_POOLS.weatherConditions);
     const temp = this.randInt(28, 98);
     const acres = this.randInt(15, state.land * 8);
@@ -1055,7 +1360,7 @@ class ScenarioGenerator {
   _farmerInputs(day, state) {
     const input = this.pick(FARMER_POOLS.inputs);
     const supplier = this.pick(NAMES.supplierNames);
-    const crop = this.pick(FARMER_POOLS.crops);
+    const crop = this.pick(this.eraCrops());
     const spotPrice = this.randFloat(input.priceRange[0], input.priceRange[1], 2);
     const futurePrice = +(spotPrice * this.randFloat(0.95, 1.12, 2)).toFixed(2);
     const coopDiscount = this.randInt(8, 18);
@@ -1075,7 +1380,7 @@ class ScenarioGenerator {
   }
 
   _farmerCrops(day, state) {
-    const crop = this.pick(FARMER_POOLS.crops);
+    const crop = this.pick(this.eraCrops());
     const pest = this.pick(FARMER_POOLS.pests);
     const acres = this.randInt(15, 80);
     const severity = this.pick(['minor', 'moderate', 'significant', 'severe']);
@@ -1096,7 +1401,7 @@ class ScenarioGenerator {
 
   _farmerWeather(day, state) {
     const event = this.pick(FARMER_POOLS.weatherEvents);
-    const crop = this.pick(FARMER_POOLS.crops);
+    const crop = this.pick(this.eraCrops());
     const acres = this.randInt(20, 120);
     const damage = this.randMoney(3000, 25000, 500);
     const stage = this.pick(FARMER_POOLS.growthStages);
@@ -1114,7 +1419,7 @@ class ScenarioGenerator {
   }
 
   _farmerMarket(day, state) {
-    const crop = this.pick(FARMER_POOLS.crops);
+    const crop = this.pick(this.eraCrops());
     const bushels = this.randInt(2000, 15000);
     const spotPrice = this.randFloat(crop.priceRange[0], crop.priceRange[1], 2);
     const futuresPrice = +(spotPrice * this.randFloat(0.94, 1.08, 2)).toFixed(2);
@@ -1440,14 +1745,14 @@ class ScenarioGenerator {
     const people = this.pickN(NAMES.personNames, 4);
     const roles = this.pickN(BIZ_POOLS.roles, 4);
     const venue = this.pick(BIZ_POOLS.venues);
-    const sector = this.pick(BIZ_POOLS.sectors);
+    const sector = this.pick(this.eraSectors());
 
     return {
       title: `${event}: ${venue}`,
       description: `You're at a ${event.toLowerCase()} at ${venue}. The ${sector.toLowerCase()} sector is buzzing tonight. Several promising conversations are developing. You have time to build one deep connection.`,
       options: people.map((name, i) => ({
         label: `Connect with ${name}`,
-        detail: `${name} is a ${roles[i]} in ${this.pick(BIZ_POOLS.sectors).toLowerCase()}. ${this.pick(BIZ_POOLS.meetingInsights)} ${this.pick([`Potential advisory fee: ${this.dollar(this.randMoney(2000, 15000, 1000))}.`,`Could lead to ${this.pick(['equity position','referral pipeline','strategic partnership','board seat'])}.`,`Has ${this.randInt(2, 8)} contacts in ${this.pick(BIZ_POOLS.sectors).toLowerCase()} you'd want to meet.`])}`,
+        detail: `${name} is a ${roles[i]} in ${this.pick(this.eraSectors()).toLowerCase()}. ${this.pick(BIZ_POOLS.meetingInsights)} ${this.pick([`Potential advisory fee: ${this.dollar(this.randMoney(2000, 15000, 1000))}.`,`Could lead to ${this.pick(['equity position','referral pipeline','strategic partnership','board seat'])}.`,`Has ${this.randInt(2, 8)} contacts in ${this.pick(this.eraSectors()).toLowerCase()} you'd want to meet.`])}`,
         effect: { score: this.randInt(10, 18), knowledge: this.randInt(5, 12), money: this.randMoney(0, 3000, 500) }
       }))
     };
@@ -1475,7 +1780,7 @@ class ScenarioGenerator {
   _bizVenture(day, state) {
     const venture = this.pick(BIZ_POOLS.ventureTypes);
     const partner = this.pick(NAMES.personNames);
-    const sector = this.pick(BIZ_POOLS.sectors);
+    const sector = this.pick(this.eraSectors());
     const investment = this.randMoney(10000, 100000, 5000);
 
     return {
@@ -1494,7 +1799,7 @@ class ScenarioGenerator {
     const firm = this.pick(NAMES.firmNames);
     const size = this.pick(['boutique', 'mid-size', 'large', 'national']);
     const clients = this.randInt(20, 200);
-    const sector = this.pick(BIZ_POOLS.sectors);
+    const sector = this.pick(this.eraSectors());
 
     return {
       title: `Partnership Negotiation: ${firm}`,
@@ -1511,7 +1816,7 @@ class ScenarioGenerator {
   _bizClient(day, state) {
     const client = this.pick(NAMES.companyNames) + ' ' + this.pick(NAMES.companySuffixes);
     const revenue = this.randMoney(2000000, 50000000, 1000000);
-    const industry = this.pick(BIZ_POOLS.sectors);
+    const industry = this.pick(this.eraSectors());
     const challenge = this.pick(BIZ_POOLS.clientChallenges);
 
     return {
@@ -1619,7 +1924,7 @@ class ScenarioGenerator {
     const totalAcres = state.land ? state.land * this.randInt(3, 8) : this.randInt(80, 400);
     const season = this.pick(FARMER_POOLS.seasons);
     const weather = this.pick(['drought forecast', 'wet season expected', 'normal conditions', 'early frost risk', 'extended growing season']);
-    const crops = this.pickN(FARMER_POOLS.crops, 4);
+    const crops = this.pickN(this.eraCrops(), 4);
 
     return {
       title: `${season} Crop Allocation: ${totalAcres} Acres`,
